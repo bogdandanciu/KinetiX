@@ -1,0 +1,40 @@
+@kernel void nSpecies(@restrict int* n)
+{
+  for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    if(id == 0) { 
+      n[0] = n_species;
+      n[1] = n_active_species;
+    }
+  }
+}
+
+@kernel void mMolar(@restrict dfloat* n)
+{
+  for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    if(id == 0) {
+      for(int k = 0; k < n_species; ++k) 
+        n[k] = nekrk_molar_mass[k];
+    }
+  }
+}
+
+@kernel void speciesNamesLength(@restrict int* n)
+{
+  for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    if(id == 0) 
+      n[0] = species_names_length;
+  }
+}
+
+@kernel void speciesString(@restrict char* n)
+{
+  for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    if(id == 0) {
+      char *p = (char*) species_names; 
+      for(int k = 0; k < species_names_length; ++k) {
+        n[k] = *p;
+        p++;
+      }
+    }
+  }
+}

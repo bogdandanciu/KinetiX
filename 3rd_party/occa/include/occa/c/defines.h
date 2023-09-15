@@ -1,0 +1,9 @@
+#ifndef OCCA_C_DEFINES_HEADER
+#define OCCA_C_DEFINES_HEADER
+
+#include <occa/defines.hpp>
+
+#define OCCA_C_TYPE_MAGIC_HEADER     0x3030CE64
+#define OCCA_C_TYPE_UNDEFINED_HEADER 0x770C2D18
+
+#endif

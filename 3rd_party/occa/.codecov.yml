@@ -1,0 +1,39 @@
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+
+  status:
+    project:
+      default:
+        threshold: 0.1%
+    patch:
+      default:
+        threshold: 50%
+    changes: false
+
+ignore:
+  - examples
+  - tests
+  # Scripts
+  - scripts
+  - include/occa/scripts
+  # Auto-generated files
+  - include/occa/core/kernelOperators.hpp_codegen
+  - src/core/kernelOperators.cpp_codegen
+  - src/occa/internal/utils/runFunction.cpp_codegen
+  # Exception is not tracked properly
+  - src/utils/exception.cpp
+  # Modes that can't be tested with CI
+  - src/occa/internal/modes/cuda
+  - src/occa/internal/modes/hip
+  - src/occa/internal/modes/opencl
+  - src/occa/internal/modes/metal
+
+comment:
+  layout: 'reach, diff, files'
+  behavior: default
+  require_changes: false
+  require_base: no
+  require_head: yes
+  branches: null

@@ -1,0 +1,98 @@
+@kernel void productionRates(const int n_states,
+                             const int offsetT,
+                             const int offset,
+                             const int normalize,
+                             const int lumpInert,
+                             const double pressure_R,
+                             @restrict const dfloat* state,
+                             @restrict dfloat* rates,
+                             const double Tref,
+                             const double rcpRatesRefFactor,
+                             const double rcpHrrRefFactor,
+                             const double rcpRhoRef,
+                             const double rcpCpRef)
+{
+  for(int id = 0; id < n_states; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    const cfloat T = Tref * state[id];
+    const cfloat rcpT = 1 / T;
+    const cfloat logT = log(T);
+    const cfloat T2 = T * T;
+    const cfloat T3 = T * T * T;
+    const cfloat T4 = T * T * T * T;
+
+    cfloat wrk1[__NEKRK_NSPECIES__];
+
+    cfloat Mbar;
+    {
+      cfloat rcpMbar = 0;
+
+      if(lumpInert) {
+        cfloat sumYi = 0;
+        for(int k = 0; k < __NEKRK_NSPECIES__ - 1; k++) {
+          const cfloat Yi = __NEKRK_MAX((cfloat) 0, (cfloat) state[id + offsetT + k*offset]);
+          wrk1[k] = Yi * nekrk_rcp_molar_mass[k];
+          sumYi += Yi;
+          rcpMbar += wrk1[k];
+        }
+        wrk1[__NEKRK_NSPECIES__ - 1] = (1 - sumYi) * nekrk_rcp_molar_mass[__NEKRK_NSPECIES__ - 1];
+        rcpMbar += wrk1[__NEKRK_NSPECIES__ - 1];
+      } else  {
+        for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+          const cfloat Yi = __NEKRK_MAX((cfloat) 0, (cfloat) state[id + offsetT + k*offset]);
+          wrk1[k] = Yi * nekrk_rcp_molar_mass[k];
+          rcpMbar += wrk1[k];
+        }
+      }
+      Mbar = 1/rcpMbar; 
+    }
+
+    cfloat rhoCp;
+    {
+      cfloat wrk2[__NEKRK_NSPECIES__];
+      cfloat cp_R = 0;
+      if(normalize){
+        nekrk_molar_heat_capacity_R(logT,T,T2,T3,T4,rcpT,wrk2);
+        for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+          const cfloat Xi = wrk1[k] * Mbar;
+          cp_R += wrk2[k] * Xi; 
+        }
+      }
+      const cfloat rhoSI = pressure_R * rcpT * Mbar;
+      rhoCp = cp_R*p_R*rcpCpRef * rhoSI*rcpRhoRef;
+    }
+
+    {
+      cfloat wrk2[__NEKRK_NSPECIES__];
+      const cfloat rhoSI = pressure_R * rcpT * Mbar;
+      for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+        const cfloat Ci = wrk1[k] * rhoSI;
+        wrk1[k] = Ci; 
+        wrk2[k] = 0;
+      }
+      nekrk_species_rates(logT,T,T2,T3,T4,rcpT,wrk1,wrk2);
+
+      cfloat ratesFactor = rcpRatesRefFactor;
+      if(normalize) ratesFactor /= rhoSI * rcpRhoRef;
+
+      if(lumpInert) {
+        for(int k = 0; k < __NEKRK_NSPECIES__ - 1; k++) {
+          rates[id + offsetT + k*offset] = ratesFactor * nekrk_molar_mass[k] * wrk2[k];
+        }
+      } else {
+        for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+          rates[id + offsetT + k*offset] = ratesFactor * nekrk_molar_mass[k] * wrk2[k];
+        }
+     }
+
+      nekrk_enthalpy_RT(logT,T,T2,T3,T4,rcpT,wrk1);
+      cfloat sum_h_RT = 0;
+      for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+        sum_h_RT += wrk2[k] * wrk1[k];
+      }
+      cfloat ratesFactorEnergy = (p_R*T) * rcpHrrRefFactor;
+      if(normalize) ratesFactorEnergy /= rhoCp;
+      rates[id] = ratesFactorEnergy * sum_h_RT;
+    }
+
+  }
+}

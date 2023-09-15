@@ -1,0 +1,45 @@
+@kernel void refCp(@restrict dfloat* n)
+{
+  for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    if(id == 0) {
+        n[0] = nekrk_cpRef;
+    }
+  }
+}
+
+@kernel void refCv(@restrict dfloat* n)
+{
+  for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    if(id == 0) {
+        n[0] = nekrk_cvRef;
+    }
+  }
+}
+
+@kernel void refViscosity(@restrict dfloat* n)
+{
+  for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    if(id == 0) {
+        n[0] = nekrk_visRef;
+    }
+  }
+}
+
+@kernel void refConductivity(@restrict dfloat* n)
+{
+  for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    if(id == 0) {
+        n[0] = nekrk_conductRef;
+    }
+  }
+}
+
+@kernel void refRhoDiffCoeffs(@restrict dfloat* n)
+{
+  for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    if(id == 0) {
+      for(int k = 0; k < n_species; ++k) 
+        n[k] = nekrk_rhoDiRef[k];
+    }
+  }
+}

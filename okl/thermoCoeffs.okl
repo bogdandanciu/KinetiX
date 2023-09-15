@@ -1,0 +1,55 @@
+@kernel void thermoCoeffs(
+  const int n_states,
+  const int offsetT,
+  const int offset,
+  const double pressure_R,
+  @restrict const dfloat* state,
+  @restrict dfloat* rho,
+  @restrict dfloat* cp,
+  @restrict dfloat* rhoCp,
+  @restrict dfloat* rcp_mmw,
+  const double Tref,
+  const double rcpRhoRef,
+  const double rcpCpRef,
+  const double rcpMmwRef,
+  )
+{
+  for(int id = 0; id < n_states; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    cfloat mole_fractions[__NEKRK_NSPECIES__];     // mass fraction / molar mass
+    cfloat mean_rcp_molar_mass = 0;
+    for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+      mole_fractions[k] = nekrk_rcp_molar_mass[k] *
+                          __NEKRK_MAX((cfloat) 0, (cfloat) state[id + offsetT + k*offset]);
+      mean_rcp_molar_mass += mole_fractions[k];
+    }
+    const cfloat mean_molar_mass = 1 / mean_rcp_molar_mass;
+    for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+      mole_fractions[k] *= mean_molar_mass;
+    }
+
+    const cfloat T = Tref * state[id];
+    const cfloat rcpT = 1 / T;
+
+    const cfloat total_concentration = pressure_R * rcpT;
+    const cfloat rho_SI = total_concentration * mean_molar_mass;
+
+    const cfloat lnT = log(T);
+    const cfloat T2 = T * T;
+    const cfloat T3 = T * T * T;
+    const cfloat T4 = T * T * T * T;
+
+    rcp_mmw[id] = mean_molar_mass * rcpMmwRef;
+
+    rho[id] = rho_SI * rcpRhoRef;
+
+    cfloat cp_R[__NEKRK_NSPECIES__];
+    nekrk_molar_heat_capacity_R(lnT,T,T2,T3,T4,rcpT,cp_R);
+
+    cfloat mean_cp_R = 0;
+    for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+      cp[k * offset + id] = (cp_R[k] * p_R * nekrk_rcp_molar_mass[k]) * rcpCpRef;
+      mean_cp_R += cp_R[k] * mole_fractions[k];
+    }
+    rhoCp[id] =  rho_SI * rcpRhoRef * (mean_cp_R * p_R * mean_rcp_molar_mass) * rcpCpRef;
+  }
+}

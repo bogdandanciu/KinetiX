@@ -1,0 +1,38 @@
+@kernel void transport(
+  const int n_states,
+  const int offsetT,
+  const int offset,
+  const dfloat pressure,
+  @restrict const dfloat* state,
+  @restrict dfloat* thermal_conductivity,
+  @restrict dfloat* viscosity,
+  @restrict dfloat* rhoDi)
+{
+  for(int id = 0; id < n_states; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    const cfloat T = state[id];
+    const cfloat lnT = log(T);
+    const cfloat sqrT = sqrt(T);
+    const cfloat lnT2 = lnT * lnT;
+    const cfloat lnT3 = lnT * lnT * lnT;
+    const cfloat lnT4 = lnT * lnT * lnT * lnT;
+
+    cfloat wrk1[__NEKRK_NSPECIES__];
+
+    cfloat rcpMbar = 0;
+    { 
+      for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+        const cfloat Yi = __NEKRK_MAX((cfloat) 0, (cfloat) state[id + offsetT + k*offset]);
+        wrk1[k] = Yi * nekrk_rcp_molar_mass[k];
+        rcpMbar += wrk1[k];
+      }
+    }
+
+    nekrk_density_diffusivity(id, sqrT, lnT, lnT2, lnT3, lnT4,
+                              wrk1, rhoDi, offset);
+
+    thermal_conductivity[id] = p_invRePr * nekrk_conductivityNIVT(rcpMbar, lnT, lnT2,
+                                                               lnT3, lnT4, wrk1) * sqrT;
+
+    viscosity[id] = p_invRe * sqrT * nekrk_viscosityIVT(lnT, lnT2, lnT3, lnT4, wrk1);
+  }
+}
