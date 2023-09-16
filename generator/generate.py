@@ -104,14 +104,6 @@ def get_parser():
                         required=False,
                         action='store_true',
                         help='Unroll loops in the generated subroutines.')
-    parser.add_argument('--unroll-loops-transport',
-                        required=False,
-                        action='store_true',
-                        help='Unroll loops in the generated transport subroutines.')
-    parser.add_argument('--pragma-unroll-loops',
-                        required=False,
-                        action='store_true',
-                        help='Unroll loops in the generated transport subroutines.')
     parser.add_argument('--align-width',
                         required=False,
                         default=64,
@@ -120,23 +112,6 @@ def get_parser():
                         required=False,
                         default="CUDA",
                         help='Target platform and c++ version')
-    parser.add_argument('--loop-gibbsexp',
-                        required=False,
-                        action='store_true',
-                        help='Loop calculation of gibbs exponential in case '
-                             'the code is unrolled.')
-    parser.add_argument('--nonsymDij',
-                        required=False,
-                        action='store_true',
-                        help='Compute both the upper and lower part of the'
-                             'Dij matrix, although it is symmetric. It avoids'
-                             'expensive memory allocation in some cases.')
-    parser.add_argument('--fit-rcpdiffcoeffs',
-                        required=False,
-                        action='store_true',
-                        help='Compute the reciprocal of the diffusion '
-                             'coefficients to avoid expensive divisions '
-                             'in the diffusivity kernel.')
     parser.add_argument('--transport',
                         required=False,
                         default=True,
@@ -187,10 +162,9 @@ class Species:
     transport properties.
     """
 
-    def __init__(self, rcp_diffcoeffs, sp_names, molar_masses, thermodynamics,
+    def __init__(self, sp_names, molar_masses, thermodynamics,
                  well_depth, dipole_moment, diameter, rotational_relaxation,
                  degrees_of_freedom, polarizability, sp_len):
-        self.rcp_diffcoeffs = rcp_diffcoeffs
         self.species_names = sp_names
         self.molar_masses = molar_masses
         self.thermodynamics = thermodynamics
@@ -322,19 +296,13 @@ class Species:
         transport_polynomials.conductivity = [
             polynomial_regression(ln(T_rng / T0), [self._conductivity(a, T) / sqrt(T) for T in T_rng])
             for a in range(self._sp_len)]
-        if self.rcp_diffcoeffs:
-            # Evaluate the reciprocal polynomial to avoid expensive divisions during runtime evaluation
-            transport_polynomials.diffusivity = [
-                [polynomial_regression(ln(T_rng / T0), [((T * sqrt(T)) / self._diffusivity(a, b, T)) for T in T_rng])
-                 for b in range(self._sp_len)] for a in range(self._sp_len)]
-        else:
-            transport_polynomials.diffusivity = [
-                [polynomial_regression(ln(T_rng / T0), [(self._diffusivity(a, b, T)) / (T * sqrt(T)) for T in T_rng])
-                 for b in range(self._sp_len)] for a in range(self._sp_len)]
+        transport_polynomials.diffusivity = [
+            [polynomial_regression(ln(T_rng / T0), [(self._diffusivity(a, b, T)) / (T * sqrt(T)) for T in T_rng])
+             for b in range(self._sp_len)] for a in range(self._sp_len)]
         return transport_polynomials
 
 
-def get_species_from_model(species, rcp_diffcoeffs):
+def get_species_from_model(species):
     """
     Extract species information and attributes from the mechanism model.
     """
@@ -367,7 +335,7 @@ def get_species_from_model(species, rcp_diffcoeffs):
     polarizability = p(lambda s: s['transport'].get('polarizability', 0) * 1e-30)  # Å³
     rotational_relaxation = p(lambda s: float(s['transport'].get('rotational-relaxation', 0)))
 
-    species = Species(rcp_diffcoeffs, sp_names, molar_masses, thermodynamics,
+    species = Species(sp_names, molar_masses, thermodynamics,
                       well_depth, dipole_moment, diameter, rotational_relaxation,
                       degrees_of_freedom, polarizability, sp_len)
     return species
@@ -488,114 +456,6 @@ def get_reaction_from_model(sp_names, units, r):
     return reaction
 
 
-def get_ref_transport_quantities(rcp_diffcoeffs, transport_polynomials, sp_len, Mi, M_bar, T_ref, Xi_ref):
-    """
-    Calculate and return reference transport quantities.
-    """
-
-    # Nondimensionalize transport polynomials with unit
-    # conductivity, viscosity and diffusivity to compute the reference
-    vis_polynomials = [[(sqrt(sqrt(T_ref) / 1.)) * p for p in P] for P in
-                       transport_polynomials.viscosity]
-    cond_polynomials = [[(sqrt(T_ref) / 1.) * p for p in P] for P in
-                        transport_polynomials.conductivity]
-    if rcp_diffcoeffs:
-        diff_polynomials = [[[(const.R / sqrt(T_ref)) * p for p in P] for P in row] for k, row
-                            in enumerate(transport_polynomials.diffusivity)]
-    else:
-        diff_polynomials = [[[(sqrt(T_ref) / const.R) * p for p in P] for P in row] for k, row
-                            in enumerate(transport_polynomials.diffusivity)]
-    # Nondimensionalize temperature
-    T = T_ref / T_ref
-    lnT = ln(T)
-    lnT2 = lnT * lnT
-    lnT3 = lnT * lnT * lnT
-    lnT4 = lnT * lnT * lnT * lnT
-
-    ref_trans_quantities = []
-    # Reference viscosity
-    a0, a1, a2, a3, a4 = [], [], [], [], []
-    for vis_coeff in vis_polynomials:
-        a0.append(vis_coeff[0])
-        a1.append(vis_coeff[1])
-        a2.append(vis_coeff[2])
-        a3.append(vis_coeff[3])
-        a4.append(vis_coeff[4])
-    C1 = zeros((sp_len, sp_len))
-    C2 = zeros((sp_len, sp_len))
-    for k in range(sp_len):
-        for j in range(sp_len):
-            c1 = 1 / sqrt(sqrt(8 * (1. + Mi[k] / Mi[j])))
-            c2 = c1 * sqrt(sqrt((Mi[j] / Mi[k])))
-            C1[k][j] = c1
-            C2[k][j] = c2
-    mue = zeros(sp_len)
-    rcp_mue = zeros(sp_len)
-    for k in range(sp_len):
-        mue[k] = a0[k] + a1[k] * lnT + a2[k] * lnT2 + a3[k] * lnT3 + a4[k] * lnT4
-        rcp_mue[k] = 1. / mue[k]
-    sums = zeros(sp_len)
-    for k in range(sp_len):
-        sums[k] = 0.
-        for j in range(sp_len):
-            sqrt_Phi_kj = C1[k][j] + C2[k][j] * mue[k] * rcp_mue[j]
-            sums[k] += Xi_ref[j] * sqrt_Phi_kj * sqrt_Phi_kj
-    visRef = 0.
-    for k in range(sp_len):
-        visRef += Xi_ref[k] * mue[k] * mue[k] / sums[k]
-    visRef = visRef * sqrt(T)  # multiply back with the normalized square root of temperature
-    ref_trans_quantities.append(visRef)
-
-    # Reference conductivity
-    b0, b1, b2, b3, b4 = [], [], [], [], []
-    for cond_coeff in cond_polynomials:
-        b0.append(cond_coeff[0])
-        b1.append(cond_coeff[1])
-        b2.append(cond_coeff[2])
-        b3.append(cond_coeff[3])
-        b4.append(cond_coeff[4])
-    sum1 = 0.
-    sum2 = 0.
-    for k in range(sp_len):
-        lambda_k = b0[k] + b1[k] * lnT + b2[k] * lnT2 + b3[k] * lnT3 + b4[k] * lnT4
-        sum1 += Xi_ref[k] * lambda_k
-        sum2 += Xi_ref[k] / lambda_k
-    conductRef = 0.5 * (sum1 + 1 / sum2)
-    conductRef = conductRef * sqrt(T)  # multiply back with the normalized square root of temperature
-    ref_trans_quantities.append(conductRef)
-
-    # Reference diffusivity
-    d0, d1, d2, d3, d4 = [], [], [], [], []
-    for k in range(1, len(diff_polynomials)):
-        for j in range(k):
-            d0.append(diff_polynomials[k][j][0])
-            d1.append(diff_polynomials[k][j][1])
-            d2.append(diff_polynomials[k][j][2])
-            d3.append(diff_polynomials[k][j][3])
-            d4.append(diff_polynomials[k][j][4])
-    sums1 = zeros(sp_len)
-    sums2 = zeros(sp_len)
-    for k in range(1, len(diff_polynomials)):
-        for j in range(k):
-            idx = int(k * (k - 1) / 2 + j)
-            if rcp_diffcoeffs:
-                rcp_Dkj = d0[idx] + d1[idx] * lnT + d2[idx] * lnT2 + d3[idx] * lnT3 + d4[idx] * lnT4
-            else:
-                rcp_Dkj = 1/(d0[idx] + d1[idx] * lnT + d2[idx] * lnT2 + d3[idx] * lnT3 + d4[idx] * lnT4)
-            sums1[k] += Xi_ref[j] * rcp_Dkj
-            sums2[j] += Xi_ref[k] * rcp_Dkj
-    sums = zeros(sp_len)
-    for k in range(sp_len):
-        sums[k] = sums1[k] + sums2[k]
-    diRef = zeros(sp_len)
-    for k in range(sp_len):
-        Yi = Xi_ref[k] * Mi[k] / M_bar
-        diRef[k] = (1 - Yi) / sums[k]
-    rhoDiRef = diRef * sqrt(T) * M_bar
-    ref_trans_quantities.append(rhoDiRef)
-    return ref_trans_quantities
-
-
 def write_thermo_piece(out, sp_indices, sp_thermo, expression, p):
     """
     Write a thermodynamic piece expression.
@@ -639,7 +499,7 @@ def compute_k_rev_unroll(r):
     return k_rev
 
 
-def write_reaction(idx, r, loop_gibbsexp):
+def write_reaction(idx, r):
     """
     Write reaction for the unrolled code.
     """
@@ -719,12 +579,9 @@ def write_reaction(idx, r, loop_gibbsexp):
         lines.append(f"{si}cR = k * Rf;")
     else:
         pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
-        if loop_gibbsexp:
-            lines.append(f"{si}k_rev ={compute_k_rev_unroll(r)};")
-        else:
-            lines.append(f"{si}k_rev = __NEKRK_EXP_OVERFLOW__("
-                         f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
-                         f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};")
+        lines.append(f"{si}k_rev = __NEKRK_EXP_OVERFLOW__("
+                     f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
+                     f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};")
         lines.append(f"{si}Rr = k_rev * {phase_space(r.products)};")
         lines.append(f"{si}cR = k * (Rf - Rr);")
     lines.append(f"#ifdef DEBUG")
@@ -808,7 +665,7 @@ def get_energy_coefficients(sp_thermo, sp_len):
     return a0, a1, a2, a3, a4, a5, a6, ids_thermo_new, len_unique_temp_splits, unique_temp_split
 
 
-def get_thermo_prop(thermo_prop, unique_temp_split, len_unique_temp_splits, pragma_unroll):
+def get_thermo_prop(thermo_prop, unique_temp_split, len_unique_temp_splits):
     """
     Compute the polynomial evaluation of a specific thermodynamic property.
     """
@@ -823,8 +680,6 @@ def get_thermo_prop(thermo_prop, unique_temp_split, len_unique_temp_splits, prag
         else:
             lines.append(
                 f"{si}offset = {2 * sum_of_list(len_unique_temp_splits[:i])} + (T>{unique_temp_split[i]});")
-        if pragma_unroll:
-            lines.append(f'#pragma unroll {len_unique_temp_splits[i]}')
         lines.append(f"{si}for(unsigned int i=0; i<{len_unique_temp_splits[i]}; ++i)")
         lines.append(f"{si}{{")
         lines.append(f"{di}i_off = i + offset;")
@@ -841,7 +696,7 @@ def get_thermo_prop(thermo_prop, unique_temp_split, len_unique_temp_splits, prag
     return f"{code(lines)}"
 
 
-def reorder_thermo_prop(thermo_prop, unique_temp_split, ids_thermo_prop_new, sp_len, pragma_unroll):
+def reorder_thermo_prop(thermo_prop, unique_temp_split, ids_thermo_prop_new, sp_len):
     """
     Reorder thermodynamic property data according to new indices.
     """
@@ -849,8 +704,6 @@ def reorder_thermo_prop(thermo_prop, unique_temp_split, ids_thermo_prop_new, sp_
     if len(unique_temp_split) > 1:
         lines.append(f"{si}//Reorder thermodynamic properties")
         lines.append(f"{si}cfloat tmp[{sp_len}];")
-        if pragma_unroll:
-            lines.append(f"#pragma unroll {sp_len}")
         lines.append(f"{si}for(unsigned i=0; i<{sp_len}; ++i)")
         if thermo_prop == 'cp_R':
             lines.append(f"{di}tmp[i] = cp_R[i];")
@@ -915,7 +768,7 @@ def write_file_ref(file_name, output_dir, transport,
     return 0
 
 
-def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, reactions, active_len, sp_len, sp_thermo):
+def write_file_rates_unroll(file_name, output_dir, reactions, active_len, sp_len, sp_thermo):
     """
     Write the 'rates.inc'('frates.inc') file with unrolled loop specification.
     Loops are expanded by replicating their body multiple times, reducing the
@@ -935,13 +788,6 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, reactions, act
                             f"{f(-a[1] / 2)} * T + {f((1. / 3. - 1. / 2.) * a[2])} * T2 + "
                             f"{f((1. / 4. - 1. / 3.) * a[3])} * T3 + {f((1. / 5. - 1. / 4.) * a[4])} * T4")
     lines.append(f'{write_energy(f"{di}gibbs0_RT[", active_len, expression, sp_thermo)}')
-    if loop_gibbsexp:
-        lines.append(f"{si}cfloat rcp_gibbs0_RT[{active_len}];")
-        lines.append(f"{si}for(unsigned int i=0; i<{active_len}; ++i)")
-        lines.append(f"{si}{{")
-        lines.append(f"{di}gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);")
-        lines.append(f"{di}rcp_gibbs0_RT[i] = 1./gibbs0_RT[i];")
-        lines.append(f"{si}}}")
     lines.append(f"")
     lines.append(f'{si}cfloat Cm = {"+".join([f"Ci[{specie}]" for specie in range(sp_len)])};')
     lines.append(f"{si}cfloat C0 = {f(const.one_atm / const.R)} * rcpT;")
@@ -951,7 +797,7 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, reactions, act
     lines.append(f"{si}cfloat logPr, F, troe, troe_c, troe_n;")
     lines.append(f"")
     for idx, r in enumerate(reactions):
-        lines.append(f"{write_reaction(idx, r, loop_gibbsexp)}")
+        lines.append(f"{write_reaction(idx, r)}")
     lines.append(f"}}")
 
     write_module(output_dir, file_name, f'{code(lines)}')
@@ -1058,42 +904,7 @@ def write_file_viscosity_unroll(file_name, output_dir, transport_polynomials, sp
     return 0
 
 
-def write_file_diffusivity_nonsym_unroll(file_name, output_dir, rcp_diffcoeffs,
-                                         transport_polynomials, sp_names, sp_len, Mi):
-    """
-    Write the 'fdiffusivity.inc' file with unrolled loop specification
-    and  computation of the full Dij matrix (non-symmetrical matrix assumption).
-    """
-
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
-                 f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
-                 f"cfloat nXi[], dfloat* out, unsigned int stride) ")
-    lines.append(f"{{")
-    for k in range(sp_len):
-        lines.append(f"{si}//{sp_names[k]}")
-        lines.append(f"{si}out[{k}*stride+id] = scale * (1.0f - nekrk_molar_mass[{k}] * nXi[{k}]) / (")
-        if rcp_diffcoeffs:
-            lines.append(
-                f"""{('+' + new_line).join(
-                    f"{di}nXi[{j}] * "
-                    f"({evaluate_polynomial(transport_polynomials.diffusivity[k if k > j else j][j if k > j else k])})"
-                    for j in list(range(k)) + list(range(k + 1, sp_len)))});""")
-        else:
-            lines.append(
-                f"""{('+' + new_line).join(
-                    f"{di}nXi[{j}] * "
-                    f"(1/"
-                    f"({evaluate_polynomial(transport_polynomials.diffusivity[k if k > j else j][j if k > j else k])}))"
-                    for j in list(range(k)) + list(range(k + 1, sp_len)))});""")
-        lines.append(f"")
-    lines.append(f"}}")
-
-    write_module(output_dir, file_name, f'{code(lines)}')
-    return 0
-
-
-def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transport_polynomials, sp_len, Mi):
+def write_file_diffusivity_unroll(file_name, output_dir, transport_polynomials, sp_len, Mi):
     """
     Write the 'fdiffusivity.inc' file with unrolled loop specification.
     """
@@ -1112,12 +923,8 @@ def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transpo
     lines.append(f"{{")
     for k in range(sp_len):
         for j in range(k):
-            if rcp_diffcoeffs:
-                lines.append(
-                    f"{si}cfloat R{k}_{j} = {evaluate_polynomial(transport_polynomials.diffusivity[k][j])};")
-            else:
-                lines.append(
-                    f"{si}cfloat R{k}_{j} = 1/({evaluate_polynomial(transport_polynomials.diffusivity[k][j])});")
+            lines.append(
+                f"{si}cfloat R{k}_{j} = 1/({evaluate_polynomial(transport_polynomials.diffusivity[k][j])});")
             lines.append(f"{si}cfloat S{k}_{j} = {mut(f'{S[k]}+' if S[k] else '', k, f'S{k}_{j}')}nXi[{j}]*R{k}_{j};")
             lines.append(f"{si}cfloat S{j}_{k} = {mut(f'{S[j]}+' if S[j] else '', j, f'S{j}_{k}')}nXi[{k}]*R{k}_{j};")
     for k in range(sp_len):
@@ -1127,7 +934,7 @@ def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transpo
     return 0
 
 
-def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unroll, sp_thermo, sp_len, rxn, rxn_len):
+def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo, sp_len, rxn, rxn_len):
     """
     Write the 'rates.inc'('frates.inc') file with rolled loop specification.
     The reaction mechanism is reordered and restructured to allow for more
@@ -1265,8 +1072,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
         lines = []
         if len(ids_E0B0) > 0:
             lines.append(f'{si}// {len(ids_E0B0)} rate constants with E_R = 0 and beta = 0 ')
-            if pragma_unroll:
-                lines.append(f'#pragma unroll {len(ids_E0B0)}')
             lines.append(f'{si}for(unsigned int i=0; i<{len(ids_E0B0)}; ++i)')
             lines.append(f'{si}{{')
             lines.append(f'{di}k[i+{len(ids_EB)}] = A[i+{len(ids_EB)}];')
@@ -1275,8 +1080,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
             start_ids_E0Bneg2 = len(ids_EB) + len(ids_E0B0)
             lines.append(f'{si}// {len(ids_E0Bneg2)} rate constants with E_R = 0 and beta = -2 ')
             lines.append(f'{si}cfloat rcpT_2 = rcpT*rcpT;')
-            if pragma_unroll:
-                lines.append(f'#pragma unroll {len(ids_E0Bneg2)}')
             lines.append(f'{si}for(unsigned int i=0; i<{len(ids_E0Bneg2)}; ++i)')
             lines.append(f'{si}{{')
             lines.append(f'{di}k[i+{start_ids_E0Bneg2}] = A[i+{start_ids_E0Bneg2}]*rcpT_2;')
@@ -1284,8 +1087,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
         if len(ids_E0Bneg1) > 0:
             start_ids_E0Bneg1 = len(ids_EB) + len(ids_E0B0) + len(ids_E0Bneg2)
             lines.append(f'{si}// {len(ids_E0Bneg1)} rate constants with E_R = 0 and beta = -1 ')
-            if pragma_unroll:
-                lines.append(f'#pragma unroll {len(ids_E0Bneg1)}')
             lines.append(f'{si}for(unsigned int i=0; i<{len(ids_E0Bneg1)}; ++i)')
             lines.append(f'{si}{{')
             lines.append(f'{di}k[i+{start_ids_E0Bneg1}] = A[i+{start_ids_E0Bneg1}]*rcpT;')
@@ -1293,8 +1094,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
         if len(ids_E0B1) > 0:
             start_ids_E0B1 = len(ids_EB) + len(ids_E0B0) + len(ids_E0Bneg2) + len(ids_E0Bneg1)
             lines.append(f'{si}// {len(ids_E0B1)} rate constants with E_R = 0 and beta = 1 ')
-            if pragma_unroll:
-                lines.append(f'#pragma unroll {len(ids_E0B1)}')
             lines.append(f'{si}for(unsigned int i=0; i<{len(ids_E0B1)}; ++i)')
             lines.append(f'{si}{{')
             lines.append(f'{di}k[i+{start_ids_E0B1}] = A[i+{start_ids_E0B1}]*T;')
@@ -1303,8 +1102,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
             start_ids_E0B2 = len(ids_EB) + len(ids_E0B0) + len(ids_E0Bneg2) + len(ids_E0Bneg1) + len(ids_E0B1)
             lines.append(f'{si}// {len(ids_E0B2)} rate constants with E_R = 0 and beta = 2 ')
             lines.append(f'{si}cfloat T_2 = T*T;')
-            if pragma_unroll:
-                lines.append(f'#pragma unroll {len(ids_E0B1)}')
             lines.append(f'{si}for(unsigned int i=0; i<{len(ids_E0B1)}; ++i)')
             lines.append(f'{si}{{')
             lines.append(f'{di}k[i+{start_ids_E0B2}] = A[i+{start_ids_E0B2}]*T_2;')
@@ -1314,8 +1111,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
             lines.append(
                 f'{si}// {len(ids_ErBr)} rate constants with E_R and '
                 f'beta the same as for other rate constants which have already been computed ')
-            if pragma_unroll:
-                lines.append(f'#pragma unroll {len(unique_pos_ids_ErBr)}')
             lines.append(f'{si}for(unsigned int i=0; i<{len(unique_pos_ids_ErBr)}; ++i)')
             lines.append(f'{si}{{')
             lines.append(
@@ -1449,16 +1244,12 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
             troe_correction.append(
                 f"{si}{f'alignas({align_width}) cfloat' if target.__eq__('c++17') else 'cfloat'} "
                 f"logFcent[{len(ids_troe_rxn)}];")
-            if pragma_unroll:
-                troe_correction.append(f'#pragma unroll {len(ids_troe_rxn)}')
             troe_correction.append(f"{si}for(unsigned int i = 0; i<{len(ids_troe_rxn)}; ++i)")
             troe_correction.append(f"{si}{{")
             troe_correction.append(
                 f"{di}logFcent[i] = __NEKRK_LOG10__(({f(1.)} - troe_A[i])*exp(-T*rcp_troe_T3[i]) + "
                 f"troe_A[i]*exp(-T*rcp_troe_T1[i]){f'+ exp(-troe_T2[i]*rcpT)' if troe_T2[0] < float('inf') else ''});")
             troe_correction.append(f"{si}}}")
-            if pragma_unroll:
-                troe_correction.append(f'#pragma unroll {len(ids_troe_rxn)}')
             troe_correction.append(f"{si}for(unsigned int i = 0; i<{len(ids_troe_rxn)}; ++i)")
             troe_correction.append(f"{si}{{")
             troe_correction.append(
@@ -1506,8 +1297,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
             else:
                 lines.append(
                     f"{si}offset = {2 * sum_of_list(len_unique_temp_splits[:i])} + (T>{unique_temp_split[i]});")
-            if pragma_unroll:
-                lines.append(f"#pragma unroll {len_unique_temp_splits[i]}")
             lines.append(f"{si}for(unsigned int i=0; i<{len_unique_temp_splits[i]}; ++i)")
             lines.append(f"{si}{{")
             lines.append(f"{di}i_off = i + offset;")
@@ -1604,8 +1393,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
     lines.append(f"{si}{f'alignas({align_width}) cfloat' if target.__eq__('c++17') else 'cfloat'} "
                  f"k[{len(ids_new)}];")
     lines.append(f"{si}// Compute the {len(ids_EB)} rate constants for which an evaluation is necessary")
-    if pragma_unroll:
-        lines.append(f'#pragma unroll {len(ids_EB)}')
     lines.append(f"{si}for(unsigned int i=0; i<{len(ids_EB)}; ++i)")
     lines.append(f"{si}{{")
     lines.append(f"{di}cfloat blogT = beta[i]*lnT;")
@@ -1617,8 +1404,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
     lines.append(f"")
     lines.append(f"{si}// Correct rate constants based on reaction type")
     lines.append(f"{si}cfloat Cm = 0;")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
     lines.append(f"{si}for(unsigned int i=0; i<{sp_len}; ++i)")
     lines.append(f"{di}Cm += Ci[i];")
     lines.append(f"")
@@ -1637,8 +1422,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
     lines.append(f"")
     lines.append(f"{gibbs_energy()}")
     lines.append(f"{si}// Group the gibbs exponentials")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
     lines.append(f"{si}for(unsigned int i=0; i<{sp_len}; ++i)")
     lines.append(f"{di}gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);")
     lines.append(f"")
@@ -1648,8 +1431,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
                  f"{str(ids_rcp_gibbs_reordered).replace('[', '{').replace(']', '}')};")
     lines.append(f"{si}{f'alignas({align_width}) cfloat' if target.__eq__('c++17') else 'cfloat'} "
                  f"rcp_gibbs0_RT[{len(ids_rcp_gibbs_reordered)}];")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {len(ids_rcp_gibbs_reordered)}")
     lines.append(f"{si}for(unsigned int i=0; i<{len(ids_rcp_gibbs_reordered)}; ++i)")
     lines.append(f"{di}rcp_gibbs0_RT[i] = {f(1.)}/gibbs0_RT[ids_rcp_gibbs[i]];")
     lines.append(f"")
@@ -1669,7 +1450,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, pragma_unr
     return 0
 
 
-def write_file_enthalpy_roll(file_name, output_dir, align_width, target, pragma_unroll, sp_thermo, sp_len):
+def write_file_enthalpy_roll(file_name, output_dir, align_width, target, sp_thermo, sp_len):
     """
     Write the 'fenthalpy_RT.inc' file with rolled loop specification.
     """
@@ -1685,15 +1466,15 @@ def write_file_enthalpy_roll(file_name, output_dir, align_width, target, pragma_
     lines.append(f"{{")
     lines.append(f"{si}//Integration coefficients")
     lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    lines.append(f"{get_thermo_prop('h_RT', unique_temp_split, len_unique_temp_splits, pragma_unroll)}")
-    lines.append(f"{reorder_thermo_prop('h_RT', unique_temp_split, ids_thermo_new, sp_len, pragma_unroll)}")
+    lines.append(f"{get_thermo_prop('h_RT', unique_temp_split, len_unique_temp_splits)}")
+    lines.append(f"{reorder_thermo_prop('h_RT', unique_temp_split, ids_thermo_new, sp_len)}")
     lines.append(f"}}")
 
     write_module(output_dir, file_name, f'{code(lines)}')
     return 0
 
 
-def write_file_heat_capacity_roll(file_name, output_dir, align_width, target, pragma_unroll, sp_thermo, sp_len):
+def write_file_heat_capacity_roll(file_name, output_dir, align_width, target, sp_thermo, sp_len):
     """
     Write the 'fheat_capacity_R.inc' file with rolled loop specification.
     """
@@ -1710,16 +1491,15 @@ def write_file_heat_capacity_roll(file_name, output_dir, align_width, target, pr
     lines.append(f"{{")
     lines.append(f"{si}//Integration coefficients")
     lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    lines.append(f"{get_thermo_prop('cp_R', unique_temp_split, len_unique_temp_splits, pragma_unroll)}")
-    lines.append(f"{reorder_thermo_prop('cp_R', unique_temp_split, ids_thermo_new, sp_len, pragma_unroll)}")
+    lines.append(f"{get_thermo_prop('cp_R', unique_temp_split, len_unique_temp_splits)}")
+    lines.append(f"{reorder_thermo_prop('cp_R', unique_temp_split, ids_thermo_new, sp_len)}")
     lines.append(f"}}")
 
     write_module(output_dir, file_name, f'{code(lines)}')
     return 0
 
 
-def write_file_conductivity_roll(file_name, output_dir, align_width, target, pragma_unroll,
-                                 transport_polynomials, sp_len):
+def write_file_conductivity_roll(file_name, output_dir, align_width, target, transport_polynomials, sp_len):
     """
     Write the 'fconductivity.inc' file with rolled loop specification.
     """
@@ -1740,8 +1520,6 @@ def write_file_conductivity_roll(file_name, output_dir, align_width, target, pra
     lines.append(f"{{")
     lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
     lines.append(f"{si}cfloat lambda_k, sum1=0., sum2=0.;")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
     lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
     lines.append(f"{si}{{")
     lines.append(f"{di}lambda_k = b0[k] + b1[k]*lnT + b2[k]*lnT2 + b3[k]*lnT3 + b4[k]*lnT4;")
@@ -1757,8 +1535,7 @@ def write_file_conductivity_roll(file_name, output_dir, align_width, target, pra
     return 0
 
 
-def write_file_viscosity_roll(file_name, output_dir, align_width, target, pragma_unroll,
-                              transport_polynomials, sp_len, Mi):
+def write_file_viscosity_roll(file_name, output_dir, align_width, target, transport_polynomials, sp_len, Mi):
     """
     Write the 'fviscosity.inc' file with rolled loop specification.
     """
@@ -1789,8 +1566,6 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, pragma
     lines.append(f"{write_const_expression(align_width, target, True, var1_str, var1)}")
     lines.append(f"{si}{f'alignas({align_width}) cfloat' if target.__eq__('c++17') else 'cfloat'} mue[{sp_len}];")
     lines.append(f"{si}{f'alignas({align_width}) cfloat' if target.__eq__('c++17') else 'cfloat'} rcp_mue[{sp_len}];")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
     lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
     lines.append(f"{si}{{")
     lines.append(f"{di}mue[k] = a0[k] + a1[k]*lnT + a2[k]*lnT2 + a3[k]*lnT3 + a4[k]*lnT4;")
@@ -1800,12 +1575,8 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, pragma
     lines.append(f"{write_const_expression(align_width, target, True, var2_str, var2)}")
     lines.append(f"{si}{f'alignas({align_width}) cfloat' if target.__eq__('c++17') else 'cfloat'} "
                  f"sums[{sp_len}]={{0.}};")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
     lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
     lines.append(f"{si}{{")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
     lines.append(f"{di}for(unsigned int j=0; j<{sp_len}; j++)")
     lines.append(f"{di}{{")
     lines.append(f"{ti}unsigned int idx = {sp_len}*k+j;")
@@ -1815,8 +1586,6 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, pragma
     lines.append(f"{si}}}")
     lines.append(f"")
     lines.append(f"{si}cfloat vis = 0.;")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
     lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
     lines.append(f"{si}{{")
     lines.append(f"{di}vis += nXi[k]*mue[k]*mue[k]/sums[k];")
@@ -1829,69 +1598,7 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, pragma
     return 0
 
 
-def write_file_diffusivity_nonsym_roll(file_name, output_dir, align_width, target, pragma_unroll, rcp_diffcoeffs,
-                                       transport_polynomials, sp_len, Mi):
-    """
-    Write the 'fdiffusivity.inc ' file with rolled loop specification
-    and  computation of the full Dij matrix (non-symmetrical matrix assumption).
-    """
-
-    d0, d1, d2, d3, d4 = [], [], [], [], []
-    for k in range(len(transport_polynomials.diffusivity)):
-        for j in range(len(transport_polynomials.diffusivity)):
-            d0.append(transport_polynomials.diffusivity[k][j][0])
-            d1.append(transport_polynomials.diffusivity[k][j][1])
-            d2.append(transport_polynomials.diffusivity[k][j][2])
-            d3.append(transport_polynomials.diffusivity[k][j][3])
-            d4.append(transport_polynomials.diffusivity[k][j][4])
-    var_str = ['d0', 'd1', 'd2', 'd3', 'd4']
-    var = [d0, d1, d2, d3, d4]
-
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
-                 f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
-                 f"cfloat nXi[], dfloat* out, unsigned int stride) ")
-    lines.append(f"{{")
-    lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target.__eq__('c++17') else 'cfloat'} "
-                 f"sums[{sp_len}]={{0.}};")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
-    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
-    lines.append(f"{si}{{")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
-    lines.append(f"{di}for(unsigned int j=0; j<{sp_len}; j++)")
-    lines.append(f"{di}{{")
-    lines.append(f"{ti}if (k != j) {{")
-    lines.append(f"{qi}unsigned int idx = k*{sp_len}+j;")
-    if rcp_diffcoeffs:
-        lines.append(f"{qi}cfloat rcp_Dkj = d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4;")
-    else:
-        lines.append(f"{qi}cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);")
-    lines.append(f"{qi}sums[k] += nXi[j]*rcp_Dkj;")
-    lines.append(f"{ti}}}")
-    lines.append(f"{di}}}")
-    lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"{write_const_expression(align_width, target, True, 'Wi', Mi)}")
-    lines.append(f"")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
-    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
-    lines.append(f"{si}{{")
-    lines.append(f"{di}unsigned int idx = k*stride+id;")
-    lines.append(f"{di}out[idx] = scale * (1.0f - Wi[k]*nXi[k])/sums[k];")
-    lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"}}")
-
-    write_module(output_dir, file_name, f'{code(lines)}')
-    return 0
-
-
-def write_file_diffusivity_roll(file_name, output_dir, align_width, target, pragma_unroll, rcp_diffcoeffs,
-                                transport_polynomials, sp_len, Mi):
+def write_file_diffusivity_roll(file_name, output_dir, align_width, target, transport_polynomials, sp_len, Mi):
     """
     Write the 'fdiffusivity.inc' file with rolled loop specification.
     """
@@ -1917,27 +1624,18 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, prag
                  f"sums1[{sp_len}]={{0.}};")
     lines.append(f"{si}{f'alignas({align_width}) cfloat' if target.__eq__('c++17') else 'cfloat'} "
                  f"sums2[{sp_len}]={{0.}};")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
     lines.append(f"{si}for(unsigned int k=1; k<{sp_len}; k++)")
     lines.append(f"{si}{{")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll")
     lines.append(f"{di}for(unsigned int j=0; j<k; j++)")
     lines.append(f"{di}{{")
     lines.append(f"{ti}unsigned int idx = k*(k-1)/2+j;")
-    if rcp_diffcoeffs:
-        lines.append(f"{ti}cfloat rcp_Dkj = d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4;")
-    else:
-        lines.append(f"{ti}cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);")
+    lines.append(f"{ti}cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);")
     lines.append(f"{ti}sums1[k] += nXi[j]*rcp_Dkj;")
     lines.append(f"{ti}sums2[j] += nXi[k]*rcp_Dkj;")
     lines.append(f"{di}}}")
     lines.append(f"{si}}}")
     lines.append(f"")
     lines.append(f"{si}{f'alignas({align_width}) cfloat' if target.__eq__('c++17') else 'cfloat'} sums[{sp_len}];")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
     lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
     lines.append(f"{si}{{")
     lines.append(f"{di}sums[k] = sums1[k] + sums2[k];")
@@ -1945,8 +1643,6 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, prag
     lines.append(f"")
     lines.append(f"{write_const_expression(align_width, target, True, 'Wi', Mi)}")
     lines.append(f"")
-    if pragma_unroll:
-        lines.append(f"#pragma unroll {sp_len}")
     lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
     lines.append(f"{si}{{")
     lines.append(f"{di}unsigned int idx = k*stride+id;")
@@ -1963,9 +1659,7 @@ def generate_files(mech_file=None, output_dir=None,
                    pressure_ref=101325.0, temperature_ref=1000.0,
                    mole_fractions_ref=1.0, length_ref=1.0, velocity_ref=1.0,
                    header_only=False, unroll_loops=False,
-                   unroll_loops_transport=False, pragma_unroll_loops=False,
-                   align_width=64, target=None, nonsym_Dij=False,
-                   rcp_diffcoeffs=False, loop_gibbsexp=False, transport=False
+                   align_width=64, target=None, transport=True
                    ):
     """
     Generate the production rates, thermodynamic and transport properties
@@ -1983,7 +1677,7 @@ def generate_files(mech_file=None, output_dir=None,
         lambda specie: any([reaction.net[species_names_init.index(specie['name'])] != 0
                             for reaction in reactions_init]), model['species'])
     # Load species and reactions with new indexing (inert species at the end)
-    species = get_species_from_model(active_sp+inert_sp, rcp_diffcoeffs)
+    species = get_species_from_model(active_sp+inert_sp)
     species_names = species.species_names
     reactions = [get_reaction_from_model(species_names, model['units'], reaction)
                  for reaction in model['reactions']]
@@ -1995,8 +1689,6 @@ def generate_files(mech_file=None, output_dir=None,
     Mi = species.molar_masses
     p_ref = float(pressure_ref)
     T_ref = float(temperature_ref)
-    l_ref = float(length_ref)
-    u_ref = float(velocity_ref)
     mole_proportions = [1. for _ in range(species_len)] \
         if args.moleFractionsRef == 1. else [float(x) for x in mole_fractions_ref.split(',')]
     Xi_ref = [x / sum(mole_proportions) for x in mole_proportions]
@@ -2012,27 +1704,16 @@ def generate_files(mech_file=None, output_dir=None,
     # Load non-dimensional transport polynomials
     if transport and not header_only:
         transport_polynomials = species.transport_polynomials(T_ref)
-        ref_trans_qunatities = (
-            get_ref_transport_quantities(rcp_diffcoeffs, transport_polynomials, species_len, Mi, M_bar, T_ref, Xi_ref))
-        vis_ref = ref_trans_qunatities[0]
-        cond_ref = ref_trans_qunatities[1]
-        rho_Di_ref = ref_trans_qunatities[2]
         # need to multiply by dimensional sqrt(T): multiply by sqrt(T_ref) here and later on by sqrt(T_nondim)
-        transport_polynomials.viscosity = [[(sqrt(sqrt(T_ref) / vis_ref)) * p for p in P] for P in
+        transport_polynomials.viscosity = [[sqrt(sqrt(T_ref)) * p for p in P] for P in
                                            transport_polynomials.viscosity]
-        transport_polynomials.conductivity = [[(sqrt(T_ref) / (2 * cond_ref)) * p for p in P] for P in
+        transport_polynomials.conductivity = [[sqrt(T_ref)* p for p in P] for P in
                                               transport_polynomials.conductivity]
 
         # Includes division by 1/(Re * Pr * Le_i) and rho*DiRef
-        if rcp_diffcoeffs:
-            # The reciprocal polynomial is evaluated
-            transport_polynomials.diffusivity = [
-                [[((const.R * rho_ref * u_ref * l_ref) / sqrt(T_ref)) * p for p in P]
-                 for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
-        else:
-            transport_polynomials.diffusivity = [
-                [[(sqrt(T_ref) / (const.R * rho_ref * u_ref * l_ref) ) * p for p in P]
-                 for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
+        transport_polynomials.diffusivity = [
+            [[sqrt(T_ref) * p for p in P]
+             for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
 
     #########################
     # Write subroutine files
@@ -2052,9 +1733,6 @@ def generate_files(mech_file=None, output_dir=None,
         write_file_mech(mech_file, output_dir, species_names, species_len, active_sp_len, reactions_len, Mi)
     else:
         write_file_mech(mech_file, output_dir, species_names, species_len, active_sp_len, reactions_len, Mi)
-        write_file_ref(ref_file, output_dir, transport,
-                       p_ref, T_ref, rho_ref, cp_ref, cv_ref, rho_cp_ref, Yi_ref,
-                       vis_ref, cond_ref, rho_Di_ref)
         if unroll_loops:  # Unrolled code
             precisions = [32, 64]
             for p in precisions:
@@ -2063,7 +1741,7 @@ def generate_files(mech_file=None, output_dir=None,
                     new_rates_file = 'f' + rates_file
                 else:
                     new_rates_file = rates_file
-                write_file_rates_unroll(new_rates_file, output_dir, loop_gibbsexp,
+                write_file_rates_unroll(new_rates_file, output_dir,
                                         reactions, active_sp_len, species_len, species.thermodynamics)
             set_precision(32)
             write_file_enthalpy_unroll(enthalpy_file, output_dir,
@@ -2075,13 +1753,9 @@ def generate_files(mech_file=None, output_dir=None,
                                                transport_polynomials, species_names)
                 write_file_viscosity_unroll(viscosity_file, output_dir,
                                             transport_polynomials, species_len, Mi)
-                if nonsym_Dij:
-                    write_file_diffusivity_nonsym_unroll(diffusivity_file, output_dir, rcp_diffcoeffs,
-                                                         transport_polynomials, species_names, species_len, Mi)
-                else:
-                    write_file_diffusivity_unroll(diffusivity_file, output_dir, rcp_diffcoeffs,
-                                                  transport_polynomials, species_len, Mi)
-        else:  # Looped code
+                write_file_diffusivity_unroll(diffusivity_file, output_dir,
+                                              transport_polynomials, species_len, Mi)
+        else:  # Rolled code
             precisions = [32, 64]
             for p in precisions:
                 set_precision(p)
@@ -2089,42 +1763,20 @@ def generate_files(mech_file=None, output_dir=None,
                     new_rates_file = 'f' + rates_file
                 else:
                     new_rates_file = rates_file
-                write_file_rates_roll(new_rates_file, output_dir, align_width, target, pragma_unroll_loops,
+                write_file_rates_roll(new_rates_file, output_dir, align_width, target,
                                       species.thermodynamics, species_len, reactions, reactions_len)
             set_precision(32)
-            write_file_enthalpy_roll(enthalpy_file, output_dir, align_width, target, pragma_unroll_loops,
+            write_file_enthalpy_roll(enthalpy_file, output_dir, align_width, target,
                                      species.thermodynamics, species_len)
-            write_file_heat_capacity_roll(heat_capacity_file, output_dir, align_width, target, pragma_unroll_loops,
+            write_file_heat_capacity_roll(heat_capacity_file, output_dir, align_width, target,
                                           species.thermodynamics, species_len)
             if transport:
-                if unroll_loops_transport:
-                    write_file_conductivity_unroll(conductivity_file, output_dir,
-                                                   transport_polynomials, species_names)
-                    write_file_viscosity_unroll(viscosity_file, output_dir,
-                                                transport_polynomials, species_len, Mi)
-                    if nonsym_Dij:
-                        write_file_diffusivity_nonsym_unroll(diffusivity_file, output_dir, rcp_diffcoeffs,
-                                                             transport_polynomials, species_names, species_len, Mi)
-                    else:
-                        write_file_diffusivity_unroll(diffusivity_file, output_dir, rcp_diffcoeffs,
-                                                      transport_polynomials, species_len, Mi)
-                else:
-                    write_file_conductivity_roll(conductivity_file, output_dir,
-                                                 align_width, target, pragma_unroll_loops,
-                                                 transport_polynomials, species_len)
-                    write_file_viscosity_roll(viscosity_file, output_dir,
-                                              align_width, target, pragma_unroll_loops,
-                                              transport_polynomials, species_len, Mi)
-                    if nonsym_Dij:
-                        write_file_diffusivity_nonsym_roll(diffusivity_file, output_dir,
-                                                           align_width, target,
-                                                           pragma_unroll_loops, rcp_diffcoeffs,
-                                                           transport_polynomials, species_len, Mi)
-                    else:
-                        write_file_diffusivity_roll(diffusivity_file, output_dir,
-                                                    align_width, target,
-                                                    pragma_unroll_loops, rcp_diffcoeffs,
-                                                    transport_polynomials, species_len, Mi)
+                write_file_conductivity_roll(conductivity_file, output_dir, align_width, target,
+                                             transport_polynomials, species_len)
+                write_file_viscosity_roll(viscosity_file, output_dir, align_width, target,
+                                          transport_polynomials, species_len, Mi)
+                write_file_diffusivity_roll(diffusivity_file, output_dir, align_width, target,
+                                            transport_polynomials, species_len, Mi)
 
     return 0
 
@@ -2141,11 +1793,6 @@ if __name__ == "__main__":
                    velocity_ref=args.velocityRef,
                    header_only=args.header_only,
                    unroll_loops=args.unroll_loops,
-                   unroll_loops_transport=args.unroll_loops_transport,
-                   pragma_unroll_loops=args.pragma_unroll_loops,
                    align_width=args.align_width,
                    target=args.target,
-                   nonsym_Dij=args.nonsymDij,
-                   rcp_diffcoeffs=args.fit_rcpdiffcoeffs,
-                   loop_gibbsexp=args.loop_gibbsexp,
                    transport=args.transport)
