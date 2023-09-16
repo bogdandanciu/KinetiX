@@ -88,14 +88,6 @@ def get_parser():
                         default=1.0,
                         help='Reference mole fractions. If argument is equal to 1.0'
                              ' the mole fractions will be equal for all species.')
-    parser.add_argument('--lengthRef',
-                        required=False,
-                        default=1.0,
-                        help='Reference length')
-    parser.add_argument('--velocityRef',
-                        required=False,
-                        default=1.0,
-                        help='Reference velocity.')
     parser.add_argument('--header-only',
                         required=False,
                         action='store_true',
@@ -736,33 +728,6 @@ def write_file_mech(file_name, output_dir, sp_names, sp_len, active_sp_len, rxn_
                  f"{{{', '.join([repr(1. / w) for w in Mi])}}};")
     lines.append(f'#define __NEKRK_NSPECIES__ n_species')
     lines.append(f'#define __NEKRK_NACTIVESPECIES__ n_active_species')
-
-    write_module(output_dir, file_name, f'{code(lines)}')
-    return 0
-
-
-def write_file_ref(file_name, output_dir, transport,
-                   p_ref, T_ref, rho_ref, cp_ref, cv_ref, rho_cp_ref, Yi_ref,
-                   vis_ref=None, cond_ref=None, rho_Di_ref=None):
-    """
-    Write the 'ref.h' file for the reference data corresponding to the
-    reaction mechanism.
-    """
-
-    lines = []
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_pRef = {p_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_Tref = {T_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_rhoRef = {rho_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_cpRef = {cp_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_cvRef = {cv_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_rhoCpRef = {rho_cp_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_YiRef[] = '
-                 f'{{{",".join([repr(d) for d in Yi_ref])}}};')
-    if transport:
-        lines.append(f'__NEKRK_CONST__ cfloat nekrk_visRef = {vis_ref};')
-        lines.append(f'__NEKRK_CONST__ cfloat nekrk_conductRef = {cond_ref};')
-        lines.append(f'__NEKRK_CONST__ cfloat nekrk_rhoDiRef[] = '
-                     f'{{{",".join([repr(d) for d in rho_Di_ref])}}};')
 
     write_module(output_dir, file_name, f'{code(lines)}')
     return 0
@@ -1656,8 +1621,7 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, tran
 
 
 def generate_files(mech_file=None, output_dir=None,
-                   pressure_ref=101325.0, temperature_ref=1000.0,
-                   mole_fractions_ref=1.0, length_ref=1.0, velocity_ref=1.0,
+                   pressure_ref=101325.0, temperature_ref=1000.0, mole_fractions_ref=1.0,
                    header_only=False, unroll_loops=False,
                    align_width=64, target=None, transport=True
                    ):
@@ -1721,7 +1685,6 @@ def generate_files(mech_file=None, output_dir=None,
 
     # File names
     mech_file = 'mech.h'
-    ref_file = 'ref.h'
     rates_file = 'rates.inc'
     enthalpy_file = 'fenthalpy_RT.inc'
     heat_capacity_file = 'fheat_capacity_R.inc'
@@ -1789,8 +1752,6 @@ if __name__ == "__main__":
                    pressure_ref=args.pressureRef,
                    temperature_ref=args.temperatureRef,
                    mole_fractions_ref=args.moleFractionsRef,
-                   length_ref=args.lengthRef,
-                   velocity_ref=args.velocityRef,
                    header_only=args.header_only,
                    unroll_loops=args.unroll_loops,
                    align_width=args.align_width,
