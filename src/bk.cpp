@@ -40,7 +40,7 @@ double *ref_mass_fractions;
 double ref_pressure; 
 double ref_temperature;
 double ref_length;
-double /ef_velocity;
+double ref_velocity;
 double ref_time;
 double ref_molar_mass;
 
@@ -402,11 +402,6 @@ int main(int argc, char** argv)
   int deviceId = 0;
   int deviceIdFlag = 0;
   int unroll_loops = -1;
-  int unroll_loops_transport = -1;
-  int pragma_unroll_loops = false;
-  bool loop_gibbsexp = false;
-  bool nonsymDij = false;
-  bool fit_rcpDiffCoeffs = false;
   std::string mech;
 
   debug = false;
@@ -425,11 +420,6 @@ int main(int argc, char** argv)
       {"yaml-file", required_argument, 0, 'f'},
       {"device-id", required_argument, 0, 'i'},
       {"unroll-loops", required_argument, 0, 'u'},
-      {"unroll-loops-transport", required_argument, 0, 't'},
-      {"pragma-unroll-loops", no_argument, 0, 'l'},
-      {"loop-gibbsexp", no_argument, 0, 'x'},
-      {"nonsymDij", no_argument, 0, 's'},
-      {"fit-rcpDiffCoeffs", no_argument, 0, 'o'},
       {0, 0, 0, 0}
     };
 
@@ -474,21 +464,6 @@ int main(int argc, char** argv)
     case 'u':
       unroll_loops = std::stoi(optarg);
       break;
-    case 't':
-      unroll_loops_transport = std::stoi(optarg);
-      break;
-    case 'l':
-      pragma_unroll_loops = true;
-      break;
-    case 'x':
-      loop_gibbsexp = true;
-      break;
-    case 's':
-      nonsymDij = true;
-      break;
-    case 'o':
-      fit_rcpDiffCoeffs = true;
-      break;
 
     default:
       err++;
@@ -502,8 +477,7 @@ int main(int argc, char** argv)
     if(rank == 0)
       printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n "
               "[--mode 1|2] [--repetitions n] [--rates-fp32] [--cimode n] [--debug] [--block-size  n] "
-	      "[--device-id  n] [--unroll-loops n] [--unroll-loops-transport n] [--pragma-unroll-loops]"
-	      "[--loop-gibbsexp] [--nonsymDij] [--fit-rcpDiffCoeffs]\n");
+	      "[--device-id  n] [--unroll-loops n] \n");
     exit(EXIT_FAILURE);
   }
 
