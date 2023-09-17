@@ -14,7 +14,7 @@
 #include <mpi.h>
 #include <occa.hpp>
 
-#include "_nekCRF.hpp"
+#include "nekRK.hpp"
 
 namespace fs = std::filesystem;
 
@@ -24,7 +24,7 @@ occa::kernel production_rates_kernel, production_rates_fpmix_kernel, production_
 occa::kernel transport_fpmix_kernel, transport_fp32_kernel;
 occa::kernel thermoCoeffs_fpmix_kernel, thermoCoeffs_fp32_kernel;
 
-_nekCRF::nekCRFBuildKernel_t buildKernel;
+nekRK::nekRKBuildKernel_t buildKernel;
 
 occa::device device;
 std::string occaCacheDir0;
@@ -72,7 +72,7 @@ bool useFP64Transport;
 
 } // namespace
 
-bool _nekCRF::isInitialized() { return initialized; }
+bool nekRK::isInitialized() { return initialized; }
 
 static bool isStandalone(){
 #ifdef STANDALONE
@@ -113,7 +113,7 @@ static std::string to_string_f(double a)
 }
 #endif
 
-namespace _nekCRF{
+namespace nekRK{
 static std::string to_string_f(double a)
 {
   std::stringstream s;
@@ -306,14 +306,14 @@ static void setup()
 
   if(isStandalone()){
     if (!getenv("NEKCRF_PATH")) {
-      std::string path = std::string(getenv("HOME")) + "/.local/nekCRF";
+      std::string path = std::string(getenv("HOME")) + "/.local/nekRK";
       setenv("NEKCRF_PATH", path.c_str(), 0);
     }
     if (!getenv("OCCA_DIR")) {
       occa::env::OCCA_DIR = std::string(getenv("NEKCRF_PATH")) + "/";
     }
   } else {
-    std::string path = std::string(getenv("NEKRS_HOME")) + "/3rd_party/nekCRF";
+    std::string path = std::string(getenv("NEKRS_HOME")) + "/3rd_party/nekRK";
     setenv("NEKCRF_PATH", path.c_str(), 1);
     if(!getenv("NEKRS_MPI_UNDERLYING_COMPILER")) { // check if call is from nekRS
       occa::env::OCCA_DIR = std::string(getenv("NEKRS_HOME")) + "/";
@@ -324,8 +324,8 @@ static void setup()
 
   {
     const std::string yamlName = fs::path(yamlPath).stem();
-    cacheDir = getenv("NEKRS_CACHE_DIR") ? std::string(getenv("NEKRS_CACHE_DIR")) + "/nekCRF/" + yamlName
-                                         : ".cache/nekCRF/" + yamlName;
+    cacheDir = getenv("NEKRS_CACHE_DIR") ? std::string(getenv("NEKRS_CACHE_DIR")) + "/nekRK/" + yamlName
+                                         : ".cache/nekRK/" + yamlName;
     cacheDir = std::string(fs::absolute(cacheDir));
 
     if (rank == 0) {
@@ -509,8 +509,8 @@ static void buildMechKernels(bool transport)
   }
 
   if (transport) {
-    const auto invRe = 1 / _nekCRF::Re();
-    const auto invRePr = 1 / (_nekCRF::Re() * _nekCRF::Pr());
+    const auto invRe = 1 / nekRK::Re();
+    const auto invRePr = 1 / (nekRK::Re() * nekRK::Pr());
 
     occa::properties includeProp;
     includeProp["compiler_flags"] = " -include " + cacheDir + "/fconductivity.inc";
@@ -540,7 +540,7 @@ static void buildMechKernels(bool transport)
 //                                  API
 ///////////////////////////////////////////////////////////////////////////////
 
-void _nekCRF::init(const std::string &model_path,
+void nekRK::init(const std::string &model_path,
                    occa::device _device,
                    occa::properties _props,
                    int _group_size,
@@ -556,11 +556,11 @@ void _nekCRF::init(const std::string &model_path,
                    MPI_Comm _comm,
                    bool _verbose)
 {
-  _nekCRF::nekCRFBuildKernel_t build = [&](const std::string &path, const std::string &fileName, occa::properties prop)
+  nekRK::nekRKBuildKernel_t build = [&](const std::string &path, const std::string &fileName, occa::properties prop)
   {
     return _buildKernel(path, fileName, prop);
   };
-  _nekCRF::init(model_path,
+  nekRK::init(model_path,
                 _device,
                 _props,
                 _group_size,
@@ -578,7 +578,7 @@ void _nekCRF::init(const std::string &model_path,
                 _verbose);
 }
 
-void _nekCRF::init(const std::string &model_path,
+void nekRK::init(const std::string &model_path,
                    occa::device _device,
                    occa::properties _props,
                    int _group_size,
@@ -592,7 +592,7 @@ void _nekCRF::init(const std::string &model_path,
                    const std::string &_target,
                    bool _useFP64Transport,
                    MPI_Comm _comm,
-                   nekCRFBuildKernel_t build,
+                   nekRKBuildKernel_t build,
                    bool _verbose)
 {
   buildKernel = build;
@@ -648,20 +648,20 @@ void _nekCRF::init(const std::string &model_path,
   MPI_Barrier(comm);
 }
 
-double _nekCRF::Re()
+double nekRK::Re()
 {
   const auto nu = ref_viscosity / ref_density;
   return (ref_velocity * ref_length) / nu;
 }
 
-double _nekCRF::Pr()
+double nekRK::Pr()
 {
   const auto alpha = ref_conductivity / (ref_density * ref_cp);
   const auto nu = ref_viscosity / ref_density;
   return nu / alpha;
 }
 
-const std::vector<double> _nekCRF::Le()
+const std::vector<double> nekRK::Le()
 {
   std::vector<double> tmp;
   for (int k = 0; k < n_species; k++) {
@@ -670,33 +670,33 @@ const std::vector<double> _nekCRF::Le()
   return tmp;
 }
 
-double _nekCRF::refTime() { return ref_time; }
+double nekRK::refTime() { return ref_time; }
 
-double _nekCRF::refLength() { return ref_length; }
+double nekRK::refLength() { return ref_length; }
 
-double _nekCRF::refVelocity() { return ref_velocity; }
+double nekRK::refVelocity() { return ref_velocity; }
 
-double _nekCRF::refPressure() { return ref_pressure; }
+double nekRK::refPressure() { return ref_pressure; }
 
-double _nekCRF::refTemperature() { return ref_temperature; }
+double nekRK::refTemperature() { return ref_temperature; }
 
-const std::vector<double> _nekCRF::refMassFractions() { return ref_mass_fractions; }
+const std::vector<double> nekRK::refMassFractions() { return ref_mass_fractions; }
 
-double _nekCRF::refCp() { return ref_cp; }
+double nekRK::refCp() { return ref_cp; }
 
-double _nekCRF::refCv() { return ref_cv; }
+double nekRK::refCv() { return ref_cv; }
 
-double _nekCRF::refMeanMolecularWeight() { return ref_meanMolarMass; }
+double nekRK::refMeanMolecularWeight() { return ref_meanMolarMass; }
 
-double _nekCRF::refDensity() { return ref_density; }
+double nekRK::refDensity() { return ref_density; }
 
-double _nekCRF::refViscosity() { return ref_viscosity; }
+double nekRK::refViscosity() { return ref_viscosity; }
 
-double _nekCRF::refThermalConductivity() { return ref_conductivity; }
+double nekRK::refThermalConductivity() { return ref_conductivity; }
 
-const std::vector<double> _nekCRF::refRhoDiffCoeffs() { return ref_rhoDiffCoeffs; }
+const std::vector<double> nekRK::refRhoDiffCoeffs() { return ref_rhoDiffCoeffs; }
 
-const std::vector<double> _nekCRF::refDiffCoeffs()
+const std::vector<double> nekRK::refDiffCoeffs()
 {
   std::vector<double> tmp;
   for (int k = 0; k < n_species; k++) {
@@ -705,7 +705,7 @@ const std::vector<double> _nekCRF::refDiffCoeffs()
   return tmp;
 }
 
-void _nekCRF::build(double _ref_pressure,
+void nekRK::build(double _ref_pressure,
                     double _ref_temperature,
                     double _ref_length,
                     double _ref_velocity,
@@ -739,7 +739,7 @@ void _nekCRF::build(double _ref_pressure,
   std::string ref_mole_fractions_string;
   for (int k = 0; k < nSpecies(); k++) {
     ref_mole_fractions[k] = 1. / m_molar[k] * ref_meanMolarMass * _ref_mass_fractions[k];
-    ref_mole_fractions_string += _nekCRF::to_string_f(ref_mole_fractions[k]);
+    ref_mole_fractions_string += nekRK::to_string_f(ref_mole_fractions[k]);
     if (k < nSpecies() - 1)
       ref_mole_fractions_string += ',';
   }
@@ -749,9 +749,9 @@ void _nekCRF::build(double _ref_pressure,
     std::string cmdline(installDir +
                         "/generator/generate.py" +
                         " --mechanism " +
-                        yamlPath + " --output " + cacheDir + " --velocityRef " + _nekCRF::to_string_f(ref_velocity) +
-                        " --lengthRef " + _nekCRF::to_string_f(ref_length) + " --pressureRef " +
-                        _nekCRF::to_string_f(ref_pressure) + " --temperatureRef " + _nekCRF::to_string_f(ref_temperature) +
+                        yamlPath + " --output " + cacheDir + " --velocityRef " + nekRK::to_string_f(ref_velocity) +
+                        " --lengthRef " + nekRK::to_string_f(ref_length) + " --pressureRef " +
+                        nekRK::to_string_f(ref_pressure) + " --temperatureRef " + nekRK::to_string_f(ref_temperature) +
                         " --moleFractionsRef " + ref_mole_fractions_string.c_str() + " --align-width " +
                         std::to_string(align_width) + " --target " + target);
     if (unroll_loops)
@@ -820,7 +820,7 @@ void _nekCRF::build(double _ref_pressure,
   delete[] ref_mole_fractions;
 
   if (rank == 0) {
-    std::cout   << "\n================= nekCRF =================\n";
+    std::cout   << "\n================= nekRK =================\n";
     if (isStandalone())
       std::cout << "active occa mode: " << device.mode() << "\n";
     if (device.mode() != "Serial")
@@ -832,7 +832,7 @@ void _nekCRF::build(double _ref_pressure,
                 << "pRef: " << ref_pressure << " Pa\n"
                 << "YRef: ";
     bool first = true;
-    for (auto &&species : _nekCRF::speciesNames()) {
+    for (auto &&species : nekRK::speciesNames()) {
       auto fraction = ref_mass_fractions[speciesIndex(species)];
       if (fraction > 0) {
         if (!first)
@@ -846,7 +846,7 @@ void _nekCRF::build(double _ref_pressure,
     auto printVec = [&](const std::string& prefix, const std::vector<double>& vec, const std::string& unit = "") {
       std::cout << prefix;
       bool first = true;
-      for (auto &&species : _nekCRF::speciesNames()) {
+      for (auto &&species : nekRK::speciesNames()) {
         auto entry = vec[speciesIndex(species)];
         if (entry > 0) {
           if (!first)
@@ -882,7 +882,7 @@ void _nekCRF::build(double _ref_pressure,
   MPI_Barrier(comm);
 }
 
-void _nekCRF::productionRates(int n_states,
+void nekRK::productionRates(int n_states,
                               int offsetT,
                               int offset,
                               bool normalize, /* by rhoCp and rho */
@@ -921,7 +921,7 @@ void _nekCRF::productionRates(int n_states,
          1. / ref_cp);
 }
 
-void _nekCRF::mixtureAvgTransportProps(int n_states,
+void nekRK::mixtureAvgTransportProps(int n_states,
                                        int offsetT,
                                        int offset,
                                        double pressure,
@@ -950,7 +950,7 @@ void _nekCRF::mixtureAvgTransportProps(int n_states,
          o_density_diffusivity);
 }
 
-void _nekCRF::thermodynamicProps(int n_states,
+void nekRK::thermodynamicProps(int n_states,
                                  int offsetT,
                                  int offset,
                                  double pressure,
@@ -987,17 +987,17 @@ void _nekCRF::thermodynamicProps(int n_states,
          1. / ref_meanMolarMass);
 }
 
-int _nekCRF::nSpecies() 
+int nekRK::nSpecies() 
 { 
   return n_species; 
 }
 
-int _nekCRF::nActiveSpecies() 
+int nekRK::nActiveSpecies() 
 { 
   return n_active_species; 
 }
 
-const std::vector<double> _nekCRF::molecularWeights()
+const std::vector<double> nekRK::molecularWeights()
 {
   std::vector<double> tmp;
   for (int k = 0; k < n_species; k++) {
@@ -1006,12 +1006,12 @@ const std::vector<double> _nekCRF::molecularWeights()
   return tmp;
 }
 
-const std::vector<std::string> _nekCRF::speciesNames() 
+const std::vector<std::string> nekRK::speciesNames() 
 { 
   return ::species_names; 
 }
 
-int _nekCRF::speciesIndex(const std::string &name)
+int nekRK::speciesIndex(const std::string &name)
 {
   auto it = find(::species_names.begin(), ::species_names.end(), name);
   if (it != ::species_names.end())

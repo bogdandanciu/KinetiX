@@ -19,7 +19,7 @@ namespace fs = std::filesystem;
 #include "mpi.h"
 
 #include "occa.hpp"
-#include "_nekCRF.hpp"
+#include "nekRK.hpp"
 
 #define DEBUG
 
@@ -40,7 +40,7 @@ double *ref_mass_fractions;
 double ref_pressure; 
 double ref_temperature;
 double ref_length;
-double ref_velocity;
+double /ef_velocity;
 double ref_time;
 double ref_molar_mass;
 
@@ -104,7 +104,7 @@ bool checkThermo(occa::memory& o_rho,
   o_rhoCp.copyTo(rhoCp.data());
 
   for (int id = 0; id < n_states; id++) {
-    const auto rho_SI = _nekCRF::refDensity() * rho[id];
+    const auto rho_SI = nekRK::refDensity() * rho[id];
     const auto ciVal = ci_rho[id];
     if(debug)
       printf("rho: Cantera %.15f nekRK %.15f relative error %e\n",
@@ -115,7 +115,7 @@ bool checkThermo(occa::memory& o_rho,
 
   for (int k = 0; k < n_species; k++) {
     for (int id = 0; id < n_states; id++) {
-      const auto cpi_SI = _nekCRF::refCp() * cp_i[k * n_states + id];
+      const auto cpi_SI = nekRK::refCp() * cp_i[k * n_states + id];
       const auto ciVal = ci_cp_i[id][k];
       if(debug)
         printf("cp[%d]: Cantera %e nekRK %e relative error %e\n",
@@ -128,7 +128,7 @@ bool checkThermo(occa::memory& o_rho,
 
   for (int id = 0; id < n_states; id++) {
     const auto ciVal = ci_rho[id] * ci_cp_mean[id];
-    const auto rhoCp_SI = _nekCRF::refDensity() * _nekCRF::refCp() * rhoCp[id];
+    const auto rhoCp_SI = nekRK::refDensity() * nekRK::refCp() * rhoCp[id];
     if(debug)
       printf("rhoCp: Cantera %e nekRK %e relative error %e\n", 
              ciVal, 
@@ -140,13 +140,13 @@ bool checkThermo(occa::memory& o_rho,
 
   for (int id = 0; id < n_states; id++) {
     std::vector<double> e;
-    auto e_rho = relErr(_nekCRF::refDensity() * rho[id], ci_rho[id]);
+    auto e_rho = relErr(nekRK::refDensity() * rho[id], ci_rho[id]);
     e.push_back(e_rho);
-    auto e_rhoCp = relErr(_nekCRF::refDensity() * _nekCRF::refCp() * rhoCp[id], ci_rho[id] * ci_cp_mean[id]); 
+    auto e_rhoCp = relErr(nekRK::refDensity() * nekRK::refCp() * rhoCp[id], ci_rho[id] * ci_cp_mean[id]); 
     e.push_back(e_rhoCp);
     for(int k = 0; k < n_species; k++) {
       const auto ciVal = ci_cp_i[id][k];
-      auto e_cpi = relErr(_nekCRF::refCp() * cp_i[k * n_states + id], ciVal);
+      auto e_cpi = relErr(nekRK::refCp() * cp_i[k * n_states + id], ciVal);
       e.push_back(e_cpi);
     }
 
@@ -169,8 +169,8 @@ bool checkRates(occa::memory& o_rates,
   std::vector<dfloat> rates(n_states * (n_species + 1));
   o_rates.copyTo(rates.data());
 
-  const auto ref_hrr = _nekCRF::refCp() * _nekCRF::refTemperature() *
-                       (_nekCRF::refDensity() / _nekCRF::refTime());
+  const auto ref_hrr = nekRK::refCp() * nekRK::refTemperature() *
+                       (nekRK::refDensity() / nekRK::refTime());
 
   auto allPassed = true;
   for (int id = 0; id < n_states; id++) {
@@ -188,16 +188,16 @@ bool checkRates(occa::memory& o_rates,
 
     for (int k = 0; k < n_active_species; k++) {
         const auto ciVal = ci_rates[id][k];
-        const auto mass_production_rate = _nekCRF::refDensity() / ref_time * rates[id + (k+1) * n_states];
+        const auto mass_production_rate = nekRK::refDensity() / ref_time * rates[id + (k+1) * n_states];
         const auto molar_rate =  
-          mass_production_rate / (_nekCRF::molecularWeights()[k] * _nekCRF::refMeanMolecularWeight());
+          mass_production_rate / (nekRK::molecularWeights()[k] * nekRK::refMeanMolecularWeight());
  
         const auto e = (std::abs(ciVal) > 1e-50) ? 
                        relErr(molar_rate, ciVal) : std::abs(molar_rate);
         errors.push_back(e); 
         if(debug) 
           printf("%-6s Cantera %+.15e nekRK %+.15e relative error %e\n",
-                 _nekCRF::speciesNames()[k].c_str(),
+                 nekRK::speciesNames()[k].c_str(),
                  ciVal,
                  molar_rate,
                  e);
@@ -232,7 +232,7 @@ bool checkTransport(occa::memory& o_conductivity,
   for (int id = 0; id < n_states; id++) {
     std::vector<double> errors;
     {
-      const auto scale = _nekCRF::Re() * _nekCRF::Pr() * _nekCRF::refThermalConductivity();
+      const auto scale = nekRK::Re() * nekRK::Pr() * nekRK::refThermalConductivity();
       auto e = relErr(scale * conductivity[id], ci_conductivity[id]);
       errors.push_back(e);
       if(debug)
@@ -243,7 +243,7 @@ bool checkTransport(occa::memory& o_conductivity,
     }
 
     {
-      const auto scale = _nekCRF::Re() * _nekCRF::refViscosity();
+      const auto scale = nekRK::Re() * nekRK::refViscosity();
       auto e = relErr(scale * viscosity[id], ci_viscosity[id]);
       errors.push_back(e);
       if(debug)
@@ -256,7 +256,7 @@ bool checkTransport(occa::memory& o_conductivity,
     {
       for(int k = 0; k < n_species; k++) {
         const auto ci_rhoDi = ci_rhoD[id][k];
-        const auto scale = _nekCRF::Re() * _nekCRF::Pr() * _nekCRF::Le()[k] * _nekCRF::refRhoDiffCoeffs()[k];
+        const auto scale = nekRK::Re() * nekRK::Pr() * nekRK::Le()[k] * nekRK::refRhoDiffCoeffs()[k];
         const auto rhoDi = scale * rhoD[k * n_states + id];
         const auto e = relErr(rhoDi, ci_rhoDi);
         if(debug)
@@ -306,7 +306,7 @@ void loadCiStateFromFile(const std::string& ciState,
       for(int k = 0; k < n_species; k++) {
         molar_masses.push_back(std::stod(value[k]));
         const auto w = molar_masses[k];
-        const auto wC = _nekCRF::molecularWeights()[k] * _nekCRF::refMeanMolecularWeight();
+        const auto wC = nekRK::molecularWeights()[k] * nekRK::refMeanMolecularWeight();
         auto e = abs(w - wC)/wC ;
         if(e > 1e-7) {
           printf("\nmolar mass mismatch [%d]: w %e cantera %e relative error %e\n", 
@@ -574,7 +574,7 @@ int main(int argc, char** argv)
   const int align_width = (device.mode() == "Serial") ? 64 : 0;
 
   occa::properties kernel_properties;
-  _nekCRF::init(mech, 
+  nekRK::init(mech, 
                 device, 
                 kernel_properties, 
                 blockSize,
@@ -590,14 +590,14 @@ int main(int argc, char** argv)
                 MPI_COMM_WORLD,
                 debug); 
 
-  n_species = _nekCRF::nSpecies();
-  n_active_species = _nekCRF::nActiveSpecies();
+  n_species = nekRK::nSpecies();
+  n_active_species = nekRK::nActiveSpecies();
   n_inert_species = n_species - n_active_species;
 
   if(debug) {
     std::cout << "species: \n";
     for (int k = 0; k < n_species; k++) {
-      std::cout << _nekCRF::speciesNames()[k];
+      std::cout << nekRK::speciesNames()[k];
       if (k < n_species - 1) std::cout << ' ';
     }
     std::cout << '\n';
@@ -662,7 +662,7 @@ int main(int argc, char** argv)
  
   o_states.copyFrom(states.data());
 
-  _nekCRF::build(ref_pressure,
+  nekRK::build(ref_pressure,
                  ref_temperature,
                  ref_length,
                  ref_velocity,
@@ -680,7 +680,7 @@ int main(int argc, char** argv)
     auto o_rhoCp = device.malloc<dfloat>(n_states);
     auto o_mmw = device.malloc<dfloat>(n_states);
 
-    _nekCRF::thermodynamicProps(n_states,
+    nekRK::thermodynamicProps(n_states,
                           n_states /* offsetT */,
                           n_states /* offset */,
                           pressure,
@@ -701,7 +701,7 @@ int main(int argc, char** argv)
   if (mode == 0 || mode == 1) {
     auto o_rates = device.malloc<dfloat>((n_species + 1) * n_states);
 
-    _nekCRF::productionRates(n_states,
+    nekRK::productionRates(n_states,
                    n_states /* offsetT */,
                    n_states /* offset */,
                    false,
@@ -716,7 +716,7 @@ int main(int argc, char** argv)
 
     const auto startTime = MPI_Wtime();
     for(int i = 0; i < nRep; i++) {
-      _nekCRF::productionRates(n_states,
+      nekRK::productionRates(n_states,
                      n_states /* offsetT */,
                      n_states /* offset */,
                      false,
@@ -749,7 +749,7 @@ int main(int argc, char** argv)
     auto o_viscosity = device.malloc<dfloat>(n_states);
     auto o_rhoD = device.malloc<dfloat>(n_species * n_states);
 
-    _nekCRF::mixtureAvgTransportProps(n_states,
+    nekRK::mixtureAvgTransportProps(n_states,
                                  n_states /* offsetT */,
                                  n_states /* offset */,
                                  pressure,
@@ -762,7 +762,7 @@ int main(int argc, char** argv)
     MPI_Barrier(MPI_COMM_WORLD);
     const auto startTime = MPI_Wtime();
     for(int i = 0; i < nRep; i++) {
-      _nekCRF::mixtureAvgTransportProps(n_states,
+      nekRK::mixtureAvgTransportProps(n_states,
                                    n_states /* offsetT */,
                                    n_states /* offset */,
                                    pressure,

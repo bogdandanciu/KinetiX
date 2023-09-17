@@ -1,14 +1,14 @@
-#ifndef NEK_CRF_H
-#define NEK_CRF_H
+#ifndef NEK_RK_H
+#define NEK_RK_H
 
 #include <occa.hpp>
 #include <functional>
 #include "mpi.h"
 
-namespace _nekCRF 
+namespace nekRK 
 {
 
-using nekCRFBuildKernel_t = std::function<occa::kernel(const std::string &fileName,
+using nekRKBuildKernel_t = std::function<occa::kernel(const std::string &fileName,
                                    const std::string &kernelName,
                                    const occa::properties &props)>;
 
@@ -47,7 +47,7 @@ void init(
   const std::string& target,
   bool useFP64Transport,
   MPI_Comm comm,
-  nekCRFBuildKernel_t buildKernel,
+  nekRKBuildKernel_t buildKernel,
   bool verbose = false 
   );
 
