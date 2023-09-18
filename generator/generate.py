@@ -1659,13 +1659,9 @@ def generate_files(mech_file=None, output_dir=None,
     M_tot = sum([n * M for n, M in zip(mole_proportions, Mi)])
     Yi_ref = [n * M / M_tot for n, M in zip(mole_proportions, Mi)]
     M_bar = sum((m * x) for m, x in zip(Mi, Xi_ref))
-    rho_ref = M_bar * p_ref / (const.R * T_ref)
-    cp_ref = const.R / M_bar * sum(a.molar_heat_capacity_R(T_ref) * x for a, x in zip(species.thermodynamics, Xi_ref))
-    cv_ref = cp_ref - const.R / M_bar
-    rho_cp_ref = rho_ref * cp_ref
     assert len(Xi_ref) == species_len
 
-    # Load non-dimensional transport polynomials
+    # Load transport polynomials
     if transport and not header_only:
         transport_polynomials = species.transport_polynomials(T_ref)
         # need to multiply by dimensional sqrt(T): multiply by sqrt(T_ref) here and later on by sqrt(T_nondim)
@@ -1673,8 +1669,6 @@ def generate_files(mech_file=None, output_dir=None,
                                            transport_polynomials.viscosity]
         transport_polynomials.conductivity = [[sqrt(T_ref)* p for p in P] for P in
                                               transport_polynomials.conductivity]
-
-        # Includes division by 1/(Re * Pr * Le_i) and rho*DiRef
         transport_polynomials.diffusivity = [
             [[sqrt(T_ref) * p for p in P]
              for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
