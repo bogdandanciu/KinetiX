@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(nekCRF LANGUAGES C CXX)
+project(nekRK LANGUAGES C CXX)
 
 cmake_policy(SET CMP0079 NEW)
 
@@ -15,7 +15,7 @@ else()
 endif()
 
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT AND ${STANDALONE})
-  SET(CMAKE_INSTALL_PREFIX $ENV{HOME}/.local/nekCRF CACHE PATH "Default install path" FORCE)
+  SET(CMAKE_INSTALL_PREFIX $ENV{HOME}/.local/nekRK CACHE PATH "Default install path" FORCE)
 ENDIF()
 
 
@@ -46,20 +46,20 @@ set(INSTALL_PREFIX "")
 if(STANDALONE)
   add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/occa")
 
-  add_library(nekCRF SHARED
-    src/_nekCRF.cpp
+  add_library(nekRK SHARED
+    src/_nekRK.cpp
   )
-  target_link_libraries (nekCRF PUBLIC libocca)
+  target_link_libraries (nekRK PUBLIC libocca)
   set(INSTALL_PREFIX ".")
 else()
-  add_library(nekCRF SHARED
-    src/_nekCRF.cpp
-    src/nekCRF.cpp
+  add_library(nekRK SHARED
+    src/_nekRK.cpp
+    src/nekRK.cpp
   )
-  target_link_libraries (nekCRF PRIVATE nekrs-lib)
-  target_include_directories (nekCRF PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-  target_link_libraries (nekCRF PUBLIC libocca)
-  set(INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}/3rd_party/nekCRF")
+  target_link_libraries (nekRK PRIVATE nekrs-lib)
+  target_include_directories (nekRK PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+  target_link_libraries (nekRK PUBLIC libocca)
+  set(INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}/3rd_party/nekRK")
 endif()
 
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
@@ -70,9 +70,9 @@ else()
   set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH};${INSTALL_PREFIX}/lib")
 endif()
 
-target_include_directories (nekCRF PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_include_directories (nekRK PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-install(TARGETS nekCRF DESTINATION ${INSTALL_PREFIX}/lib)
+install(TARGETS nekRK DESTINATION ${INSTALL_PREFIX}/lib)
 install(DIRECTORY okl DESTINATION ${INSTALL_PREFIX}/.)
 install(DIRECTORY mechanisms DESTINATION ${INSTALL_PREFIX}/.)
 install(PROGRAMS generator/__init__.py DESTINATION ${INSTALL_PREFIX}/generator)
@@ -83,14 +83,14 @@ install(DIRECTORY ciData DESTINATION ${INSTALL_PREFIX}/.)
 install(FILES README.md DESTINATION ${INSTALL_PREFIX})
 
 add_executable(nekcrf_bk src/bk.cpp)
-target_link_libraries (nekcrf_bk PRIVATE nekCRF)
+target_link_libraries (nekcrf_bk PRIVATE nekRK)
 install(TARGETS nekcrf_bk DESTINATION ${INSTALL_PREFIX}/bin)
 
 if(STANDALONE)
-  target_compile_definitions(nekCRF PUBLIC -DSTANDALONE)
-  install(FILES include/_nekCRF.hpp DESTINATION ${INSTALL_PREFIX}/include)
+  target_compile_definitions(nekRK PUBLIC -DSTANDALONE)
+  install(FILES include/_nekRK.hpp DESTINATION ${INSTALL_PREFIX}/include)
 else()
     install(DIRECTORY examples DESTINATION ${INSTALL_PREFIX})
-    install(FILES include/nekCRF.hpp DESTINATION ${INSTALL_PREFIX}/include)
+    install(FILES include/nekRK.hpp DESTINATION ${INSTALL_PREFIX}/include)
     set(ENABLE_CVODE ON PARENT_SCOPE) # compile CVODE with nekRS
 endif()
