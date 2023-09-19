@@ -288,6 +288,14 @@ static void setup()
   MPI_Comm_rank(comm, &rank);
 
   occaCacheDir0 = getenv("OCCA_CACHE_DIR");
+  
+  if (!getenv("NEKRK_PATH")) {
+    std::string path = std::string(getenv("HOME")) + "/.local/nekRK";
+    setenv("NEKRK_PATH", path.c_str(), 0);
+  }
+  if (!getenv("OCCA_DIR")) {
+    occa::env::OCCA_DIR = std::string(getenv("NEKRK_PATH")) + "/";
+  }
 
   const auto installDir = std::string(getenv("NEKRK_PATH"));
 
@@ -759,8 +767,7 @@ void nekRK::build(double _ref_pressure,
 
   if (rank == 0) {
     std::cout   << "\n================= nekRK =================\n";
-    if (isStandalone())
-      std::cout << "active occa mode: " << device.mode() << "\n";
+    std::cout << "active occa mode: " << device.mode() << "\n";
     if (device.mode() != "Serial")
       std::cout << "blockSize: " << group_size << "\n";
     std::cout   << "cache: " << cacheDir << "\n"
