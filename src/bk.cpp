@@ -288,7 +288,7 @@ void loadCiStateFromFile(const std::string& ciState,
                          std::vector<double>& molar_masses) 
 {
     const auto data = std::string(
-                        std::string(getenv("NEKCRF_PATH")) +
+                        std::string(getenv("NEKRK_PATH")) +
                         "/ciData/" + mech + "." + ciState + ".cantera");
 
     std::cout << "Reading ci data from " << data;
