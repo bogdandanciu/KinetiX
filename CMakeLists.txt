@@ -7,14 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-get_directory_property(hasParent PARENT_DIRECTORY)
-if(hasParent)
-  set(STANDALONE OFF)
-else()
-  set(STANDALONE ON)
-endif()
-
-IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT AND ${STANDALONE})
+IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   SET(CMAKE_INSTALL_PREFIX $ENV{HOME}/.local/nekRK CACHE PATH "Default install path" FORCE)
 ENDIF()
 
@@ -25,14 +18,8 @@ endif(${CMAKE_BINARY_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_definitions(-DCMAKE_EXPORT_COMPILE_COMMANDS=ON)
 
-if(DEFINED OCCA_FOUND OR ${STANDALONE})
-  set(ENABLE_METAL OFF CACHE BOOL "Enable OCCA Metal support")
-  set(ENABLE_OPENCL OFF CACHE BOOL "Enable OCCA OpenCL support")
-endif()
-
-if(NEKRS_USE_DFLOAT_FLOAT)
-  message(FATAL_ERROR "NEKRS_USE_DFLOAT_FLOAT=ON not supported!")
-endif()
+set(ENABLE_METAL OFF CACHE BOOL "Enable OCCA Metal support")
+set(ENABLE_OPENCL OFF CACHE BOOL "Enable OCCA OpenCL support")
 
 find_package(MPI REQUIRED)
 if(NOT MPI_FOUND)
@@ -43,32 +30,17 @@ find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
 execute_process(COMMAND ${Python3_EXECUTABLE} -m pip install ${_pip_args} --user -r ${CMAKE_CURRENT_SOURCE_DIR}/generator/requirements.txt)
 
 set(INSTALL_PREFIX "")
-if(STANDALONE)
-  add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/occa")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/occa")
 
-  add_library(nekRK SHARED
-    src/_nekRK.cpp
-  )
-  target_link_libraries (nekRK PUBLIC libocca)
-  set(INSTALL_PREFIX ".")
-else()
-  add_library(nekRK SHARED
-    src/_nekRK.cpp
-    src/nekRK.cpp
-  )
-  target_link_libraries (nekRK PRIVATE nekrs-lib)
-  target_include_directories (nekRK PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-  target_link_libraries (nekRK PUBLIC libocca)
-  set(INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}/3rd_party/nekRK")
-endif()
+add_library(nekRK SHARED
+  src/nekRK.cpp
+)
+target_link_libraries (nekRK PUBLIC libocca)
+set(INSTALL_PREFIX ".")
 
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-if(STANDALONE)
-  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH};${CMAKE_INSTALL_PREFIX}/lib")
-else()
-  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH};${INSTALL_PREFIX}/lib")
-endif()
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH};${CMAKE_INSTALL_PREFIX}/lib")
 
 target_include_directories (nekRK PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
@@ -82,15 +54,9 @@ install(PROGRAMS generator/utils.py DESTINATION ${INSTALL_PREFIX}/generator)
 install(DIRECTORY ciData DESTINATION ${INSTALL_PREFIX}/.) 
 install(FILES README.md DESTINATION ${INSTALL_PREFIX})
 
-add_executable(nekcrf_bk src/bk.cpp)
-target_link_libraries (nekcrf_bk PRIVATE nekRK)
-install(TARGETS nekcrf_bk DESTINATION ${INSTALL_PREFIX}/bin)
+add_executable(nekrk_bk src/bk.cpp)
+target_link_libraries (nekrk_bk PRIVATE nekRK)
+install(TARGETS nekrk_bk DESTINATION ${INSTALL_PREFIX}/bin)
 
-if(STANDALONE)
-  target_compile_definitions(nekRK PUBLIC -DSTANDALONE)
-  install(FILES include/_nekRK.hpp DESTINATION ${INSTALL_PREFIX}/include)
-else()
-    install(DIRECTORY examples DESTINATION ${INSTALL_PREFIX})
-    install(FILES include/nekRK.hpp DESTINATION ${INSTALL_PREFIX}/include)
-    set(ENABLE_CVODE ON PARENT_SCOPE) # compile CVODE with nekRS
-endif()
+target_compile_definitions(nekRK PUBLIC -DSTANDALONE)
+install(FILES src/nekRK.hpp DESTINATION ${INSTALL_PREFIX}/include)
