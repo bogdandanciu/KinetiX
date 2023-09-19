@@ -104,7 +104,7 @@ bool checkThermo(occa::memory& o_rho,
   o_rhoCp.copyTo(rhoCp.data());
 
   for (int id = 0; id < n_states; id++) {
-    const auto rho_SI = nekRK::refDensity() * rho[id];
+    const auto rho_SI = rho[id];
     const auto ciVal = ci_rho[id];
     if(debug)
       printf("rho: Cantera %.15f nekRK %.15f relative error %e\n",
@@ -115,7 +115,7 @@ bool checkThermo(occa::memory& o_rho,
 
   for (int k = 0; k < n_species; k++) {
     for (int id = 0; id < n_states; id++) {
-      const auto cpi_SI = nekRK::refCp() * cp_i[k * n_states + id];
+      const auto cpi_SI = cp_i[k * n_states + id];
       const auto ciVal = ci_cp_i[id][k];
       if(debug)
         printf("cp[%d]: Cantera %e nekRK %e relative error %e\n",
@@ -128,7 +128,7 @@ bool checkThermo(occa::memory& o_rho,
 
   for (int id = 0; id < n_states; id++) {
     const auto ciVal = ci_rho[id] * ci_cp_mean[id];
-    const auto rhoCp_SI = nekRK::refDensity() * nekRK::refCp() * rhoCp[id];
+    const auto rhoCp_SI = rhoCp[id];
     if(debug)
       printf("rhoCp: Cantera %e nekRK %e relative error %e\n", 
              ciVal, 
@@ -140,13 +140,13 @@ bool checkThermo(occa::memory& o_rho,
 
   for (int id = 0; id < n_states; id++) {
     std::vector<double> e;
-    auto e_rho = relErr(nekRK::refDensity() * rho[id], ci_rho[id]);
+    auto e_rho = relErr(rho[id], ci_rho[id]);
     e.push_back(e_rho);
-    auto e_rhoCp = relErr(nekRK::refDensity() * nekRK::refCp() * rhoCp[id], ci_rho[id] * ci_cp_mean[id]); 
+    auto e_rhoCp = relErr(rhoCp[id], ci_rho[id] * ci_cp_mean[id]); 
     e.push_back(e_rhoCp);
     for(int k = 0; k < n_species; k++) {
       const auto ciVal = ci_cp_i[id][k];
-      auto e_cpi = relErr(nekRK::refCp() * cp_i[k * n_states + id], ciVal);
+      auto e_cpi = relErr(cp_i[k * n_states + id], ciVal);
       e.push_back(e_cpi);
     }
 

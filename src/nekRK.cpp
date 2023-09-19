@@ -913,8 +913,6 @@ void nekRK::thermodynamicProps(int n_states,
          o_rhocp,
          o_mmw,
          ref_temperature,
-         1. / ref_density,
-         1. / ref_cp,
          1. / ref_meanMolarMass);
 }
 

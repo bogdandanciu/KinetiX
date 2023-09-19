@@ -9,9 +9,7 @@
   @restrict dfloat* rhoCp,
   @restrict dfloat* rcp_mmw,
   const double Tref,
-  const double rcpRhoRef,
-  const double rcpCpRef,
-  const double rcpMmwRef,
+  const double rcpMmwRef
   )
 {
   for(int id = 0; id < n_states; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
@@ -40,16 +38,16 @@
 
     rcp_mmw[id] = mean_molar_mass * rcpMmwRef;
 
-    rho[id] = rho_SI * rcpRhoRef;
+    rho[id] = rho_SI;
 
     cfloat cp_R[__NEKRK_NSPECIES__];
     nekrk_molar_heat_capacity_R(lnT,T,T2,T3,T4,rcpT,cp_R);
 
     cfloat mean_cp_R = 0;
     for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
-      cp[k * offset + id] = (cp_R[k] * p_R * nekrk_rcp_molar_mass[k]) * rcpCpRef;
+      cp[k * offset + id] = (cp_R[k] * p_R * nekrk_rcp_molar_mass[k]);
       mean_cp_R += cp_R[k] * mole_fractions[k];
     }
-    rhoCp[id] =  rho_SI * rcpRhoRef * (mean_cp_R * p_R * mean_rcp_molar_mass) * rcpCpRef;
+    rhoCp[id] =  rho_SI * (mean_cp_R * p_R * mean_rcp_molar_mass);
   }
 }
