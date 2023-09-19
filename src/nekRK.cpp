@@ -74,14 +74,6 @@ bool useFP64Transport;
 
 bool nekRK::isInitialized() { return initialized; }
 
-static bool isStandalone(){
-#ifdef STANDALONE
-  return true;
-#else
-  return false;
-#endif
-}
-
 static void fileSync(const char *file)
 {
   std::string dir;
@@ -102,7 +94,6 @@ static void fileSync(const char *file)
   close(fd);
 }
 
-#ifdef STANDALONE
 // std::to_string might be not accurate enough
 static std::string to_string_f(double a)
 {
@@ -111,7 +102,6 @@ static std::string to_string_f(double a)
   s << std::setprecision(maxPrecision) << std::scientific << a;
   return s.str();
 }
-#endif
 
 namespace nekRK{
 static std::string to_string_f(double a)
@@ -304,28 +294,11 @@ static void setup()
 
   occaCacheDir0 = getenv("OCCA_CACHE_DIR");
 
-  if(isStandalone()){
-    if (!getenv("NEKRK_PATH")) {
-      std::string path = std::string(getenv("HOME")) + "/.local/nekRK";
-      setenv("NEKRK_PATH", path.c_str(), 0);
-    }
-    if (!getenv("OCCA_DIR")) {
-      occa::env::OCCA_DIR = std::string(getenv("NEKRK_PATH")) + "/";
-    }
-  } else {
-    std::string path = std::string(getenv("NEKRS_HOME")) + "/3rd_party/nekRK";
-    setenv("NEKRK_PATH", path.c_str(), 1);
-    if(!getenv("NEKRS_MPI_UNDERLYING_COMPILER")) { // check if call is from nekRS
-      occa::env::OCCA_DIR = std::string(getenv("NEKRS_HOME")) + "/";
-    }
-  }
-
   const auto installDir = std::string(getenv("NEKRK_PATH"));
 
   {
     const std::string yamlName = fs::path(yamlPath).stem();
-    cacheDir = getenv("NEKRS_CACHE_DIR") ? std::string(getenv("NEKRS_CACHE_DIR")) + "/nekRK/" + yamlName
-                                         : ".cache/nekRK/" + yamlName;
+    cacheDir = ".cache/nekRK/" + yamlName;
     cacheDir = std::string(fs::absolute(cacheDir));
 
     if (rank == 0) {
@@ -859,20 +832,6 @@ void nekRK::build(double _ref_pressure,
       return;
     };
 
-    if(!isStandalone()) {
-      std::cout  << "tRef: " << ref_time << " s\n" 
-                 << "rhoRef: " << ref_density << " kg/m^3\n"
-                 << "mueRef: " << ref_viscosity << " kg/(ms)\n"
-                 << "lambdaRef: " << ref_conductivity << " W/(mK)\n"
-                 << "cpRef: " << ref_cp << " J/K\n"
-                 << "gamma0Ref: " << ref_cp/ref_cv << "\n"
-                 << "WbarRef: " << ref_meanMolarMass << " kg/mol\n";
-      printVec("DiRef: ", refDiffCoeffs(), " m^2/s");
-      std::cout  << "Re: " << Re() << "\n"
-                 << "Pr: " << Pr() << "\n";
-      printVec("Le: ", Le()); 
-      std::cout << "\n";
-    }
     fflush(stdout);
   }
 
