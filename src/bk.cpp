@@ -543,8 +543,6 @@ int main(int argc, char** argv)
   const std::string target = (device.mode() == "Serial") ? "c++17" : device.mode();
   if(unroll_loops < 0) 
     unroll_loops = (device.mode() == "Serial") ? 0 : 1;
-  if(unroll_loops_transport < 0) 
-    unroll_loops_transport = (device.mode() == "Serial") ? 0 : 1;
   const int align_width = (device.mode() == "Serial") ? 64 : 0;
 
   occa::properties kernel_properties;
@@ -553,11 +551,6 @@ int main(int argc, char** argv)
                 kernel_properties, 
                 blockSize,
 	        (bool) unroll_loops,
-	        (bool) unroll_loops_transport,
-	        pragma_unroll_loops,
-                loop_gibbsexp,
-               	nonsymDij,
-               	fit_rcpDiffCoeffs,
 	        align_width,
 	        target,
                 false, /* useFP64Transport */ 
