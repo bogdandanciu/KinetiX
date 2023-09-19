@@ -1820,7 +1820,7 @@ def generate_files(mech_file=None, output_dir=None,
         # The inverse polynomial is evaluated
         # Includes division by 1/(Re * Pr * Le_i) and rho*DiRef
         transport_polynomials.diffusivity = [
-            [[((const.R * rho_ref * u_ref * l_ref) / sqrt(T_ref)) * p for p in P]
+            [[(sqrt(T_ref) / (const.R * rho_ref * u_ref * l_ref)) * p for p in P]
              for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
 
     #########################
