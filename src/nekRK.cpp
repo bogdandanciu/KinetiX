@@ -284,7 +284,7 @@ static void setupKernelProperties()
 static occa::kernel _buildKernel(const std::string &path, const std::string &fileName, occa::properties prop)
 {
   occa::kernel kernel;
-  const auto okl_path = std::string(getenv("NEKCRF_PATH")) + "/okl/";
+  const auto okl_path = std::string(getenv("NEKRK_PATH")) + "/okl/";
 
   int rank = 0;
   MPI_Comm_rank(comm, &rank);
@@ -305,22 +305,22 @@ static void setup()
   occaCacheDir0 = getenv("OCCA_CACHE_DIR");
 
   if(isStandalone()){
-    if (!getenv("NEKCRF_PATH")) {
+    if (!getenv("NEKRK_PATH")) {
       std::string path = std::string(getenv("HOME")) + "/.local/nekRK";
-      setenv("NEKCRF_PATH", path.c_str(), 0);
+      setenv("NEKRK_PATH", path.c_str(), 0);
     }
     if (!getenv("OCCA_DIR")) {
-      occa::env::OCCA_DIR = std::string(getenv("NEKCRF_PATH")) + "/";
+      occa::env::OCCA_DIR = std::string(getenv("NEKRK_PATH")) + "/";
     }
   } else {
     std::string path = std::string(getenv("NEKRS_HOME")) + "/3rd_party/nekRK";
-    setenv("NEKCRF_PATH", path.c_str(), 1);
+    setenv("NEKRK_PATH", path.c_str(), 1);
     if(!getenv("NEKRS_MPI_UNDERLYING_COMPILER")) { // check if call is from nekRS
       occa::env::OCCA_DIR = std::string(getenv("NEKRS_HOME")) + "/";
     }
   }
 
-  const auto installDir = std::string(getenv("NEKCRF_PATH"));
+  const auto installDir = std::string(getenv("NEKRK_PATH"));
 
   {
     const std::string yamlName = fs::path(yamlPath).stem();
@@ -358,7 +358,7 @@ static void setup()
   setupKernelProperties();
 
   {
-    const auto oklpath = std::string(getenv("NEKCRF_PATH")) + "/okl/";
+    const auto oklpath = std::string(getenv("NEKRK_PATH")) + "/okl/";
     occa::kernel nSpeciesKernel = buildKernel("mech.okl", "nSpecies", kernel_properties);
     occa::kernel mMolarKernel = buildKernel("mech.okl", "mMolar", kernel_properties);
     occa::kernel speciesNamesLengthKernel = buildKernel("mech.okl", "speciesNamesLength", kernel_properties);
@@ -744,7 +744,7 @@ void nekRK::build(double _ref_pressure,
       ref_mole_fractions_string += ',';
   }
 
-  const auto installDir = std::string(getenv("NEKCRF_PATH") ?: ".");
+  const auto installDir = std::string(getenv("NEKRK_PATH") ?: ".");
   if (rank == 0) {
     std::string cmdline(installDir +
                         "/generator/generate.py" +
