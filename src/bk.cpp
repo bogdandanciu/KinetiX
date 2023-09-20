@@ -169,15 +169,12 @@ bool checkRates(occa::memory& o_rates,
   std::vector<dfloat> rates(n_states * (n_species + 1));
   o_rates.copyTo(rates.data());
 
-  const auto ref_hrr = nekRK::refCp() * nekRK::refTemperature() *
-                       (nekRK::refDensity() / nekRK::refTime());
-
   auto allPassed = true;
   for (int id = 0; id < n_states; id++) {
     std::vector<double> errors;
 
     const auto ciVal= ci_hrr[id];
-    const auto hrrSI = rates[id] * ref_hrr;
+    const auto hrrSI = rates[id];
     const auto e = relErr(hrrSI, ciVal);
     errors.push_back(e); 
     if(debug)
@@ -188,7 +185,7 @@ bool checkRates(occa::memory& o_rates,
 
     for (int k = 0; k < n_active_species; k++) {
         const auto ciVal = ci_rates[id][k];
-        const auto mass_production_rate = nekRK::refDensity() / ref_time * rates[id + (k+1) * n_states];
+        const auto mass_production_rate = rates[id + (k+1) * n_states];
         const auto molar_rate =  
           mass_production_rate / (nekRK::molecularWeights()[k] * nekRK::refMeanMolecularWeight());
  
