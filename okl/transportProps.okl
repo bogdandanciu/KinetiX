@@ -30,9 +30,9 @@
     nekrk_density_diffusivity(id, sqrT, lnT, lnT2, lnT3, lnT4,
                               wrk1, rhoDi, offset);
 
-    thermal_conductivity[id] =  sqrT * nekrk_conductivityNIVT(rcpMbar, lnT, lnT2,
+    thermal_conductivity[id] =  sqrT * nekrk_conductivity(rcpMbar, lnT, lnT2,
                                                               lnT3, lnT4, wrk1);
 
-    viscosity[id] = sqrT * nekrk_viscosityIVT(lnT, lnT2, lnT3, lnT4, wrk1);
+    viscosity[id] = sqrT * nekrk_viscosity(lnT, lnT2, lnT3, lnT4, wrk1);
   }
 }

@@ -32,7 +32,6 @@ std::string occaCacheDir0;
 double ref_pressure;
 double ref_temperature;
 std::vector<double> ref_mass_fractions;
-std::vector<double> ref_rhoDiffCoeffs;
 double ref_meanMolarMass;
 
 const double R = 1.380649e-23 * 6.02214076e23;
@@ -423,13 +422,13 @@ static void buildMechKernels(bool transport)
     if (useFP64Transport) prop = kernel_properties;
 
     transport_fpmix_kernel =
-        buildKernel("transport.okl", "transport", addOccaCompilerFlags(includeProp, prop));
+        buildKernel("transportProps.okl", "transport", addOccaCompilerFlags(includeProp, prop));
 
 
     prop = kernel_properties_fp32;
 
     transport_fp32_kernel =
-        buildKernel("transport.okl", "transport", addOccaCompilerFlags(includeProp, prop));
+        buildKernel("transportProps.okl", "transport", addOccaCompilerFlags(includeProp, prop));
 
   }
 }
@@ -611,7 +610,6 @@ void nekRK::build(double _ref_pressure,
       fileSync(std::string(cacheDir + "/fviscosity.inc").c_str());
       fileSync(std::string(cacheDir + "/frates.inc").c_str());
       fileSync(std::string(cacheDir + "/rates.inc").c_str());
-      fileSync(std::string(cacheDir + "/ref.h").c_str());
 
       // inc files are passed to compiler so occa doesn't know if they have changed
       // force occa to recompile by renaming old cache dir

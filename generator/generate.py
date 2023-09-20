@@ -456,107 +456,6 @@ def get_reaction_from_model(sp_names, units, r):
     return reaction
 
 
-def get_ref_transport_quantities(transport_polynomials, sp_len, Mi, M_bar, T_ref, Xi_ref):
-    """
-    Calculate and return reference transport quantities.
-    """
-
-    # Nondimensionalize transport polynomials with unit
-    # conductivity, viscosity and diffusivity to compute the reference
-    vis_polynomials = [[(sqrt(sqrt(T_ref) / 1.)) * p for p in P] for P in
-                       transport_polynomials.viscosity]
-    cond_polynomials = [[(sqrt(T_ref) / 1.) * p for p in P] for P in
-                        transport_polynomials.conductivity]
-    diff_polynomials = [[[(sqrt(T_ref) / const.R) * p for p in P] for P in row] for k, row
-                        in enumerate(transport_polynomials.diffusivity)]
-    # Nondimensionalize temperature
-    T = T_ref / T_ref
-    lnT = ln(T)
-    lnT2 = lnT * lnT
-    lnT3 = lnT * lnT * lnT
-    lnT4 = lnT * lnT * lnT * lnT
-
-    ref_trans_quantities = []
-    # Reference viscosity
-    a0, a1, a2, a3, a4 = [], [], [], [], []
-    for vis_coeff in vis_polynomials:
-        a0.append(vis_coeff[0])
-        a1.append(vis_coeff[1])
-        a2.append(vis_coeff[2])
-        a3.append(vis_coeff[3])
-        a4.append(vis_coeff[4])
-    C1 = zeros((sp_len, sp_len))
-    C2 = zeros((sp_len, sp_len))
-    for k in range(sp_len):
-        for j in range(sp_len):
-            c1 = 1 / sqrt(sqrt(8 * (1. + Mi[k] / Mi[j])))
-            c2 = c1 * sqrt(sqrt((Mi[j] / Mi[k])))
-            C1[k][j] = c1
-            C2[k][j] = c2
-    mue = zeros(sp_len)
-    rcp_mue = zeros(sp_len)
-    for k in range(sp_len):
-        mue[k] = a0[k] + a1[k] * lnT + a2[k] * lnT2 + a3[k] * lnT3 + a4[k] * lnT4
-        rcp_mue[k] = 1. / mue[k]
-    sums = zeros(sp_len)
-    for k in range(sp_len):
-        sums[k] = 0.
-        for j in range(sp_len):
-            sqrt_Phi_kj = C1[k][j] + C2[k][j] * mue[k] * rcp_mue[j]
-            sums[k] += Xi_ref[j] * sqrt_Phi_kj * sqrt_Phi_kj
-    visRef = 0.
-    for k in range(sp_len):
-        visRef += Xi_ref[k] * mue[k] * mue[k] / sums[k]
-    visRef = visRef * sqrt(T)  # multiply back with the normalized square root of temperature
-    ref_trans_quantities.append(visRef)
-
-    # Reference conductivity
-    b0, b1, b2, b3, b4 = [], [], [], [], []
-    for cond_coeff in cond_polynomials:
-        b0.append(cond_coeff[0])
-        b1.append(cond_coeff[1])
-        b2.append(cond_coeff[2])
-        b3.append(cond_coeff[3])
-        b4.append(cond_coeff[4])
-    sum1 = 0.
-    sum2 = 0.
-    for k in range(sp_len):
-        lambda_k = b0[k] + b1[k] * lnT + b2[k] * lnT2 + b3[k] * lnT3 + b4[k] * lnT4
-        sum1 += Xi_ref[k] * lambda_k
-        sum2 += Xi_ref[k] / lambda_k
-    conductRef = 0.5 * (sum1 + 1 / sum2)
-    conductRef = conductRef * sqrt(T)  # multiply back with the normalized square root of temperature
-    ref_trans_quantities.append(conductRef)
-
-    # Reference diffusivity
-    d0, d1, d2, d3, d4 = [], [], [], [], []
-    for k in range(1, len(diff_polynomials)):
-        for j in range(k):
-            d0.append(diff_polynomials[k][j][0])
-            d1.append(diff_polynomials[k][j][1])
-            d2.append(diff_polynomials[k][j][2])
-            d3.append(diff_polynomials[k][j][3])
-            d4.append(diff_polynomials[k][j][4])
-    sums1 = zeros(sp_len)
-    sums2 = zeros(sp_len)
-    for k in range(1, len(diff_polynomials)):
-        for j in range(k):
-            idx = int(k * (k - 1) / 2 + j)
-            rcp_Dkj = 1/(d0[idx] + d1[idx] * lnT + d2[idx] * lnT2 + d3[idx] * lnT3 + d4[idx] * lnT4)
-            sums1[k] += Xi_ref[j] * rcp_Dkj
-            sums2[j] += Xi_ref[k] * rcp_Dkj
-    sums = zeros(sp_len)
-    for k in range(sp_len):
-        sums[k] = sums1[k] + sums2[k]
-    diRef = zeros(sp_len)
-    for k in range(sp_len):
-        Yi = Xi_ref[k] * Mi[k] / M_bar
-        diRef[k] = (1 - Yi) / sums[k]
-    rhoDiRef = diRef * sqrt(T) * M_bar
-    ref_trans_quantities.append(rhoDiRef)
-    return ref_trans_quantities
-
-
 def write_thermo_piece(out, sp_indices, sp_thermo, expression, p):
     """
     Write a thermodynamic piece expression.
@@ -842,33 +741,6 @@ def write_file_mech(file_name, output_dir, sp_names, sp_len, active_sp_len, rxn_
     return 0
 
 
-def write_file_ref(file_name, output_dir, transport,
-                   p_ref, T_ref, rho_ref, cp_ref, cv_ref, rho_cp_ref, Yi_ref,
-                   vis_ref=None, cond_ref=None, rho_Di_ref=None):
-    """
-    Write the 'ref.h' file for the reference data corresponding to the
-    reaction mechanism.
-    """
-
-    lines = []
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_pRef = {p_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_Tref = {T_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_rhoRef = {rho_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_cpRef = {cp_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_cvRef = {cv_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_rhoCpRef = {rho_cp_ref};')
-    lines.append(f'__NEKRK_CONST__ cfloat nekrk_YiRef[] = '
-                 f'{{{",".join([repr(d) for d in Yi_ref])}}};')
-    if transport:
-        lines.append(f'__NEKRK_CONST__ cfloat nekrk_visRef = {vis_ref};')
-        lines.append(f'__NEKRK_CONST__ cfloat nekrk_conductRef = {cond_ref};')
-        lines.append(f'__NEKRK_CONST__ cfloat nekrk_rhoDiRef[] = '
-                     f'{{{",".join([repr(d) for d in rho_Di_ref])}}};')
-
-    write_module(output_dir, file_name, f'{code(lines)}')
-    return 0
-
-
 def write_file_rates_unroll(file_name, output_dir, reactions, active_len, sp_len, sp_thermo):
     """
     Write the 'rates.inc'('frates.inc') file with unrolled loop specification.
@@ -946,7 +818,7 @@ def write_file_conductivity_unroll(file_name, output_dir, transport_polynomials,
     """
 
     lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_conductivityNIVT"
+    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_conductivity"
                  f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[])")
     lines.append(f"{{")
     lines.append(f"{si}cfloat lambda_k, a = 0., b = 0.;")
@@ -971,7 +843,7 @@ def write_file_viscosity_unroll(file_name, output_dir, transport_polynomials, sp
 
     lines = []
     lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat sq(cfloat x) {{ return x*x; }}")
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_viscosityIVT"
+    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_viscosity"
                  f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[]) ")
     lines.append(f"{{")
     for k, P in enumerate(transport_polynomials.viscosity):
@@ -1616,7 +1488,7 @@ def write_file_conductivity_roll(file_name, output_dir, align_width, target, tra
     var = [b0, b1, b2, b3, b4]
 
     lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_conductivityNIVT"
+    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_conductivity"
                  f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[])")
     lines.append(f"{{")
     lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
@@ -1661,7 +1533,7 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, transp
     var2 = [C1, C2]
 
     lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_viscosityIVT"
+    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_viscosity"
                  f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[]) ")
     lines.append(f"{{")
     lines.append(f"{write_const_expression(align_width, target, True, var1_str, var1)}")
@@ -1807,17 +1679,11 @@ def generate_files(mech_file=None, output_dir=None,
     # Load transport polynomials
     if transport and not header_only:
         transport_polynomials = species.transport_polynomials(T_ref)
-        ref_trans_qunatities = (
-            get_ref_transport_quantities(transport_polynomials, species_len, Mi, M_bar, T_ref, Xi_ref))
-        vis_ref = ref_trans_qunatities[0]
-        cond_ref = ref_trans_qunatities[1]
-        rho_Di_ref = ref_trans_qunatities[2]
         # need to multiply by dimensional sqrt(T): multiply by sqrt(T_ref) here and later on by sqrt(T_nondim)
         transport_polynomials.viscosity = [[sqrt(sqrt(T_ref)) * p for p in P] for P in
                                                 transport_polynomials.viscosity]
         transport_polynomials.conductivity = [[(sqrt(T_ref) / 2) * p for p in P] for P in
                                                  transport_polynomials.conductivity]
-        # The inverse polynomial is evaluated
         transport_polynomials.diffusivity = [
             [[(sqrt(T_ref) / const.R) * p for p in P]
              for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
@@ -1828,7 +1694,6 @@ def generate_files(mech_file=None, output_dir=None,
 
     # File names
     mech_file = 'mech.h'
-    ref_file = 'ref.h'
     rates_file = 'rates.inc'
     enthalpy_file = 'fenthalpy_RT.inc'
     heat_capacity_file = 'fheat_capacity_R.inc'
@@ -1840,9 +1705,6 @@ def generate_files(mech_file=None, output_dir=None,
         write_file_mech(mech_file, output_dir, species_names, species_len, active_sp_len, reactions_len, Mi)
     else:
         write_file_mech(mech_file, output_dir, species_names, species_len, active_sp_len, reactions_len, Mi)
-        write_file_ref(ref_file, output_dir, transport,
-                       p_ref, T_ref, rho_ref, cp_ref, cv_ref, rho_cp_ref, Yi_ref,
-                       vis_ref, cond_ref, rho_Di_ref)
         if unroll_loops:  # Unrolled code
             precisions = [32, 64]
             for p in precisions:
