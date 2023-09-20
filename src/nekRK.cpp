@@ -29,21 +29,11 @@ nekRK::nekRKBuildKernel_t buildKernel;
 occa::device device;
 std::string occaCacheDir0;
 
-double ref_time;
-double ref_length;
-double ref_velocity;
 double ref_pressure;
 double ref_temperature;
 std::vector<double> ref_mass_fractions;
-double ref_viscosity;
-double ref_conductivity;
-double ref_density;
-double ref_cp;
-double ref_cv;
 std::vector<double> ref_rhoDiffCoeffs;
 double ref_meanMolarMass;
-double ref_mass_rate;
-double ref_volumetric_energy_rate;
 
 const double R = 1.380649e-23 * 6.02214076e23;
 int n_species = -1;
@@ -383,68 +373,6 @@ static void setup()
 static void buildMechKernels(bool transport)
 {
   {
-    occa::properties props = kernel_properties;
-    props["compiler_flags"] += " -include " + cacheDir + "/ref.h";
-    occa::kernel kernel = buildKernel("ref.okl", "refRhoDiffCoeffs", props);
-    auto tmp = (double *)calloc(n_species, sizeof(double));
-    auto o_tmp = device.malloc(n_species * sizeof(double));
-    kernel(o_tmp);
-    o_tmp.copyTo(tmp);
-    for (int k = 0; k < n_species; k++) {
-      ref_rhoDiffCoeffs.push_back(tmp[k]);
-    }
-    free(tmp);
-  }
-
-  {
-    occa::properties props = kernel_properties;
-    props["compiler_flags"] += " -include " + cacheDir + "/ref.h";
-    occa::kernel kernel = buildKernel("ref.okl", "refCp", props);
-    auto tmp = (double *)calloc(1, sizeof(double));
-    auto o_tmp = device.malloc(1 * sizeof(double));
-    kernel(o_tmp);
-    o_tmp.copyTo(tmp);
-    ref_cp = tmp[0];
-    free(tmp);
-  }
-
-  {
-    occa::properties props = kernel_properties;
-    props["compiler_flags"] += " -include " + cacheDir + "/ref.h";
-    occa::kernel kernel = buildKernel("ref.okl", "refCv", props);
-    auto tmp = (double *)calloc(1, sizeof(double));
-    auto o_tmp = device.malloc(1 * sizeof(double));
-    kernel(o_tmp);
-    o_tmp.copyTo(tmp);
-    ref_cv = tmp[0];
-    free(tmp);
-  }
-
-  {
-    occa::properties props = kernel_properties;
-    props["compiler_flags"] += " -include " + cacheDir + "/ref.h";
-    occa::kernel kernel = buildKernel("ref.okl", "refViscosity", props);
-    auto tmp = (double *)calloc(1, sizeof(double));
-    auto o_tmp = device.malloc(1 * sizeof(double));
-    kernel(o_tmp);
-    o_tmp.copyTo(tmp);
-    ref_viscosity = tmp[0];
-    free(tmp);
-  }
-
-  {
-    occa::properties props = kernel_properties;
-    props["compiler_flags"] += " -include " + cacheDir + "/ref.h";
-    occa::kernel kernel = buildKernel("ref.okl", "refConductivity", props);
-    auto tmp = (double *)calloc(1, sizeof(double));
-    auto o_tmp = device.malloc(1 * sizeof(double));
-    kernel(o_tmp);
-    o_tmp.copyTo(tmp);
-    ref_conductivity = tmp[0];
-    free(tmp);
-  }
-
-  {
     occa::properties includeProp;
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
 
@@ -485,8 +413,6 @@ static void buildMechKernels(bool transport)
   }
 
   if (transport) {
-    const auto invRe = 1 / nekRK::Re();
-    const auto invRePr = 1 / (nekRK::Re() * nekRK::Pr());
 
     occa::properties includeProp;
     includeProp["compiler_flags"] = " -include " + cacheDir + "/fconductivity.inc";
@@ -495,16 +421,12 @@ static void buildMechKernels(bool transport)
 
     auto prop = kernel_properties_mixed;
     if (useFP64Transport) prop = kernel_properties;
-    prop["defines/p_invRe"] += invRe;
-    prop["defines/p_invRePr"] += invRePr;
 
     transport_fpmix_kernel =
         buildKernel("transport.okl", "transport", addOccaCompilerFlags(includeProp, prop));
 
 
     prop = kernel_properties_fp32;
-    prop["defines/p_invRe"] += invRe;
-    prop["defines/p_invRePr"] += invRePr;
 
     transport_fp32_kernel =
         buildKernel("transport.okl", "transport", addOccaCompilerFlags(includeProp, prop));
@@ -604,69 +526,18 @@ void nekRK::init(const std::string &model_path,
   MPI_Barrier(comm);
 }
 
-double nekRK::Re()
-{
-  const auto nu = ref_viscosity / ref_density;
-  return (ref_velocity * ref_length) / nu;
-}
-
-double nekRK::Pr()
-{
-  const auto alpha = ref_conductivity / (ref_density * ref_cp);
-  const auto nu = ref_viscosity / ref_density;
-  return nu / alpha;
-}
-
-const std::vector<double> nekRK::Le()
-{
-  std::vector<double> tmp;
-  for (int k = 0; k < n_species; k++) {
-    tmp.push_back(ref_conductivity / (ref_cp * ref_rhoDiffCoeffs[k]));
-  }
-  return tmp;
-}
-
-double nekRK::refTime() { return ref_time; }
-
-double nekRK::refLength() { return ref_length; }
-
-double nekRK::refVelocity() { return ref_velocity; }
-
 double nekRK::refPressure() { return ref_pressure; }
 
 double nekRK::refTemperature() { return ref_temperature; }
 
 const std::vector<double> nekRK::refMassFractions() { return ref_mass_fractions; }
 
-double nekRK::refCp() { return ref_cp; }
-
-double nekRK::refCv() { return ref_cv; }
-
 double nekRK::refMeanMolecularWeight() { return ref_meanMolarMass; }
 
-double nekRK::refDensity() { return ref_density; }
-
-double nekRK::refViscosity() { return ref_viscosity; }
-
-double nekRK::refThermalConductivity() { return ref_conductivity; }
-
-const std::vector<double> nekRK::refRhoDiffCoeffs() { return ref_rhoDiffCoeffs; }
-
-const std::vector<double> nekRK::refDiffCoeffs()
-{
-  std::vector<double> tmp;
-  for (int k = 0; k < n_species; k++) {
-    tmp.push_back(ref_rhoDiffCoeffs[k] / ref_density);
-  }
-  return tmp;
-}
-
 void nekRK::build(double _ref_pressure,
-                    double _ref_temperature,
-                    double _ref_length,
-                    double _ref_velocity,
-                    double _ref_mass_fractions[],
-                    bool transport)
+                  double _ref_temperature,
+                  double _ref_mass_fractions[],
+                  bool transport)
 {
   initialized = 1;
   const std::string occaCacheDir = cacheDir + "/.occa/";
@@ -678,9 +549,6 @@ void nekRK::build(double _ref_pressure,
 
   ref_pressure = _ref_pressure;
   ref_temperature = _ref_temperature;
-  ref_length = _ref_length;
-  ref_velocity = _ref_velocity;
-  ref_time = ref_length / ref_velocity;
 
   double sum = 0.;
   for (int k = 0; k < nSpecies(); k++) {
@@ -688,8 +556,6 @@ void nekRK::build(double _ref_pressure,
     ref_mass_fractions.push_back(_ref_mass_fractions[k]);
   }
   ref_meanMolarMass = 1. / sum;
-
-  ref_density = (ref_pressure / R / ref_temperature) * ref_meanMolarMass;
 
   auto ref_mole_fractions = new double[nSpecies()];
   std::string ref_mole_fractions_string;
@@ -704,12 +570,13 @@ void nekRK::build(double _ref_pressure,
   if (rank == 0) {
     std::string cmdline(installDir +
                         "/generator/generate.py" +
-                        " --mechanism " +
-                        yamlPath + " --output " + cacheDir + " --velocityRef " + nekRK::to_string_f(ref_velocity) +
-                        " --lengthRef " + nekRK::to_string_f(ref_length) + " --pressureRef " +
-                        nekRK::to_string_f(ref_pressure) + " --temperatureRef " + nekRK::to_string_f(ref_temperature) +
-                        " --moleFractionsRef " + ref_mole_fractions_string.c_str() + " --align-width " +
-                        std::to_string(align_width) + " --target " + target);
+                        " --mechanism " + yamlPath + 
+			" --output " + cacheDir + 
+                        " --pressureRef " + nekRK::to_string_f(ref_pressure) + 
+			" --temperatureRef " + nekRK::to_string_f(ref_temperature) +
+                        " --moleFractionsRef " + ref_mole_fractions_string.c_str() + 
+			" --align-width " + std::to_string(align_width) + 
+			" --target " + target);
     if (unroll_loops)
       cmdline.append(" --unroll-loops");
 
@@ -759,9 +626,6 @@ void nekRK::build(double _ref_pressure,
   MPI_Barrier(comm);
 
   buildMechKernels(transport);
-
-  ref_mass_rate = ref_density / ref_time;
-  ref_volumetric_energy_rate = -ref_cp * ref_temperature * ref_mass_rate;
 
   delete[] ref_mole_fractions;
 

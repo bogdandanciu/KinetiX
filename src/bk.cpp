@@ -25,9 +25,6 @@ namespace fs = std::filesystem;
 
 using dfloat = double;
 
-const double K = 1.380649e-23;     // J/kelvin
-const double NA = 6.02214076e23;   // /mole
-
 occa::device device;
 bool debug = false;
 int n_states;
@@ -37,12 +34,9 @@ int n_inert_species;
 
 double *ref_mole_fractions; 
 double *ref_mass_fractions;
+double ref_molar_mass;
 double ref_pressure; 
 double ref_temperature;
-double ref_length;
-double ref_velocity;
-double ref_time;
-double ref_molar_mass;
 
 std::vector<double> ci_rho;
 std::vector<double> ci_cp_mean;
@@ -229,7 +223,6 @@ bool checkTransport(occa::memory& o_conductivity,
   for (int id = 0; id < n_states; id++) {
     std::vector<double> errors;
     {
-      const auto scale = nekRK::refThermalConductivity();
       auto e = relErr(conductivity[id], ci_conductivity[id]);
       errors.push_back(e);
       if(debug)
@@ -601,9 +594,6 @@ int main(int argc, char** argv)
       if(ci == 2) ref_pressure = 101325; // use an arbitrary but different reference pressure
       ref_temperature = temperature_K;
       ref_molar_mass = molar_mass;
-      ref_length = 1;
-      ref_velocity = 1;
-      ref_time = ref_length/ref_velocity;
     }
 
     pressure = pressure_Pa / ref_pressure; 
@@ -626,8 +616,6 @@ int main(int argc, char** argv)
 
   nekRK::build(ref_pressure,
                  ref_temperature,
-                 ref_length,
-                 ref_velocity,
                  ref_mass_fractions,
                  mode == 0 || mode == 2   /* enable transport */
                 );
@@ -678,8 +666,8 @@ int main(int argc, char** argv)
     for(int i = 0; i < nRep; i++) {
       nekRK::productionRates(n_states,
                      n_states /* offsetT */,
-                     n_states /* offset */,
-                     pressure,
+                     n_states /* offset */, 
+                     pressure, 
                      o_states,
                      o_rates,
                      fp32Rates);

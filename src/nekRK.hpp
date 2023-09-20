@@ -44,8 +44,6 @@ void init(
 void build(
   double refPressure,
   double refTemperature,
-  double refLength,
-  double refVelocity,
   double refMass_fractions[],
   bool transport = true
 );
