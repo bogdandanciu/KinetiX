@@ -1804,7 +1804,7 @@ def generate_files(mech_file=None, output_dir=None,
     rho_cp_ref = rho_ref * cp_ref
     assert len(Xi_ref) == species_len
 
-    # Load non-dimensional transport polynomials
+    # Load transport polynomials
     if transport and not header_only:
         transport_polynomials = species.transport_polynomials(T_ref)
         ref_trans_qunatities = (
@@ -1813,14 +1813,13 @@ def generate_files(mech_file=None, output_dir=None,
         cond_ref = ref_trans_qunatities[1]
         rho_Di_ref = ref_trans_qunatities[2]
         # need to multiply by dimensional sqrt(T): multiply by sqrt(T_ref) here and later on by sqrt(T_nondim)
-        transport_polynomials.viscosity = [[(sqrt(sqrt(T_ref) / vis_ref)) * p for p in P] for P in
+        transport_polynomials.viscosity = [[sqrt(sqrt(T_ref)) * p for p in P] for P in
                                                 transport_polynomials.viscosity]
-        transport_polynomials.conductivity = [[(sqrt(T_ref) / (2 * cond_ref)) * p for p in P] for P in
+        transport_polynomials.conductivity = [[(sqrt(T_ref) / 2) * p for p in P] for P in
                                                  transport_polynomials.conductivity]
         # The inverse polynomial is evaluated
-        # Includes division by 1/(Re * Pr * Le_i) and rho*DiRef
         transport_polynomials.diffusivity = [
-            [[(sqrt(T_ref) / (const.R * rho_ref * u_ref * l_ref)) * p for p in P]
+            [[(sqrt(T_ref) / const.R) * p for p in P]
              for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
 
     #########################

@@ -229,32 +229,30 @@ bool checkTransport(occa::memory& o_conductivity,
   for (int id = 0; id < n_states; id++) {
     std::vector<double> errors;
     {
-      const auto scale = nekRK::Re() * nekRK::Pr() * nekRK::refThermalConductivity();
-      auto e = relErr(scale * conductivity[id], ci_conductivity[id]);
+      const auto scale = nekRK::refThermalConductivity();
+      auto e = relErr(conductivity[id], ci_conductivity[id]);
       errors.push_back(e);
       if(debug)
         printf("conductivity: Cantera %e nekRK %e relative error %e\n",
                ci_conductivity[id],
-               scale * conductivity[id],
+               conductivity[id],
                e);
     }
 
     {
-      const auto scale = nekRK::Re() * nekRK::refViscosity();
-      auto e = relErr(scale * viscosity[id], ci_viscosity[id]);
+      auto e = relErr(viscosity[id], ci_viscosity[id]);
       errors.push_back(e);
       if(debug)
         printf("viscosity: Cantera %e nekRK %e relative error %e\n",
                ci_viscosity[id],
-               scale * viscosity[id],
+               viscosity[id],
                e);
     }
 
     {
       for(int k = 0; k < n_species; k++) {
         const auto ci_rhoDi = ci_rhoD[id][k];
-        const auto scale = nekRK::Re() * nekRK::Pr() * nekRK::Le()[k] * nekRK::refRhoDiffCoeffs()[k];
-        const auto rhoDi = scale * rhoD[k * n_states + id];
+        const auto rhoDi = rhoD[k * n_states + id];
         const auto e = relErr(rhoDi, ci_rhoDi);
         if(debug)
           printf("rhoD(%d): Cantera %e nekRK %e relative error %e\n", 
