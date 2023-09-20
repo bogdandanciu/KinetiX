@@ -816,8 +816,6 @@ void nekRK::build(double _ref_pressure,
 void nekRK::productionRates(int n_states,
                               int offsetT,
                               int offset,
-                              bool normalize, /* by rhoCp and rho */
-                              bool lumpInert,
                               double pressure,
                               const occa::memory &o_state,
                               occa::memory &o_rates,
@@ -840,16 +838,10 @@ void nekRK::productionRates(int n_states,
   kernel(n_states,
          offsetT,
          offset,
-         (int)normalize,
-         (int)lumpInert,
          pressure_R,
          o_state,
          o_rates,
-         ref_temperature,
-         1. / ref_mass_rate,
-         1. / ref_volumetric_energy_rate,
-         1. / ref_density,
-         1. / ref_cp);
+         ref_temperature);
 }
 
 void nekRK::mixtureAvgTransportProps(int n_states,

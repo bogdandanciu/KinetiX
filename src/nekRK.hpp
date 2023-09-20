@@ -54,8 +54,6 @@ void productionRates(
   int n_states,
   int offsetT,
   int offset,
-  bool normalize,
-  bool excessSpecies,
   double pressure,
   const occa::memory& o_state,
   occa::memory& o_rates,

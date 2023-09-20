@@ -1,16 +1,10 @@
 @kernel void productionRates(const int n_states,
                              const int offsetT,
                              const int offset,
-                             const int normalize,
-                             const int lumpInert,
                              const double pressure_R,
                              @restrict const dfloat* state,
                              @restrict dfloat* rates,
-                             const double Tref,
-                             const double rcpRatesRefFactor,
-                             const double rcpHrrRefFactor,
-                             const double rcpRhoRef,
-                             const double rcpCpRef)
+                             const double Tref)
 {
   for(int id = 0; id < n_states; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
     const cfloat T = Tref * state[id];
