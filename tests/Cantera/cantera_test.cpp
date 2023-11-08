@@ -1,21 +1,20 @@
 #include "mpi.h"
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
+#include <getopt.h>
 #include <sstream>
 #include <string>
-#include <algorithm>
-#include <cstddef>
-#include <getopt.h>
 
+#include "cantera/base/global.h" // provides Cantera::writelog
 #include "cantera/core.h"
 #include "cantera/kinetics/Reaction.h"
-#include "cantera/base/global.h" // provides Cantera::writelog
 #include <iostream>
 
 using namespace Cantera;
 
-int main(int argc, char** argv)
-{
+int main(int argc, char **argv) {
 
   MPI_Init(&argc, &argv);
   int rank, size;
@@ -29,12 +28,11 @@ int main(int argc, char** argv)
   int n_rep = 20;
   std::string mech;
 
-  while(1) {
-    static struct option long_options[] =
-    {
-      {"n-states", required_argument, 0, 's'},
-      {"n-repetitions", required_argument, 0, 'r'},
-      {"mechanism", required_argument, 0, 'm'},
+  while (1) {
+    static struct option long_options[] = {
+        {"n-states", required_argument, 0, 's'},
+        {"n-repetitions", required_argument, 0, 'r'},
+        {"mechanism", required_argument, 0, 'm'},
     };
 
     int option_index = 0;
@@ -43,7 +41,7 @@ int main(int argc, char** argv)
     if (args == -1)
       break;
 
-    switch(args) {
+    switch (args) {
     case 's':
       n_states = std::stoi(optarg);
       break;
@@ -59,18 +57,20 @@ int main(int argc, char** argv)
     }
   }
 
-  if(mech.size() < 1) err++;
+  if (mech.size() < 1)
+    err++;
 
-  if(err > 0) {
-    if(rank == 0)
-      printf("Usage: ./cantera_test  [--n-states n] [--n-repetitions] [--mechanism f] \n");
+  if (err > 0) {
+    if (rank == 0)
+      printf("Usage: ./cantera_test  [--n-states n] [--n-repetitions] "
+             "[--mechanism f] \n");
     exit(EXIT_FAILURE);
   }
 
-  int Nstates = n_states/size;
+  int Nstates = n_states / size;
   int Nrep = n_rep;
 
-  // Initialize reaction mechanism 
+  // Initialize reaction mechanism
   auto sol = newSolution(mech);
   auto gas = sol->thermo();
   double temp = 2800.0;
@@ -85,26 +85,24 @@ int main(int argc, char** argv)
   // Initialize species production rates
   std::vector<double> netProductionRates(nSpecies, 0.0);
 
-  for(int i=0; i<Nrep; i++) {
+  for (int i = 0; i < Nrep; i++) {
 
     MPI_Barrier(MPI_COMM_WORLD);
     const auto startTime = MPI_Wtime();
 
-    for(int n=0; n<Nstates; n++) {
+    for (int n = 0; n < Nstates; n++) {
       // Get species net production rates
-      kin->getNetProductionRates(netProductionRates.data());      	
+      kin->getNetProductionRates(netProductionRates.data());
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
     const auto elapsedTime = (MPI_Wtime() - startTime);
 
     printf("avg aggregated throughput: %.3f GDOF/s (Nstates = %d)\n",
-           (size * (double)(Nstates*offset))/elapsedTime/1e9,
-           size*Nstates);
+           (size * (double)(Nstates * offset)) / elapsedTime / 1e9,
+           size * Nstates);
   }
 
   MPI_Finalize();
   exit(EXIT_SUCCESS);
-
 }
-
