@@ -38,9 +38,9 @@ int main(int argc, char** argv)
 
   // Reaction information
   auto kin = sol->kinetics();
-  int irxns = kin->nReactions();
-  vector<double> q(irxns);
 
+  // Initialize species production rates
+  std::vector<double> netProductionRates(gas->nSpecies(), 0.0);
 
   for(int i=0; i<Nrep; i++) {
 
@@ -48,7 +48,8 @@ int main(int argc, char** argv)
     const auto startTime = MPI_Wtime();
 
     for(int n=0; n<Nstates; n++) {
-      kin->getNetRatesOfProgress(&q[0]);
+      // Get the species net production rates
+      kin->getNetProductionRates(netProductionRates.data());      	
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
