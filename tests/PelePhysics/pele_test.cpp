@@ -92,6 +92,11 @@ int main(int argc, char **argv) {
            size * Nstates);
   }
 
+#if 0
+  for (int i=0; i<offset; i++)
+    printf("wdot[%d]: %.3f \n", i, wdot[i]);
+#endif
+
   MPI_Finalize();
   exit(EXIT_SUCCESS);
 }
