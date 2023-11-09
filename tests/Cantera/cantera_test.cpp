@@ -10,6 +10,8 @@
 #include "cantera/base/global.h" // provides Cantera::writelog
 #include "cantera/core.h"
 #include "cantera/kinetics/Reaction.h"
+#include "cantera/thermo/ThermoFactory.h"
+#include "cantera/thermo/ThermoPhase.h"
 #include <iostream>
 
 using namespace Cantera;
@@ -73,18 +75,28 @@ int main(int argc, char **argv) {
   // Initialize reaction mechanism
   auto sol = newSolution(mech);
   auto gas = sol->thermo();
-  double temp = 2800.0;
-  double pres = OneAtm;
-  gas->setState_TPX(temp, pres, "H2:1, O2:1, AR:2");
+  double temp = 1000.0;
+  double pres = 100000;
+  int nSpecies = gas->nSpecies();
+  double Y[nSpecies];
+  for (int i=0; i<nSpecies; i++){
+    Y[i] = 1.0/nSpecies;
+    if (i == nSpecies-1)
+      printf("%s = %.5f \n", gas->speciesName(i).c_str(), Y[i]);
+    else
+      printf("%s = %.5f, ", gas->speciesName(i).c_str(), Y[i]);
+
+  }
+  gas->setState_TPY(temp, pres, Y);
 
   // Reaction information
   auto kin = sol->kinetics();
-  int nSpecies = gas->nSpecies();
+
+  // Initialize states vector 
   int offset = nSpecies + 1;
+  double *ydot = (double*)( _mm_malloc(Nstates * offset * sizeof(double), 64) );
 
-  // Initialize species production rates
-  std::vector<double> netProductionRates(nSpecies, 0.0);
-
+  /* Get states vector and throughput */
   for (int i = 0; i < Nrep; i++) {
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -92,7 +104,9 @@ int main(int argc, char **argv) {
 
     for (int n = 0; n < Nstates; n++) {
       // Get species net production rates
-      kin->getNetProductionRates(netProductionRates.data());
+      double *m_ydot = ydot + n*offset;
+      ydot[n*offset] = temp;
+      kin->getNetProductionRates(m_ydot);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -102,6 +116,11 @@ int main(int argc, char **argv) {
            (size * (double)(Nstates * offset)) / elapsedTime / 1e9,
            size * Nstates);
   }
+
+#if 1
+  for (int i=0; i<Nstates*offset; i++)
+    printf("rates[%d]: %.5f \n", i, ydot[i]);	
+#endif
 
   MPI_Finalize();
   exit(EXIT_SUCCESS);
