@@ -9,8 +9,6 @@
 
 #include "mechanism.H"
 
-using namespace Cantera;
-
 int main(int argc, char **argv) {
 
   MPI_Init(&argc, &argv);
@@ -57,13 +55,14 @@ int main(int argc, char **argv) {
 
   if (err > 0) {
     if (rank == 0)
-      printf("Usage: ./cantera_test  [--n-states n] [--n-repetitions] "
+      printf("Usage: ./cantera_test  [--n-states n] [--n-repetitions n] "
              "[--mechanism f] \n");
     exit(EXIT_FAILURE);
   }
 
   int Nstates = n_states / size;
   int Nrep = n_rep;
+  int offset = 9;
 
   // Initialize reaction mechanism
 
