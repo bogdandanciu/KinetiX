@@ -75,28 +75,31 @@ int main(int argc, char **argv) {
   // Initialize reaction mechanism
   auto sol = newSolution(mech);
   auto gas = sol->thermo();
-  double temp = 1000.0;
-  double pres = 100000;
+  double T = 1000.0;
+  double p = 1e5;
   int nSpecies = gas->nSpecies();
   double Y[nSpecies];
-  for (int i=0; i<nSpecies; i++){
-    Y[i] = 1.0/nSpecies;
-    if (i == nSpecies-1)
+  for (int i = 0; i < nSpecies; i++) {
+    Y[i] = 1.0 / nSpecies;
+  }
+  gas->setState_TPY(T, p, Y);
+  printf("T: %.1f K \n", T);
+  printf("p: %.1f Pa \n", p);
+  for (int i = 0; i < nSpecies; i++) {
+    if (i == nSpecies - 1)
       printf("%s = %.5f \n", gas->speciesName(i).c_str(), Y[i]);
     else
       printf("%s = %.5f, ", gas->speciesName(i).c_str(), Y[i]);
-
   }
-  gas->setState_TPY(temp, pres, Y);
 
-  // Reaction information
+  // Initialize reaction kinetics
   auto kin = sol->kinetics();
 
-  // Initialize states vector 
+  // Initialize states vector
   int offset = nSpecies + 1;
-  double *ydot = (double*)( _mm_malloc(Nstates * offset * sizeof(double), 64) );
+  double *ydot = (double *)(_mm_malloc(Nstates * offset * sizeof(double), 64));
 
-  /* Get states vector and throughput */
+  /*** Throughput ***/
   for (int i = 0; i < Nrep; i++) {
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -104,9 +107,9 @@ int main(int argc, char **argv) {
 
     for (int n = 0; n < Nstates; n++) {
       // Get species net production rates
-      double *m_ydot = ydot + n*offset;
-      ydot[n*offset] = temp;
+      double *m_ydot = ydot + n * offset;
       kin->getNetProductionRates(m_ydot);
+      ydot[(n + 1) * offset] = T;
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -118,8 +121,8 @@ int main(int argc, char **argv) {
   }
 
 #if 1
-  for (int i=0; i<Nstates*offset; i++)
-    printf("rates[%d]: %.5f \n", i, ydot[i]);	
+  for (int i = 0; i < Nstates * offset; i++)
+    printf("rates[%d]: %.5f \n", i, ydot[i]);
 #endif
 
   MPI_Finalize();
