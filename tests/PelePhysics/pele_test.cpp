@@ -32,7 +32,8 @@ int main(int argc, char **argv) {
     };
 
     int option_index = 0;
-    int args = getopt_long(argc, argv, "s:", long_options, &option_index); if (args == -1)
+    int args = getopt_long(argc, argv, "s:", long_options, &option_index);
+    if (args == -1)
       break;
 
     switch (args) {
@@ -66,11 +67,11 @@ int main(int argc, char **argv) {
   int offset = 9;
 
   // Initialize variables
-  double *wdot = (double*)( _mm_malloc(offset * sizeof(double), 64) );
-  double *sc = (double*)( _mm_malloc(offset * sizeof(double), 64) );
+  double *wdot = (double *)(_mm_malloc(offset * sizeof(double), 64));
+  double *sc = (double *)(_mm_malloc(offset * sizeof(double), 64));
   double T = 1000;
-  
-  for (int i=0; i<offset; i++)
+
+  for (int i = 0; i < offset; i++)
     sc[i] = 1;
 
   for (int i = 0; i < Nrep; i++) {
@@ -81,7 +82,6 @@ int main(int argc, char **argv) {
     for (int n = 0; n < Nstates; n++) {
       // Get species net production rates
       productionRate(wdot, sc, T);
-      
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
