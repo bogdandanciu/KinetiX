@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstring>
 #include <getopt.h>
+#include <mm_malloc.h>
 #include <sstream>
 #include <string>
 
@@ -64,11 +65,13 @@ int main(int argc, char **argv) {
   int Nrep = n_rep;
   int offset = 9;
 
-  // Initialize reaction mechanism
-
-  // Reaction information
-
-  // Initialize species production rates
+  // Initialize variables
+  double *wdot = (double*)( _mm_malloc(offset * sizeof(double), 64) );
+  double *sc = (double*)( _mm_malloc(offset * sizeof(double), 64) );
+  double T = 1000;
+  
+  for (int i=0; i<offset; i++)
+    sc[i] = 1;
 
   for (int i = 0; i < Nrep; i++) {
 
@@ -77,6 +80,7 @@ int main(int argc, char **argv) {
 
     for (int n = 0; n < Nstates; n++) {
       // Get species net production rates
+      productionRate(wdot, sc, T);
       
     }
 
