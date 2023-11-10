@@ -70,8 +70,8 @@ int main(int argc, char **argv) {
   double T = 1000;
   double p = 1e5;
   double Y[NUM_SPECIES];
-  for (int k = 0; k< NUM_SPECIES; k++)
-    Y[k] = 1.0/NUM_SPECIES;
+  for (int k = 0; k < NUM_SPECIES; k++)
+    Y[k] = 1.0 / NUM_SPECIES;
   printf("T: %.1f K \n", T);
   printf("p: %.1f Pa \n", p);
   amrex::Vector<std::string> species_names;
@@ -82,7 +82,6 @@ int main(int argc, char **argv) {
     else
       printf("%s = %.5f, ", species_names[k].c_str(), Y[k]);
   }
-
 
   double R, Rc, Patm;
   CKRP(R, Rc, Patm);
@@ -112,11 +111,11 @@ int main(int argc, char **argv) {
           wrk1[k] = Y[k] * iWk[k];
           iW += wrk1[k];
         }
-        W = 1/iW; 
+        W = 1 / iW;
       }
       double rho = p * W / (R * T);
       for (int k = 0; k < NUM_SPECIES; k++)
-	sc[k] = wrk1[k] * rho;
+        sc[k] = wrk1[k] * rho;
       productionRate(wdot, sc, T);
       for (int k = 0; k < NUM_SPECIES; k++)
         ydot[n + (k + 1) * Nstates] = wdot[k] * Wk[k];
@@ -125,8 +124,8 @@ int main(int argc, char **argv) {
       double sum_h_RT = 0;
       for (int k = 0; k < NUM_SPECIES; k++)
         sum_h_RT += wdot[k] * h_RT[k];
-      double ratesFactorEnergy = -R*T;
-      ydot[n] = ratesFactorEnergy * sum_h_RT; 
+      double ratesFactorEnergy = -R * T;
+      ydot[n] = ratesFactorEnergy * sum_h_RT;
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
