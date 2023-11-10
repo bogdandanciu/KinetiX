@@ -64,24 +64,81 @@ int main(int argc, char **argv) {
 
   int Nstates = n_states / size;
   int Nrep = n_rep;
-  int offset = 9;
+  int offset = NUM_SPECIES + 1;
 
   // Initialize variables
-  double *wdot = (double *)(_mm_malloc(offset * sizeof(double), 64));
-  double *sc = (double *)(_mm_malloc(offset * sizeof(double), 64));
   double T = 1000;
+  double p = 1e5;
+  double Y[NUM_SPECIES];
+  for (int k = 0; k< NUM_SPECIES; k++)
+    Y[k] = 1.0/NUM_SPECIES;
+  printf("T: %.1f K \n", T);
+  printf("p: %.1f Pa \n", p);
+//  for (int i = 0; i < nSpecies; i++) {
+//    if (i == nSpecies - 1)
+//      printf("%s = %.5f \n", gas->speciesName(i).c_str(), Y[i]);
+//    else
+//      printf("%s = %.5f, ", gas->speciesName(i).c_str(), Y[i]);
+//  }
 
-  for (int i = 0; i < offset; i++)
-    sc[i] = 1;
 
+  double R, Rc, Patm;
+  CKRP(R, Rc, Patm);
+  R /= 1e7;
+  printf("R: %.5f \n", R);
+
+  double Wk[NUM_SPECIES], iWk[NUM_SPECIES];
+  get_mw(Wk);
+  get_imw(iWk);
+  for (int k = 0; k< NUM_SPECIES; k++)
+    printf("Wk[%d]: %.8f, iWk[%d]: %.8f \n", k, Wk[k], k, iWk[k]);
+
+  double *ydot = (double *)(_mm_malloc(Nstates * offset * sizeof(double), 64));
+  double wdot[NUM_SPECIES];
+  double h_RT[NUM_SPECIES];
+  double sc[NUM_SPECIES];
+
+  /*** Throughput ***/
   for (int i = 0; i < Nrep; i++) {
 
     MPI_Barrier(MPI_COMM_WORLD);
     const auto startTime = MPI_Wtime();
 
     for (int n = 0; n < Nstates; n++) {
-      // Get species net production rates
+      double W;
+      double wrk1[NUM_SPECIES];
+      {
+        double iW = 0;
+        for (int k = 0; k < NUM_SPECIES; k++) {
+          wrk1[k] = Y[k] * iWk[k];
+          iW += wrk1[k];
+        }
+        for (int k = 0; k < NUM_SPECIES; k++)
+ 	  printf("Y[%d]: %.8f \n", k, Y[k]);
+        W = 1/iW; 
+        printf("W: %.5f \n", W);
+        printf("iW: %.5f \n", iW);
+      }
+      double rho = p * W / (R * T);
+      printf("rho: %.5f \n", rho);
+      for (int k = 0; k < NUM_SPECIES; k++)
+	sc[k] = wrk1[k] * rho;
+      for (int k = 0; k < NUM_SPECIES; k++)
+	printf("sc[%d]: %.8f \n", k, sc[k]);
       productionRate(wdot, sc, T);
+      for (int k = 0; k < NUM_SPECIES; k++)
+	printf("wdot[%d]: %.8f \n", k, wdot[k]);
+      for (int k = 0; k < NUM_SPECIES; k++)
+        ydot[n + (k + 1) * Nstates] = wdot[k] * Wk[k];
+
+      speciesEnthalpy(h_RT, T);
+      for (int k = 0; k < NUM_SPECIES; k++)
+	printf("h_RT[%d]: %.8f \n", k, h_RT[k]);
+      double sum_h_RT = 0;
+      for (int k = 0; k < NUM_SPECIES; k++)
+        sum_h_RT += wdot[k] * h_RT[k];
+      double ratesFactorEnergy = -R*T;
+      ydot[n] = ratesFactorEnergy * sum_h_RT; 
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -92,9 +149,9 @@ int main(int argc, char **argv) {
            size * Nstates);
   }
 
-#if 0
-  for (int i=0; i<offset; i++)
-    printf("wdot[%d]: %.3f \n", i, wdot[i]);
+#if 1
+  for (int i=0; i< Nstates * offset; i++)
+    printf("rates[%d]: %.8f \n", i, ydot[i]);
 #endif
 
   MPI_Finalize();
