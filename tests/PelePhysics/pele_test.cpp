@@ -74,24 +74,23 @@ int main(int argc, char **argv) {
     Y[k] = 1.0/NUM_SPECIES;
   printf("T: %.1f K \n", T);
   printf("p: %.1f Pa \n", p);
-//  for (int i = 0; i < nSpecies; i++) {
-//    if (i == nSpecies - 1)
-//      printf("%s = %.5f \n", gas->speciesName(i).c_str(), Y[i]);
-//    else
-//      printf("%s = %.5f, ", gas->speciesName(i).c_str(), Y[i]);
-//  }
+  amrex::Vector<std::string> species_names;
+  CKSYMS_STR(species_names);
+  for (int k = 0; k < NUM_SPECIES; k++) {
+    if (k == NUM_SPECIES - 1)
+      printf("%s = %.5f \n", species_names[k].c_str(), Y[k]);
+    else
+      printf("%s = %.5f, ", species_names[k].c_str(), Y[k]);
+  }
 
 
   double R, Rc, Patm;
   CKRP(R, Rc, Patm);
   R /= 1e7;
-  printf("R: %.5f \n", R);
 
   double Wk[NUM_SPECIES], iWk[NUM_SPECIES];
   get_mw(Wk);
   get_imw(iWk);
-  for (int k = 0; k< NUM_SPECIES; k++)
-    printf("Wk[%d]: %.8f, iWk[%d]: %.8f \n", k, Wk[k], k, iWk[k]);
 
   double *ydot = (double *)(_mm_malloc(Nstates * offset * sizeof(double), 64));
   double wdot[NUM_SPECIES];
@@ -113,27 +112,16 @@ int main(int argc, char **argv) {
           wrk1[k] = Y[k] * iWk[k];
           iW += wrk1[k];
         }
-        for (int k = 0; k < NUM_SPECIES; k++)
- 	  printf("Y[%d]: %.8f \n", k, Y[k]);
         W = 1/iW; 
-        printf("W: %.5f \n", W);
-        printf("iW: %.5f \n", iW);
       }
       double rho = p * W / (R * T);
-      printf("rho: %.5f \n", rho);
       for (int k = 0; k < NUM_SPECIES; k++)
 	sc[k] = wrk1[k] * rho;
-      for (int k = 0; k < NUM_SPECIES; k++)
-	printf("sc[%d]: %.8f \n", k, sc[k]);
       productionRate(wdot, sc, T);
-      for (int k = 0; k < NUM_SPECIES; k++)
-	printf("wdot[%d]: %.8f \n", k, wdot[k]);
       for (int k = 0; k < NUM_SPECIES; k++)
         ydot[n + (k + 1) * Nstates] = wdot[k] * Wk[k];
 
       speciesEnthalpy(h_RT, T);
-      for (int k = 0; k < NUM_SPECIES; k++)
-	printf("h_RT[%d]: %.8f \n", k, h_RT[k]);
       double sum_h_RT = 0;
       for (int k = 0; k < NUM_SPECIES; k++)
         sum_h_RT += wdot[k] * h_RT[k];
@@ -149,7 +137,7 @@ int main(int argc, char **argv) {
            size * Nstates);
   }
 
-#if 1
+#if 0
   for (int i=0; i< Nstates * offset; i++)
     printf("rates[%d]: %.8f \n", i, ydot[i]);
 #endif
