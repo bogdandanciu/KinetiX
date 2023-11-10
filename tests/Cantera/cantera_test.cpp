@@ -98,6 +98,8 @@ int main(int argc, char **argv) {
   // Initialize states vector
   int offset = nSpecies + 1;
   double *ydot = (double *)(_mm_malloc(Nstates * offset * sizeof(double), 64));
+  double wdot[nSpecies];
+  double h_RT[nSpecies];
 
   /*** Throughput ***/
   for (int i = 0; i < Nrep; i++) {
@@ -106,10 +108,16 @@ int main(int argc, char **argv) {
     const auto startTime = MPI_Wtime();
 
     for (int n = 0; n < Nstates; n++) {
-      // Get species net production rates
-      double *m_ydot = ydot + n * offset;
-      kin->getNetProductionRates(m_ydot);
-      ydot[(n + 1) * offset] = T;
+      kin->getNetProductionRates(wdot);
+      for (int k = 0; k < nSpecies; k++)
+        ydot[n + (k + 1) * Nstates] = wdot[k] * gas->molecularWeight(k);
+
+      gas->getEnthalpy_RT(h_RT);
+      double sum_h_RT = 0;
+      for (int k = 0; k < nSpecies; k++)
+        sum_h_RT += wdot[k] * h_RT[k];
+      double ratesFactorEnergy = -GasConstant * T;
+      ydot[n] = ratesFactorEnergy * sum_h_RT;
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -120,9 +128,9 @@ int main(int argc, char **argv) {
            size * Nstates);
   }
 
-#if 1
+#if 0
   for (int i = 0; i < Nstates * offset; i++)
-    printf("rates[%d]: %.5f \n", i, ydot[i]);
+    printf("rates[%d]: %.8f \n", i, ydot[i]);
 #endif
 
   MPI_Finalize();
