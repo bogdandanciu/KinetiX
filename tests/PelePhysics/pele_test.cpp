@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
 
   if (err > 0) {
     if (rank == 0)
-      printf("Usage: ./cantera_test  [--n-states n] [--n-repetitions n] "
+      printf("Usage: ./pele_test  [--n-states n] [--n-repetitions n] "
              "[--mechanism f] \n");
     exit(EXIT_FAILURE);
   }
