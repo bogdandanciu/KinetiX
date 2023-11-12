@@ -506,6 +506,10 @@ void nekRK::init(const std::string &model_path,
       if (getenv("OCCA_CXXFLAGS"))
         OCCA_CXXFLAGS.assign(getenv("OCCA_CXXFLAGS"));
       kernel_properties["compiler_flags"] += OCCA_CXXFLAGS;
+      kernel_properties["compiler_flags"] += " -O3 ";
+      kernel_properties["compiler_flags"] += " -march=native";
+      kernel_properties["compiler_flags"] += " -mtune=native";
+      kernel_properties["compiler_flags"] += " -ffast-math";
       kernel_properties["compiler_flags"] += " -include cmath";
       kernel_properties["compiler_flags"] += " -include cstdio";
     }
