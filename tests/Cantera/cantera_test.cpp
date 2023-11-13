@@ -23,9 +23,9 @@ int main(int argc, char **argv) {
 
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
-  printf("size: %d\n", size);
-
-  int err = 0;
+  if (rank == 0)
+    printf("size: %d\n", size);
+int err = 0;
   int n_states = 100000;
   int n_rep = 20;
   std::string mech;
@@ -83,13 +83,15 @@ int main(int argc, char **argv) {
     Y[i] = 1.0 / nSpecies;
   }
   gas->setState_TPY(T, p, Y);
-  printf("T: %.1f K \n", T);
-  printf("p: %.1f Pa \n", p);
-  for (int i = 0; i < nSpecies; i++) {
-    if (i == nSpecies - 1)
-      printf("%s = %.5f \n", gas->speciesName(i).c_str(), Y[i]);
-    else
-      printf("%s = %.5f, ", gas->speciesName(i).c_str(), Y[i]);
+  if (rank == 0){
+    printf("T: %.1f K \n", T);
+    printf("p: %.1f Pa \n", p);
+    for (int i = 0; i < nSpecies; i++) {
+      if (i == nSpecies - 1)
+        printf("%s = %.5f \n", gas->speciesName(i).c_str(), Y[i]);
+      else
+        printf("%s = %.5f, ", gas->speciesName(i).c_str(), Y[i]);
+    }
   }
 
   // Initialize reaction kinetics
@@ -102,11 +104,10 @@ int main(int argc, char **argv) {
   double h_RT[nSpecies];
 
   /*** Throughput ***/
+  MPI_Barrier(MPI_COMM_WORLD);
+  const auto startTime = MPI_Wtime();
+
   for (int i = 0; i < Nrep; i++) {
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    const auto startTime = MPI_Wtime();
-
     for (int n = 0; n < Nstates; n++) {
       kin->getNetProductionRates(wdot);
       for (int k = 0; k < nSpecies; k++)
@@ -119,14 +120,15 @@ int main(int argc, char **argv) {
       double ratesFactorEnergy = -GasConstant * T;
       ydot[n] = ratesFactorEnergy * sum_h_RT;
     }
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    const auto elapsedTime = (MPI_Wtime() - startTime);
-
-    printf("avg aggregated throughput: %.3f GDOF/s (Nstates = %d)\n",
-           (size * (double)(Nstates * offset)) / elapsedTime / 1e9,
-           size * Nstates);
   }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  const auto elapsedTime = (MPI_Wtime() - startTime);
+
+  if (rank == 0)
+    printf("avg aggregated throughput: %.3f GDOF/s (Nstates = %d)\n",
+           (size * (double)(Nstates * offset * Nrep)) / elapsedTime / 1e9,
+           size * Nstates);
 
 #if 0
   for (int i = 0; i < Nstates * offset; i++)
