@@ -100,8 +100,6 @@ int err = 0;
   // Initialize states vector
   int offset = nSpecies + 1;
   double *ydot = (double *)(_mm_malloc(Nstates * offset * sizeof(double), 64));
-  double wdot[nSpecies];
-  double h_RT[nSpecies];
 
   /*** Throughput ***/
   MPI_Barrier(MPI_COMM_WORLD);
@@ -109,6 +107,10 @@ int err = 0;
 
   for (int i = 0; i < Nrep; i++) {
     for (int n = 0; n < Nstates; n++) {
+      double wdot[nSpecies];
+      double h_RT[nSpecies];
+      gas->setState_TPY(T, p, Y);
+
       kin->getNetProductionRates(wdot);
       for (int k = 0; k < nSpecies; k++)
         ydot[n + (k + 1) * Nstates] = wdot[k] * gas->molecularWeight(k);
@@ -125,10 +127,12 @@ int err = 0;
   MPI_Barrier(MPI_COMM_WORLD);
   const auto elapsedTime = (MPI_Wtime() - startTime);
 
-  if (rank == 0)
+  if (rank == 0){
+    printf("avg elapsed time: %.5f s\n", elapsedTime);
     printf("avg aggregated throughput: %.3f GDOF/s (Nstates = %d)\n",
-           (size * (double)(Nstates * offset * Nrep)) / elapsedTime / 1e9,
+           (size * (double)(Nstates * offset) * Nrep) / elapsedTime / 1e9,
            size * Nstates);
+  }
 
 #if 0
   for (int i = 0; i < Nstates * offset; i++)
