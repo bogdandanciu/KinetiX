@@ -11,16 +11,18 @@
 #include "mechanism.H"
 
 int main(int argc, char **argv) {
+  std::srand(std::time(0));
 
   MPI_Init(&argc, &argv);
   int rank, size;
 
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
-  printf("size: %d\n", size);
+  if (rank == 0)
+    printf("size: %d\n", size);
 
   int err = 0;
-  int n_states = 100000;
+  int n_states = 1000000;
   int n_rep = 20;
   std::string mech;
 
@@ -57,7 +59,7 @@ int main(int argc, char **argv) {
 
   if (err > 0) {
     if (rank == 0)
-      printf("Usage: ./pele_test  [--n-states n] [--n-repetitions n] "
+      printf("Usage: ./cantera_test  [--n-states n] [--n-repetitions n] "
              "[--mechanism f] \n");
     exit(EXIT_FAILURE);
   }
@@ -72,15 +74,19 @@ int main(int argc, char **argv) {
   double Y[NUM_SPECIES];
   for (int k = 0; k < NUM_SPECIES; k++)
     Y[k] = 1.0 / NUM_SPECIES;
-  printf("T: %.1f K \n", T);
-  printf("p: %.1f Pa \n", p);
+  if (rank == 0){
+    printf("T: %.1f K \n", T);
+    printf("p: %.1f Pa \n", p);
+  }
   amrex::Vector<std::string> species_names;
   CKSYMS_STR(species_names);
-  for (int k = 0; k < NUM_SPECIES; k++) {
-    if (k == NUM_SPECIES - 1)
-      printf("%s = %.5f \n", species_names[k].c_str(), Y[k]);
-    else
-      printf("%s = %.5f, ", species_names[k].c_str(), Y[k]);
+  if (rank == 0){
+    for (int k = 0; k < NUM_SPECIES; k++) {
+      if (k == NUM_SPECIES - 1)
+        printf("%s = %.5f \n", species_names[k].c_str(), Y[k]);
+      else
+        printf("%s = %.5f, ", species_names[k].c_str(), Y[k]);
+    }
   }
 
   double R, Rc, Patm;
@@ -92,17 +98,28 @@ int main(int argc, char **argv) {
   get_imw(iWk);
 
   double *ydot = (double *)(_mm_malloc(Nstates * offset * sizeof(double), 64));
-  double wdot[NUM_SPECIES];
-  double h_RT[NUM_SPECIES];
-  double sc[NUM_SPECIES];
+  double *states = (double *)(_mm_malloc(Nstates * offset * sizeof(double), 64));
+  for (int id = 0; id < Nstates; id++) {
+    states[id + 0*Nstates] = T;
+    for (int k = 0; k < NUM_SPECIES; k++) {
+      states[id + (k+1)*Nstates] = Y[k];
+    }
+  }
+
 
   /*** Throughput ***/
+  MPI_Barrier(MPI_COMM_WORLD);
+  const auto startTime = MPI_Wtime();
+   
   for (int i = 0; i < Nrep; i++) {
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    const auto startTime = MPI_Wtime();
-
     for (int n = 0; n < Nstates; n++) {
+      T = states[n];
+
+      double wdot[NUM_SPECIES];
+      double h_RT[NUM_SPECIES];
+      double sc[NUM_SPECIES];
+    
       double W;
       double wrk1[NUM_SPECIES];
       {
@@ -128,13 +145,15 @@ int main(int argc, char **argv) {
       ydot[n] = ratesFactorEnergy * sum_h_RT;
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    const auto elapsedTime = (MPI_Wtime() - startTime);
-
-    printf("avg aggregated throughput: %.3f GDOF/s (Nstates = %d)\n",
-           (size * (double)(Nstates * offset)) / elapsedTime / 1e9,
-           size * Nstates);
   }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  const auto elapsedTime = (MPI_Wtime() - startTime);
+
+  if (rank == 0)
+    printf("avg aggregated throughput: %.3f GDOF/s (Nstates = %d)\n",
+           (size * (double)(Nstates * offset) * Nrep) / elapsedTime / 1e9,
+           size * Nstates);
 
 #if 0
   for (int i=0; i< Nstates * offset; i++)
