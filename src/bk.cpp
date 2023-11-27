@@ -426,7 +426,7 @@ int main(int argc, char** argv)
       mode = std::stoi(optarg);
       break;
     case 't':
-      tool.assign(strdup(optarg));
+      tool.assign(optarg);
       break;
     case 'd':
       threadModel.assign(strdup(optarg));
@@ -469,7 +469,7 @@ int main(int argc, char** argv)
   }
 
   if(threadModel.size() < 1) err++;
-  if(mech.size() < 1) err++;
+  if(tool == "nekRK" && mech.size() < 1) err++;
   if(tool == "Pele" && pele_mech.size() < 1) err++;
 
   if(err > 0) {

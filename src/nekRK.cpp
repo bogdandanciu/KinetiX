@@ -298,7 +298,7 @@ static void setup()
 
   {
     if (tool == "Pele"){
-      const std::string peleMechlName = fs::path(peleMechPath).stem();
+      const std::string peleMechName = fs::path(peleMechPath).stem();
       cacheDir = ".cache/nekRK/" + peleMechName;
       cacheDir = std::string(fs::absolute(cacheDir));
     }
@@ -427,12 +427,12 @@ static void buildMechKernels(bool transport)
   }
 
   {
+    occa::properties includeProp;
     if (tool == "Pele") {
       includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.hpp";
     }
     else {
-      occa::properties includeProp;
       includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/frates.inc";
@@ -497,7 +497,7 @@ void nekRK::init(const std::string &model_path,
     return _buildKernel(path, fileName, prop);
   };
   nekRK::init(model_path,
-	      _pele_mech_path,
+	      pele_mech_path,
               _device,
               _props,
 	      _tool,
@@ -625,20 +625,21 @@ void nekRK::build(double _ref_pressure,
 
   const auto installDir = std::string(getenv("NEKRK_PATH") ?: ".");
   if (rank == 0) {
+    std::string cmdline;
     if (tool == "Pele"){
-      std::string cmdline(installDir + 
-		          "cp " + peleMechPath + "/*" + " " + cacheDir);
+      cmdline = installDir + 
+		  "cp " + peleMechPath + "/*" + " " + cacheDir;
     }
     else {
-      std::string cmdline(installDir +
-                          "/generator/generate.py" +
-                          " --mechanism " + yamlPath + 
-          		  " --output " + cacheDir + 
-                          " --pressureRef " + nekRK::to_string_f(ref_pressure) + 
-          		  " --temperatureRef " + nekRK::to_string_f(ref_temperature) +
-                          " --moleFractionsRef " + ref_mole_fractions_string.c_str() + 
-          		  " --align-width " + std::to_string(align_width) + 
-          		  " --target " + target);
+      cmdline = installDir +
+                  "/generator/generate.py" +
+                  " --mechanism " + yamlPath + 
+          	  " --output " + cacheDir + 
+                  " --pressureRef " + nekRK::to_string_f(ref_pressure) + 
+          	  " --temperatureRef " + nekRK::to_string_f(ref_temperature) +
+                  " --moleFractionsRef " + ref_mole_fractions_string.c_str() + 
+          	  " --align-width " + std::to_string(align_width) + 
+          	  " --target " + target;
       if (unroll_loops)
         cmdline.append(" --unroll-loops");
     }
