@@ -7,12 +7,17 @@
                              const double Tref)
 {
   for(int id = 0; id < n_states; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
-    const cfloat T = Tref * state[id];
-    const cfloat rcpT = 1 / T;
-    const cfloat logT = log(T);
-    const cfloat T2 = T * T;
-    const cfloat T3 = T * T * T;
-    const cfloat T4 = T * T * T * T;
+    if (p_TOOL == "Pele"){
+      const cfloat T = Tref * state[id];
+    }
+    else {
+      const cfloat T = Tref * state[id];
+      const cfloat rcpT = 1 / T;
+      const cfloat logT = log(T);
+      const cfloat T2 = T * T;
+      const cfloat T3 = T * T * T;
+      const cfloat T4 = T * T * T * T;
+    }
 
     cfloat wrk1[__NEKRK_NSPECIES__];
 
@@ -36,13 +41,23 @@
         wrk1[k] = Ci; 
         wrk2[k] = 0;
       }
-      nekrk_species_rates(logT,T,T2,T3,T4,rcpT,wrk1,wrk2);
+      if (p_TOOL == "Pele"){
+        productionRate(wrk2, wrk1, T);
+      }
+      else {
+        nekrk_species_rates(logT,T,T2,T3,T4,rcpT,wrk1,wrk2);
+      }
 
       for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
         rates[id + offsetT + k*offset] = nekrk_molar_mass[k] * wrk2[k];
       }
 
-      nekrk_enthalpy_RT(logT,T,T2,T3,T4,rcpT,wrk1);
+      if (p_TOOL){
+        speciesEnthalpy(wrk1, T);
+      }
+      else {
+        nekrk_enthalpy_RT(logT,T,T2,T3,T4,rcpT,wrk1);
+      }
       cfloat sum_h_RT = 0;
       for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
         sum_h_RT += wrk2[k] * wrk1[k];

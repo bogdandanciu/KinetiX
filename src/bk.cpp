@@ -408,7 +408,7 @@ int main(int argc, char** argv)
       {"rates-fp32Rates", no_argument, 0, 'p'},
       {"debug", no_argument, 0, 'g'},
       {"cimode", required_argument, 0, 'c'},
-      {"yampele_mech-file", required_argument, 0, 'f'},
+      {"yaml-file", required_argument, 0, 'f'},
       {"pele-mech", required_argument, 0, 'l'},
       {"device-id", required_argument, 0, 'i'},
       {"unroll-loops", required_argument, 0, 'u'},
@@ -634,10 +634,10 @@ int main(int argc, char** argv)
   o_states.copyFrom(states.data());
 
   nekRK::build(ref_pressure,
-                 ref_temperature,
-                 ref_mass_fractions,
-                 mode == 0 || mode == 2   /* enable transport */
-                );
+               ref_temperature,
+               ref_mass_fractions,
+               mode == 0 || mode == 2   /* enable transport */
+               );
 
   //////////////////////////////////////////////////////////////////////////////
 
