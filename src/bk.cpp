@@ -383,6 +383,7 @@ int main(int argc, char** argv)
   std::string threadModel;
   n_states = 100000;
   int mode = 0;
+  std::string tool = "nekRK";
   int blockSize = 512;
   int nRep = 1000;   // repetitions
   bool fp32Rates = false;
@@ -399,6 +400,7 @@ int main(int argc, char** argv)
     {
       {"mode", required_argument, 0, 'e'},
       {"backend", required_argument, 0, 'd'},
+      {"tool", required_argument, 0, 't'},
       {"n-states", required_argument, 0, 'n'},
       {"block-size", required_argument, 0, 'b'},
       {"repetitions", required_argument, 0, 'r'},
@@ -420,6 +422,9 @@ int main(int argc, char** argv)
     switch(c) {
     case 'e':
       mode = std::stoi(optarg);
+      break;
+    case 't':
+      tool.assign(strdup(optarg));
       break;
     case 'd':
       threadModel.assign(strdup(optarg));
@@ -464,8 +469,8 @@ int main(int argc, char** argv)
   if(err > 0) {
     if(rank == 0)
       printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n "
-              "[--mode 1|2] [--repetitions n] [--rates-fp32] [--cimode n] [--debug] [--block-size  n] "
-	      "[--device-id  n] [--unroll-loops n] \n");
+              "[--mode 1|2] [--tool s] [--repetitions n] [--rates-fp32] [--cimode n] [--debug] "
+	      "[--block-size  n] [--device-id  n] [--unroll-loops n] \n");
     exit(EXIT_FAILURE);
   }
 
@@ -513,6 +518,12 @@ int main(int argc, char** argv)
  
     device.setup(std::string(deviceConfig));
 
+    char toolConfig[BUFSIZ];
+    if(strstr(tool.c_str(), "Pele"))
+      sprintf(toolConfig, "{Using: Pele routines}");
+    else
+      sprintf(toolConfig, "{Using: nekRK routines}");
+
     if (!getenv("OCCA_CACHE_DIR")) {
       char buf[4096];
       char * ret = getcwd(buf, sizeof(buf));
@@ -535,15 +546,16 @@ int main(int argc, char** argv)
 
   occa::properties kernel_properties;
   nekRK::init(mech, 
-                device, 
-                kernel_properties, 
-                blockSize,
-	        (bool) unroll_loops,
-	        align_width,
-	        target,
-                false, /* useFP64Transport */ 
-                MPI_COMM_WORLD,
-                debug); 
+              device, 
+	      tool,
+              kernel_properties, 
+              blockSize,
+	      (bool) unroll_loops,
+	      align_width,
+	      target,
+              false, /* useFP64Transport */ 
+              MPI_COMM_WORLD,
+              debug); 
 
   n_species = nekRK::nSpecies();
   n_active_species = nekRK::nActiveSpecies();
