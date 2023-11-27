@@ -439,47 +439,50 @@ static void buildMechKernels(bool transport)
 ///////////////////////////////////////////////////////////////////////////////
 
 void nekRK::init(const std::string &model_path,
-                   occa::device _device,
-                   occa::properties _props,
-                   const std::string &_tool,
-                   int _group_size,
-                   bool _unroll_loops,
-                   int _align_width,
-                   const std::string &_target,
-                   bool _useFP64Transport,
-                   MPI_Comm _comm,
-                   bool _verbose)
+                 const std::string &pele_mech_path,
+                 occa::device _device,
+                 occa::properties _props,
+                 const std::string &_tool,
+                 int _group_size,
+                 bool _unroll_loops,
+                 int _align_width,
+                 const std::string &_target,
+                 bool _useFP64Transport,
+                 MPI_Comm _comm,
+                 bool _verbose)
 {
   nekRK::nekRKBuildKernel_t build = [&](const std::string &path, const std::string &fileName, occa::properties prop)
   {
     return _buildKernel(path, fileName, prop);
   };
   nekRK::init(model_path,
-                _device,
-                _props,
-		_tool,
-                _group_size,
-                _unroll_loops,
-                _align_width,
-                _target,
-                _useFP64Transport,
-                _comm,
-                build,
-                _verbose);
+	      _pele_mech_path,
+              _device,
+              _props,
+	      _tool,
+              _group_size,
+              _unroll_loops,
+              _align_width,
+              _target,
+              _useFP64Transport,
+              _comm,
+              build,
+              _verbose);
 }
 
 void nekRK::init(const std::string &model_path,
-                   occa::device _device,
-                   occa::properties _props,
-                   const std::string &_tool,
-                   int _group_size,
-                   bool _unroll_loops,
-                   int _align_width,
-                   const std::string &_target,
-                   bool _useFP64Transport,
-                   MPI_Comm _comm,
-                   nekRKBuildKernel_t build,
-                   bool _verbose)
+                 const std::string &pele_mech_path,
+                 occa::device _device,
+                 occa::properties _props,
+                 const std::string &_tool,
+                 int _group_size,
+                 bool _unroll_loops,
+                 int _align_width,
+                 const std::string &_target,
+                 bool _useFP64Transport,
+                 MPI_Comm _comm,
+                 nekRKBuildKernel_t build,
+                 bool _verbose)
 {
   buildKernel = build;
 
@@ -528,6 +531,7 @@ void nekRK::init(const std::string &model_path,
   }
 
   yamlPath = fs::path(model_path);
+  peleMechPath = fs::path(pele_mech_path);
   group_size = std::max(_group_size, 32);
   unroll_loops = _unroll_loops;
   align_width = _align_width;
