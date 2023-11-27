@@ -47,6 +47,7 @@ std::vector<std::string> species_names;
 std::string yamlPath;
 std::string cacheDir;
 occa::properties kernel_properties, kernel_properties_fp32, kernel_properties_mixed;
+std::string tool;
 int group_size;
 bool verbose;
 bool unroll_loops;
@@ -440,6 +441,7 @@ static void buildMechKernels(bool transport)
 void nekRK::init(const std::string &model_path,
                    occa::device _device,
                    occa::properties _props,
+                   const std::string &_tool,
                    int _group_size,
                    bool _unroll_loops,
                    int _align_width,
@@ -455,6 +457,7 @@ void nekRK::init(const std::string &model_path,
   nekRK::init(model_path,
                 _device,
                 _props,
+		_tool,
                 _group_size,
                 _unroll_loops,
                 _align_width,
@@ -468,6 +471,7 @@ void nekRK::init(const std::string &model_path,
 void nekRK::init(const std::string &model_path,
                    occa::device _device,
                    occa::properties _props,
+                   const std::string &_tool,
                    int _group_size,
                    bool _unroll_loops,
                    int _align_width,
@@ -482,6 +486,7 @@ void nekRK::init(const std::string &model_path,
   verbose = _verbose;
   comm = _comm;
   device = _device;
+  tool = _tool;
 
   if (!_props.isInitialized()) {
     if (device.mode() == "CUDA") {
@@ -516,6 +521,10 @@ void nekRK::init(const std::string &model_path,
   }
   else {
     kernel_properties = _props;
+  }
+  if(tool == "Pele"){
+    kernel_properties += "-I$(HOME)/amrex/tmp_install_dir/include";
+    kernel_properties += "-L$(HOME)/amrex/tmp_install_dir/lib -lamrex";
   }
 
   yamlPath = fs::path(model_path);

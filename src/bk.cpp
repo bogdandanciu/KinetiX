@@ -547,8 +547,8 @@ int main(int argc, char** argv)
   occa::properties kernel_properties;
   nekRK::init(mech, 
               device, 
-	      tool,
               kernel_properties, 
+	      tool,
               blockSize,
 	      (bool) unroll_loops,
 	      align_width,
