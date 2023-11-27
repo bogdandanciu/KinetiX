@@ -6,7 +6,7 @@ Dependencies:
 - Python v3.8 and later
 
 ```sh
-mkdir build
+mkdir build; cd build
 cmake [-DCMAKE_INSTALL_PREFIX=$NEKRK_PATH] ..
 make -j4 install
 ```
