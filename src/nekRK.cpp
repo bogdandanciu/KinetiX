@@ -399,7 +399,7 @@ static void buildMechKernels(bool transport)
   {
     occa::properties includeProp;
     includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.hpp";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/rates.inc";
@@ -411,7 +411,7 @@ static void buildMechKernels(bool transport)
   {
     occa::properties includeProp;
     includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.hpp";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/frates.inc";
@@ -429,7 +429,7 @@ static void buildMechKernels(bool transport)
 
     occa::properties includeProp;
     includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.hpp";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
     includeProp["compiler_flags"] = " -include " + cacheDir + "/fconductivity.inc";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fviscosity.inc";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fdiffusivity.inc";
@@ -537,8 +537,9 @@ void nekRK::init(const std::string &model_path,
   else {
     kernel_properties = _props;
   }
-  kernel_properties["compiler_flags"] += "-I$(HOME)/amrex/tmp_install_dir/include";
-  kernel_properties["compiler_flags"] += "-L$(HOME)/amrex/tmp_install_dir/lib -lamrex";
+  // AMREX lib link
+  kernel_properties["compiler_flags"] += " -I$HOME/amrex/tmp_install_dir/include";
+  kernel_properties["compiler_flags"] += " -L$HOME/amrex/tmp_install_dir/lib -lamrex";
 
   yamlPath = fs::path(model_path);
   group_size = std::max(_group_size, 32);
@@ -596,7 +597,7 @@ void nekRK::build(double _ref_pressure,
     std::string cmdline_pele;
     // Copy Pele mechanisms files to cache
     const std::string yamlName = fs::path(yamlPath).stem();
-    cmdline_pele = "cp " + installDir + "/mechanisms/Pele/" + yamlName + "/mechanisms.*" + " " + cacheDir;
+    cmdline_pele = "cp " + installDir + "/mechanisms/Pele/" + yamlName + "/mechanism.*" + " " + cacheDir;
     if (verbose)
       std::cout << cmdline_pele << std::endl;
     if (system(cmdline_pele.c_str())) {
@@ -642,7 +643,7 @@ void nekRK::build(double _ref_pressure,
       f.close();
  
       fileSync(std::string(cacheDir + "/mechanism.cpp").c_str());
-      fileSync(std::string(cacheDir + "/mechanism.hpp").c_str());
+      fileSync(std::string(cacheDir + "/mechanism.H").c_str());
       fileSync(std::string(cacheDir + "/fconductivity.inc").c_str());
       fileSync(std::string(cacheDir + "/fdiffusivity.inc").c_str());
       fileSync(std::string(cacheDir + "/fenthalpy_RT.inc").c_str());
