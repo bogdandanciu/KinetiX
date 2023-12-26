@@ -392,7 +392,6 @@ int main(int argc, char** argv)
   int deviceIdFlag = 0;
   int unroll_loops = -1;
   std::string mech;
-  std::string pele_mech;
 
   debug = false;
 
@@ -409,7 +408,6 @@ int main(int argc, char** argv)
       {"debug", no_argument, 0, 'g'},
       {"cimode", required_argument, 0, 'c'},
       {"yaml-file", required_argument, 0, 'f'},
-      {"pele-mech", required_argument, 0, 'l'},
       {"device-id", required_argument, 0, 'i'},
       {"unroll-loops", required_argument, 0, 'u'},
       {0, 0, 0, 0}
@@ -452,9 +450,6 @@ int main(int argc, char** argv)
     case 'f':
       mech.assign(optarg);
       break;
-    case 'l':
-      pele_mech.assign(optarg);
-      break;
     case 'i':
       deviceId = std::stoi(optarg);
       deviceIdFlag = 1;
@@ -470,11 +465,10 @@ int main(int argc, char** argv)
 
   if(threadModel.size() < 1) err++;
   if(tool == "nekRK" && mech.size() < 1) err++;
-  if(tool == "Pele" && pele_mech.size() < 1) err++;
 
   if(err > 0) {
     if(rank == 0)
-      printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n --yaml-file s [--pele-mech s]"
+      printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n --yaml-file s"
               "[--mode 1|2] [--tool s] [--repetitions n] [--rates-fp32] [--cimode n] [--debug] "
 	      "[--block-size  n] [--device-id  n] [--unroll-loops n] \n");
     exit(EXIT_FAILURE);
@@ -552,7 +546,6 @@ int main(int argc, char** argv)
 
   occa::properties kernel_properties;
   nekRK::init(mech, 
-              pele_mech, 
               device, 
               kernel_properties, 
 	      tool,
