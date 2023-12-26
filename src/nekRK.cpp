@@ -304,14 +304,8 @@ static void setup()
     cacheDir = std::string(fs::absolute(cacheDir));
 
     if (rank == 0) {
-      if (tool == "Pele") {
-        mkDir(cacheDir);
-        fileSync(cacheDir.c_str());
-      }
-      else {
         mkDir(cacheDir + "/mech.h");
         fileSync(cacheDir.c_str());
-      }
     }
 
     const std::string occaCacheDir = cacheDir + "/.occa/";
@@ -323,17 +317,15 @@ static void setup()
   }
 
   if (rank == 0) {
-    if (tool == "nekRK") {
-      std::string cmdline = installDir + "/generator/generate.py" + " --header-only" + " --mechanism " +
-                            yamlPath + " --output " + cacheDir;
-      if (verbose)
-        std::cout << cmdline << std::endl;
-      if (system(cmdline.c_str())) {
-        std::cout << "Error while running code generator!\n";
-        MPI_Abort(comm, 1);
-      }
-      fileSync(std::string(cacheDir + "/mech.h").c_str());
+    std::string cmdline = installDir + "/generator/generate.py" + " --header-only" + " --mechanism " +
+                          yamlPath + " --output " + cacheDir;
+    if (verbose)
+      std::cout << cmdline << std::endl;
+    if (system(cmdline.c_str())) {
+      std::cout << "Error while running code generator!\n";
+      MPI_Abort(comm, 1);
     }
+    fileSync(std::string(cacheDir + "/mech.h").c_str());
   }
 
   MPI_Barrier(comm);
@@ -391,8 +383,7 @@ static void buildMechKernels(bool transport)
 {
   {
     occa::properties includeProp;
-    if (tool == "nekRK" )
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
 
     auto prop = kernel_properties_mixed;
     if (useFP64Transport) prop = kernel_properties;
@@ -407,15 +398,11 @@ static void buildMechKernels(bool transport)
 
   {
     occa::properties includeProp;
-    if (tool == "Pele") {
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.hpp";
-    }
-    else {
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/rates.inc";
-    }
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.hpp";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/rates.inc";
 
     production_rates_kernel =
         buildKernel("productionRates.okl", "productionRates", addOccaCompilerFlags(includeProp, kernel_properties));
@@ -423,15 +410,11 @@ static void buildMechKernels(bool transport)
 
   {
     occa::properties includeProp;
-    if (tool == "Pele") {
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.hpp";
-    }
-    else {
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/frates.inc";
-    }
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.hpp";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/frates.inc";
 
     production_rates_fpmix_kernel = buildKernel("productionRates.okl",
                                                  "productionRates",
@@ -445,15 +428,11 @@ static void buildMechKernels(bool transport)
   if (transport) {
 
     occa::properties includeProp;
-    if (tool == "Pele") {
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.hpp";
-    }
-    else {
-      includeProp["compiler_flags"] = " -include " + cacheDir + "/fconductivity.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fviscosity.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fdiffusivity.inc";
-    }
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.hpp";
+    includeProp["compiler_flags"] = " -include " + cacheDir + "/fconductivity.inc";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/fviscosity.inc";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/fdiffusivity.inc";
 
     auto prop = kernel_properties_mixed;
     if (useFP64Transport) prop = kernel_properties;
@@ -558,10 +537,8 @@ void nekRK::init(const std::string &model_path,
   else {
     kernel_properties = _props;
   }
-  if (tool == "Pele"){
-    kernel_properties += "-I$(HOME)/amrex/tmp_install_dir/include";
-    kernel_properties += "-L$(HOME)/amrex/tmp_install_dir/lib -lamrex";
-  }
+  kernel_properties["compiler_flags"] += "-I$(HOME)/amrex/tmp_install_dir/include";
+  kernel_properties["compiler_flags"] += "-L$(HOME)/amrex/tmp_install_dir/lib -lamrex";
 
   yamlPath = fs::path(model_path);
   group_size = std::max(_group_size, 32);
@@ -616,6 +593,18 @@ void nekRK::build(double _ref_pressure,
 
   const auto installDir = std::string(getenv("NEKRK_PATH") ?: ".");
   if (rank == 0) {
+    std::string cmdline_pele;
+    // Copy Pele mechanisms files to cache
+    const std::string yamlName = fs::path(yamlPath).stem();
+    cmdline_pele = "cp " + installDir + "/mechanisms/Pele/" + yamlName + "/mechanisms.*" + " " + cacheDir;
+    if (verbose)
+      std::cout << cmdline_pele << std::endl;
+    if (system(cmdline_pele.c_str())) {
+      std::cout << "Error while copying pele mechanisms files to cache!\n";
+      MPI_Abort(comm, 1);
+    }
+
+    // Run generator
     std::string cmdline;
     cmdline = installDir +
                 "/generator/generate.py" +
@@ -652,19 +641,15 @@ void nekRK::build(double _ref_pressure,
       f << currentHash;
       f.close();
  
-      if (tool == "Pele") {
-        fileSync(std::string(cacheDir + "/mechanism.cpp").c_str());
-        fileSync(std::string(cacheDir + "/mechanism.hpp").c_str());
-      }
-      else {
-        fileSync(std::string(cacheDir + "/fconductivity.inc").c_str());
-        fileSync(std::string(cacheDir + "/fdiffusivity.inc").c_str());
-        fileSync(std::string(cacheDir + "/fenthalpy_RT.inc").c_str());
-        fileSync(std::string(cacheDir + "/fheat_capacity_R.inc").c_str());
-        fileSync(std::string(cacheDir + "/fviscosity.inc").c_str());
-        fileSync(std::string(cacheDir + "/frates.inc").c_str());
-        fileSync(std::string(cacheDir + "/rates.inc").c_str());
-      }
+      fileSync(std::string(cacheDir + "/mechanism.cpp").c_str());
+      fileSync(std::string(cacheDir + "/mechanism.hpp").c_str());
+      fileSync(std::string(cacheDir + "/fconductivity.inc").c_str());
+      fileSync(std::string(cacheDir + "/fdiffusivity.inc").c_str());
+      fileSync(std::string(cacheDir + "/fenthalpy_RT.inc").c_str());
+      fileSync(std::string(cacheDir + "/fheat_capacity_R.inc").c_str());
+      fileSync(std::string(cacheDir + "/fviscosity.inc").c_str());
+      fileSync(std::string(cacheDir + "/frates.inc").c_str());
+      fileSync(std::string(cacheDir + "/rates.inc").c_str());
       // inc files are passed to compiler so occa doesn't know if they have changed
       // force occa to recompile by renaming old cache dir
       // removing might not work as some files are still open
