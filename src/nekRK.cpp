@@ -45,7 +45,6 @@ int initialized = 0;
 std::vector<std::string> species_names;
 
 std::string yamlPath;
-std::string peleMechPath;
 std::string cacheDir;
 occa::properties kernel_properties, kernel_properties_fp32, kernel_properties_mixed;
 std::string tool;
@@ -205,14 +204,17 @@ static void setupKernelProperties()
     kernel_properties["compiler_flags"] += " -include cstdio";
     group_size = 1;
   }
-  if (tool == "Pele"){
-    kernel_properties += "-I$(HOME)/amrex/tmp_install_dir/include";
-    kernel_properties += "-L$(HOME)/amrex/tmp_install_dir/lib -lamrex";
-  }
+  //AMREX lib link
+  kernel_properties["compiler_flags"] += " -I$HOME/amrex/tmp_install_dir/include";
+  kernel_properties["compiler_flags"] += " -L$HOME/amrex/tmp_install_dir/lib -lamrex";
 
 
   kernel_properties["defines/p_BLOCKSIZE"] = std::to_string(group_size);
-  kernel_properties["defines/p_TOOL"] = tool;
+  if (tool == "Pele"){
+    kernel_properties["defines/p_PELETOOL"] = std::to_string(1);
+  }else{
+    kernel_properties["defines/p_PELETOOL"] = std::to_string(0);
+  }
 
   kernel_properties_fp32 = kernel_properties;
 
@@ -297,16 +299,9 @@ static void setup()
   const auto installDir = std::string(getenv("NEKRK_PATH"));
 
   {
-    if (tool == "Pele"){
-      const std::string peleMechName = fs::path(peleMechPath).stem();
-      cacheDir = ".cache/nekRK/" + peleMechName;
-      cacheDir = std::string(fs::absolute(cacheDir));
-    }
-    else {
-      const std::string yamlName = fs::path(yamlPath).stem();
-      cacheDir = ".cache/nekRK/" + yamlName;
-      cacheDir = std::string(fs::absolute(cacheDir));
-    }
+    const std::string yamlName = fs::path(yamlPath).stem();
+    cacheDir = ".cache/nekRK/" + yamlName;
+    cacheDir = std::string(fs::absolute(cacheDir));
 
     if (rank == 0) {
       if (tool == "Pele") {
@@ -480,7 +475,6 @@ static void buildMechKernels(bool transport)
 ///////////////////////////////////////////////////////////////////////////////
 
 void nekRK::init(const std::string &model_path,
-                 const std::string &pele_mech_path,
                  occa::device _device,
                  occa::properties _props,
                  const std::string &_tool,
@@ -497,7 +491,6 @@ void nekRK::init(const std::string &model_path,
     return _buildKernel(path, fileName, prop);
   };
   nekRK::init(model_path,
-	      pele_mech_path,
               _device,
               _props,
 	      _tool,
@@ -512,7 +505,6 @@ void nekRK::init(const std::string &model_path,
 }
 
 void nekRK::init(const std::string &model_path,
-                 const std::string &pele_mech_path,
                  occa::device _device,
                  occa::properties _props,
                  const std::string &_tool,
@@ -572,7 +564,6 @@ void nekRK::init(const std::string &model_path,
   }
 
   yamlPath = fs::path(model_path);
-  peleMechPath = fs::path(pele_mech_path);
   group_size = std::max(_group_size, 32);
   unroll_loops = _unroll_loops;
   align_width = _align_width;
@@ -626,23 +617,17 @@ void nekRK::build(double _ref_pressure,
   const auto installDir = std::string(getenv("NEKRK_PATH") ?: ".");
   if (rank == 0) {
     std::string cmdline;
-    if (tool == "Pele"){
-      cmdline = installDir + 
-		  "cp " + peleMechPath + "/*" + " " + cacheDir;
-    }
-    else {
-      cmdline = installDir +
-                  "/generator/generate.py" +
-                  " --mechanism " + yamlPath + 
-          	  " --output " + cacheDir + 
-                  " --pressureRef " + nekRK::to_string_f(ref_pressure) + 
-          	  " --temperatureRef " + nekRK::to_string_f(ref_temperature) +
-                  " --moleFractionsRef " + ref_mole_fractions_string.c_str() + 
-          	  " --align-width " + std::to_string(align_width) + 
-          	  " --target " + target;
-      if (unroll_loops)
-        cmdline.append(" --unroll-loops");
-    }
+    cmdline = installDir +
+                "/generator/generate.py" +
+                " --mechanism " + yamlPath + 
+        	  " --output " + cacheDir + 
+                " --pressureRef " + nekRK::to_string_f(ref_pressure) + 
+        	  " --temperatureRef " + nekRK::to_string_f(ref_temperature) +
+                " --moleFractionsRef " + ref_mole_fractions_string.c_str() + 
+        	  " --align-width " + std::to_string(align_width) + 
+        	  " --target " + target;
+    if (unroll_loops)
+      cmdline.append(" --unroll-loops");
     const auto currentHash = hash(cmdline);
     auto runGenerator = [&]
     {

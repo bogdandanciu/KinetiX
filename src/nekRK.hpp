@@ -16,7 +16,6 @@ bool isInitialized();
 
 void init(
   const std::string& yamlPath,
-  const std::string& peleMechPath,
   occa::device device,
   occa::properties kernel_properties,
   const std::string& tool,
@@ -31,7 +30,6 @@ void init(
 
 void init(
   const std::string& yamlPath,
-  const std::string& peleMechPath,
   occa::device device,
   occa::properties kernel_properties,
   const std::string& tool,
