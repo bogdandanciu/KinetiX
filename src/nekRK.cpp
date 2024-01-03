@@ -205,7 +205,6 @@ static void setupKernelProperties()
     group_size = 1;
   }
   //AMREX lib link
-  kernel_properties["compiler_flags"] += " -include <mpi.h>";
   kernel_properties["compiler_flags"] += " -I$HOME/amrex/tmp_install_dir/include";
   kernel_properties["compiler_flags"] += " -L$HOME/amrex/tmp_install_dir/lib -lamrex";
 
@@ -539,7 +538,6 @@ void nekRK::init(const std::string &model_path,
     kernel_properties = _props;
   }
   // AMREX lib link
-  kernel_properties["compiler_flags"] += " -include <mpi.h>";
   kernel_properties["compiler_flags"] += " -I$HOME/amrex/tmp_install_dir/include";
   kernel_properties["compiler_flags"] += " -L$HOME/amrex/tmp_install_dir/lib -lamrex";
 
