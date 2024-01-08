@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   if (rank == 0)
     printf("size: %d\n", size);
-int err = 0;
+  int err = 0;
   int n_states = 100000;
   int n_rep = 20;
   std::string mech;
