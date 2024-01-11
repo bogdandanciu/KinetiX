@@ -179,6 +179,9 @@ static void setupKernelProperties()
     kernel_properties["compiler_flags"] += " -D__NEKRK_DEVICE__=__device__";
     kernel_properties["compiler_flags"] += " -D__NEKRK_CONST__=__constant__";
     kernel_properties["compiler_flags"] += " -D__NEKRK_INLINE__='__forceinline__ static'";
+    //needed for amrex
+    kernel_properties["compiler_flags"] += " --expt-relaxed-constexpr";
+
   }
   else if (device.mode() == "HIP") {
     setenv("OCCA_CXXFLAGS", incStatement.c_str(), 1); // required for launcher
@@ -430,7 +433,7 @@ static void buildMechKernels(bool transport)
     occa::properties includeProp;
     includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
-    includeProp["compiler_flags"] = " -include " + cacheDir + "/fconductivity.inc";
+    includeProp["compiler_flags"] += " -include " + cacheDir + "/fconductivity.inc";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fviscosity.inc";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fdiffusivity.inc";
 
