@@ -112,6 +112,11 @@ def get_parser():
                         required=False,
                         default="CUDA",
                         help='Target platform and c++ version')
+    parser.add_argument('--loop-gibbsexp',
+                        required=False,
+                        action='store_true',
+                        help='Loop calculation of gibbs exponential in case '
+                             'the code is unrolled.')
     parser.add_argument('--transport',
                         required=False,
                         default=True,
@@ -499,7 +504,7 @@ def compute_k_rev_unroll(r):
     return k_rev
 
 
-def write_reaction(idx, r):
+def write_reaction(idx, r, loop_gibbsexp):
     """
     Write reaction for the unrolled code.
     """
@@ -579,9 +584,12 @@ def write_reaction(idx, r):
         lines.append(f"{si}cR = k * Rf;")
     else:
         pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
-        lines.append(f"{si}k_rev = __NEKRK_EXP_OVERFLOW__("
-                     f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
-                     f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};")
+        if loop_gibbsexp:
+            lines.append(f"{si}k_rev = {compute_k_rev_unroll(r)}")
+        else:
+            lines.append(f"{si}k_rev = __NEKRK_EXP_OVERFLOW__("
+                         f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
+                         f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};")
         lines.append(f"{si}Rr = k_rev * {phase_space(r.products)};")
         lines.append(f"{si}cR = k * (Rf - Rr);")
     lines.append(f"#ifdef DEBUG")
@@ -741,7 +749,7 @@ def write_file_mech(file_name, output_dir, sp_names, sp_len, active_sp_len, rxn_
     return 0
 
 
-def write_file_rates_unroll(file_name, output_dir, reactions, active_len, sp_len, sp_thermo):
+def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, reactions, active_len, sp_len, sp_thermo):
     """
     Write the 'rates.inc'('frates.inc') file with unrolled loop specification.
     Loops are expanded by replicating their body multiple times, reducing the
@@ -761,6 +769,13 @@ def write_file_rates_unroll(file_name, output_dir, reactions, active_len, sp_len
                             f"{f(-a[1] / 2)} * T + {f((1. / 3. - 1. / 2.) * a[2])} * T2 + "
                             f"{f((1. / 4. - 1. / 3.) * a[3])} * T3 + {f((1. / 5. - 1. / 4.) * a[4])} * T4")
     lines.append(f'{write_energy(f"{di}gibbs0_RT[", active_len, expression, sp_thermo)}')
+    if loop_gibbsexp:
+        lines.append(f"{si}cfloat rcp_gibbs0_RT[{active_len}];")
+        lines.append(f"{si}for(unsigned int i=0; i<{active_len}; ++i)")
+        lines.append(f"{si}{{")
+        lines.append(f"{di}gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);")
+        lines.append(f"{di}rcp_gibbs0_RT[i] = 1./gibbs0_RT[i];")
+        lines.append(f"{si}}}")
     lines.append(f"")
     lines.append(f'{si}cfloat Cm = {"+".join([f"Ci[{specie}]" for specie in range(sp_len)])};')
     lines.append(f"{si}cfloat C0 = {f(const.one_atm / const.R)} * rcpT;")
@@ -770,7 +785,7 @@ def write_file_rates_unroll(file_name, output_dir, reactions, active_len, sp_len
     lines.append(f"{si}cfloat logPr, F, troe, troe_c, troe_n;")
     lines.append(f"")
     for idx, r in enumerate(reactions):
-        lines.append(f"{write_reaction(idx, r)}")
+        lines.append(f"{write_reaction(idx, r, loop_gibbsexp)}")
     lines.append(f"}}")
 
     write_module(output_dir, file_name, f'{code(lines)}')
@@ -1632,7 +1647,8 @@ def generate_files(mech_file=None, output_dir=None,
                    pressure_ref=101325.0, temperature_ref=1000.0,
                    mole_fractions_ref=1.0, length_ref=1.0, velocity_ref=1.0,
                    header_only=False, unroll_loops=False,
-                   align_width=64, target=None, transport=True
+                   align_width=64, target=None,
+                   loop_gibbsexp=False, transport=True
                    ):
     """
     Generate the production rates, thermodynamic and transport properties
@@ -1713,7 +1729,7 @@ def generate_files(mech_file=None, output_dir=None,
                     new_rates_file = 'f' + rates_file
                 else:
                     new_rates_file = rates_file
-                write_file_rates_unroll(new_rates_file, output_dir,
+                write_file_rates_unroll(new_rates_file, output_dir, loop_gibbsexp,
                                         reactions, active_sp_len, species_len, species.thermodynamics)
             set_precision(32)
             write_file_enthalpy_unroll(enthalpy_file, output_dir,
@@ -1767,4 +1783,5 @@ if __name__ == "__main__":
                    unroll_loops=args.unroll_loops,
                    align_width=args.align_width,
                    target=args.target,
+                   loop_gibbsexp=args.loop_gibbsexp,
                    transport=args.transport)
