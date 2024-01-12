@@ -51,6 +51,7 @@ std::string tool;
 int group_size;
 bool verbose;
 bool unroll_loops;
+bool loop_gibbsexp;
 int align_width;
 std::string target;
 bool useFP64Transport;
@@ -462,6 +463,7 @@ void nekRK::init(const std::string &model_path,
                  const std::string &_tool,
                  int _group_size,
                  bool _unroll_loops,
+                 bool _loop_gibbsexp,
                  int _align_width,
                  const std::string &_target,
                  bool _useFP64Transport,
@@ -478,6 +480,7 @@ void nekRK::init(const std::string &model_path,
 	      _tool,
               _group_size,
               _unroll_loops,
+	      _loop_gibbsexp,
               _align_width,
               _target,
               _useFP64Transport,
@@ -492,6 +495,7 @@ void nekRK::init(const std::string &model_path,
                  const std::string &_tool,
                  int _group_size,
                  bool _unroll_loops,
+                 bool _loop_gibbsexp,
                  int _align_width,
                  const std::string &_target,
                  bool _useFP64Transport,
@@ -547,6 +551,7 @@ void nekRK::init(const std::string &model_path,
   yamlPath = fs::path(model_path);
   group_size = std::max(_group_size, 32);
   unroll_loops = _unroll_loops;
+  loop_gibbsexp = _loop_gibbsexp;
   align_width = _align_width;
   target = _target;
   useFP64Transport = _useFP64Transport;
@@ -621,6 +626,8 @@ void nekRK::build(double _ref_pressure,
         	  " --target " + target;
     if (unroll_loops)
       cmdline.append(" --unroll-loops");
+    if (loop_gibbsexp)
+      cmdline.append(" --loop-gibbsexp");
     const auto currentHash = hash(cmdline);
     auto runGenerator = [&]
     {

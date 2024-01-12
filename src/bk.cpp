@@ -391,6 +391,7 @@ int main(int argc, char** argv)
   int deviceId = 0;
   int deviceIdFlag = 0;
   int unroll_loops = -1;
+  bool loop_gibbsexp = false;
   std::string mech;
 
   debug = false;
@@ -410,6 +411,7 @@ int main(int argc, char** argv)
       {"yaml-file", required_argument, 0, 'f'},
       {"device-id", required_argument, 0, 'i'},
       {"unroll-loops", required_argument, 0, 'u'},
+      {"loop-gibbsexp", no_argument, 0, 'x'},
       {0, 0, 0, 0}
     };
 
@@ -457,6 +459,9 @@ int main(int argc, char** argv)
     case 'u':
       unroll_loops = std::stoi(optarg);
       break;
+    case 'x':
+      loop_gibbsexp = true;
+      break;
 
     default:
       err++;
@@ -470,7 +475,7 @@ int main(int argc, char** argv)
     if(rank == 0)
       printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n --yaml-file s"
               "[--mode 1|2] [--tool s] [--repetitions n] [--rates-fp32] [--cimode n] [--debug] "
-	      "[--block-size  n] [--device-id  n] [--unroll-loops n] \n");
+	      "[--block-size  n] [--device-id  n] [--unroll-loops n] [-loop-gibbsexp]\n");
     exit(EXIT_FAILURE);
   }
 
@@ -551,6 +556,7 @@ int main(int argc, char** argv)
 	      tool,
               blockSize,
 	      (bool) unroll_loops,
+              loop_gibbsexp,
 	      align_width,
 	      target,
               false, /* useFP64Transport */ 
