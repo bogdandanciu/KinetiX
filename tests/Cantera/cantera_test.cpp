@@ -79,18 +79,18 @@ int main(int argc, char **argv) {
   double p = 1e5;
   int nSpecies = gas->nSpecies();
   double Y[nSpecies];
-  for (int i = 0; i < nSpecies; i++) {
-    Y[i] = 1.0 / nSpecies;
+  for (int k = 0; k < nSpecies; k++) {
+    Y[k] = 1.0 / nSpecies;
   }
   gas->setState_TPY(T, p, Y);
   if (rank == 0){
     printf("T: %.1f K \n", T);
     printf("p: %.1f Pa \n", p);
-    for (int i = 0; i < nSpecies; i++) {
-      if (i == nSpecies - 1)
-        printf("%s = %.5f \n", gas->speciesName(i).c_str(), Y[i]);
+    for (int k = 0; k < nSpecies; k++) {
+      if (k == nSpecies - 1)
+        printf("%s = %.5f \n", gas->speciesName(k).c_str(), Y[k]);
       else
-        printf("%s = %.5f, ", gas->speciesName(i).c_str(), Y[i]);
+        printf("%s = %.5f, ", gas->speciesName(k).c_str(), Y[k]);
     }
   }
 
