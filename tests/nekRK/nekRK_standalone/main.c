@@ -29,6 +29,25 @@ int main(int argc, char **argv) {
   double Y[__NEKRK_NSPECIES__];
   for (int k = 0; k < __NEKRK_NSPECIES__; k++)
     Y[k] = 1.0 / __NEKRK_NSPECIES__;
+ 
+  if (rank == 0){
+    printf("T: %.1f K \n", T);
+    printf("p: %.1f Pa \n", p);
+  }
+  std::istringstream iss(species_names);
+  std::vector<std::string> species_names_arr;
+  for (std::string species_name; iss >> species_name;) {
+    species_names_arr.push_back(species_name);
+  }
+  if (rank == 0){
+    for (int k = 0; k < __NEKRK_NSPECIES__; k++) {
+      if (k == __NEKRK_NSPECIES__ - 1)
+        printf("%s = %.5f \n", species_names_arr[k].c_str(), Y[k]);
+      else
+        printf("%s = %.5f, ", species_names_arr[k].c_str(), Y[k]);
+    }
+  }
+
 
   double R;
   R = 1.380649e-23 * 6.02214076e23;
