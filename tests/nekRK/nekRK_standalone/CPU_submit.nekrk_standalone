@@ -1,0 +1,28 @@
+#!/bin/bash -x
+#SBATCH --job-name=nekrk_standalone_cpu
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=128
+#SBATCH --partition=standard
+#SBATCH --account=project_465000567
+#SBATCH --time=00:05:00
+#SBATCH --output=mpi-out.%j
+#SBATCH --error=mpi-err.%j
+# -------
+# 1536 CPU compute nodes
+# 2× AMD EPYC 7763 CPUs (128 cores)
+# -------
+
+ulimit -s unlimited
+
+module purge
+module load CrayEnv
+module load gcc cray-python rocm/5.3.3
+module load craype cray-mpich
+module list
+
+#more /proc/cpuinfo
+make clean
+make all
+
+#mpirun -np 64 --bind-to core --map-by ppr:64:socket gri
+srun ./nekRK 
