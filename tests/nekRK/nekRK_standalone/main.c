@@ -18,8 +18,7 @@ int main(int argc, char **argv) {
   if (rank == 0)
     printf("size: %d\n", size);
 
-//  int Nstates = 1000000 / size;
-  int Nstates = 1;
+  int Nstates = 1000000 / size;
   int Nrep = 20;
   int offset = __NEKRK_NSPECIES__ + 1;
 
@@ -60,10 +59,10 @@ int main(int argc, char **argv) {
 
   /*** Throughput ***/
   for(int ii=0; ii<4; ii++) {
-//    if(ii==0) Nstates = 100/size;
-//    if(ii==1) Nstates = 1000000/size;
-//    if(ii==2) Nstates = 100000/size;
-//    if(ii==3) Nstates = 10000/size;
+    if(ii==0) Nstates = 100/size;
+    if(ii==1) Nstates = 1000000/size;
+    if(ii==2) Nstates = 100000/size;
+    if(ii==3) Nstates = 10000/size;
     Nstates = 1;
 
     for (int i = 0; i < Nrep; i++) {
@@ -113,7 +112,7 @@ int main(int argc, char **argv) {
     }
   } 
 
-#if 1
+#if 0
   for (int i=0; i< Nstates * offset; i++)
     printf("rates[%d]: %.8f \n", i, ydot[i]);
 #endif
