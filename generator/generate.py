@@ -493,13 +493,20 @@ def compute_k_rev_unroll(r):
 
     pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
     gibbs_terms = []
+    gibbs_terms_div = []
+    inv_gibbs_terms = []
     for j, net in enumerate(r.net):
-        if net < 0:
-            for n in range(abs(net)):
-                gibbs_terms.append(f"rcp_gibbs0_RT[{j}]")
         if net > 0:
             for o in range(net):
                 gibbs_terms.append(f"gibbs0_RT[{j}]")
+    inv_gibbs_terms.append(f"1./(")
+    for k, net in enumerate(r.net):
+        if net < 0:
+            for n in range(abs(net)):
+                gibbs_terms_div.append(f"gibbs0_RT[{k}]")
+    inv_gibbs_terms.append(f"{'*'.join(gibbs_terms_div)}")
+    inv_gibbs_terms.append(f")")
+    gibbs_terms.append(''.join(inv_gibbs_terms))
     k_rev = f"{'*'.join(gibbs_terms)}{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};"
     return k_rev
 
@@ -770,11 +777,11 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, reactions, act
                             f"{f((1. / 4. - 1. / 3.) * a[3])} * T3 + {f((1. / 5. - 1. / 4.) * a[4])} * T4")
     lines.append(f'{write_energy(f"{di}gibbs0_RT[", active_len, expression, sp_thermo)}')
     if loop_gibbsexp:
-        lines.append(f"{si}cfloat rcp_gibbs0_RT[{active_len}];")
+        # lines.append(f"{si}cfloat rcp_gibbs0_RT[{active_len}];")
         lines.append(f"{si}for(unsigned int i=0; i<{active_len}; ++i)")
         lines.append(f"{si}{{")
         lines.append(f"{di}gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);")
-        lines.append(f"{di}rcp_gibbs0_RT[i] = 1./gibbs0_RT[i];")
+        # lines.append(f"{di}rcp_gibbs0_RT[i] = 1./gibbs0_RT[i];")
         lines.append(f"{si}}}")
     lines.append(f"")
     lines.append(f'{si}cfloat Cm = {"+".join([f"Ci[{specie}]" for specie in range(sp_len)])};')
