@@ -12,6 +12,8 @@
 #include "cantera/kinetics/Reaction.h"
 #include "cantera/thermo/ThermoFactory.h"
 #include "cantera/thermo/ThermoPhase.h"
+#include "cantera/thermo/IdealGasPhase.h"
+#include "cantera/transport/MixTransport.h"
 #include <iostream>
 
 using namespace Cantera;
@@ -28,6 +30,8 @@ int main(int argc, char **argv) {
   int err = 0;
   int n_states = 100000;
   int n_rep = 20;
+  bool transport = false;
+  bool debug = false;
   std::string mech;
 
   while (1) {
@@ -35,6 +39,8 @@ int main(int argc, char **argv) {
         {"n-states", required_argument, 0, 's'},
         {"n-repetitions", required_argument, 0, 'r'},
         {"mechanism", required_argument, 0, 'm'},
+        {"transport", no_argument, 0, 't'},
+        {"debug", no_argument, 0, 'd'},
     };
 
     int option_index = 0;
@@ -53,6 +59,12 @@ int main(int argc, char **argv) {
     case 'm':
       mech.assign(optarg);
       break;
+    case 't':
+      transport = true;
+      break;
+    case 'd':
+      debug = true;
+      break;
 
     default:
       err++;
@@ -64,17 +76,18 @@ int main(int argc, char **argv) {
 
   if (err > 0) {
     if (rank == 0)
-      printf("Usage: ./cantera_test  [--n-states n] [--n-repetitions n] "
-             "[--mechanism f] \n");
+      printf("Usage: ./cantera_test  --n-states n --n-repetitions n --mechanism f "
+             "[--transport] [--debug] \n");
     exit(EXIT_FAILURE);
   }
 
-  int Nstates = n_states / size;
-  int Nrep = n_rep;
+  int nStates = n_states / size;
+  int nRep = n_rep;
 
   // Initialize reaction mechanism
   auto sol = newSolution(mech);
   auto gas = sol->thermo();
+  auto trans = sol->transport();
   double T = 1000.0;
   double p = 1e5;
   int nSpecies = gas->nSpecies();
@@ -99,45 +112,88 @@ int main(int argc, char **argv) {
 
   // Initialize states vector
   int offset = nSpecies + 1;
-  double *ydot = (double *)(_mm_malloc(Nstates * offset * sizeof(double), 64));
 
   /*** Throughput ***/
-  MPI_Barrier(MPI_COMM_WORLD);
-  const auto startTime = MPI_Wtime();
+  { //Chemistry
+    double *ydot = (double *)(_mm_malloc(nStates * offset * sizeof(double), 64));
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+    const auto startTime = MPI_Wtime();
 
-  for (int i = 0; i < Nrep; i++) {
-    for (int n = 0; n < Nstates; n++) {
-      double wdot[nSpecies];
-      double h_RT[nSpecies];
-      gas->setState_TPY(T, p, Y);
+    for (int i = 0; i < nRep; i++) {
+      for (int n = 0; n < nStates; n++) {
+        double wdot[nSpecies];
+        double h_RT[nSpecies];
+        gas->setState_TPY(T, p, Y);
 
-      kin->getNetProductionRates(wdot);
-      for (int k = 0; k < nSpecies; k++)
-        ydot[n + (k + 1) * Nstates] = wdot[k] * gas->molecularWeight(k);
+        kin->getNetProductionRates(wdot);
+        for (int k = 0; k < nSpecies; k++)
+          ydot[n + (k + 1) * nStates] = wdot[k] * gas->molecularWeight(k);
 
-      gas->getEnthalpy_RT(h_RT);
-      double sum_h_RT = 0;
-      for (int k = 0; k < nSpecies; k++)
-        sum_h_RT += wdot[k] * h_RT[k];
-      double ratesFactorEnergy = -GasConstant * T;
-      ydot[n] = ratesFactorEnergy * sum_h_RT;
+        gas->getEnthalpy_RT(h_RT);
+        double sum_h_RT = 0;
+        for (int k = 0; k < nSpecies; k++)
+          sum_h_RT += wdot[k] * h_RT[k];
+        double ratesFactorEnergy = -GasConstant * T;
+        ydot[n] = ratesFactorEnergy * sum_h_RT;
+      }
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    const auto elapsedTime = (MPI_Wtime() - startTime);
+
+    if (rank == 0){
+      printf("--- Chemistry ---\n");
+      printf("avg elapsed time: %.5f s\n", elapsedTime);
+      printf("avg aggregated throughput: %.3f GDOF/s (nStates = %d)\n",
+             (size * (double)(nStates * offset) * nRep) / elapsedTime / 1e9,
+             size * nStates);
+    }
+
+    if (debug) {
+      for (int i = 0; i < nStates * offset; i++)
+        printf("rates[%d]: %.8f \n", i, ydot[i]);
     }
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  const auto elapsedTime = (MPI_Wtime() - startTime);
+  if (transport) { //Transport
+    double *cond = (double *)(_mm_malloc(nStates * sizeof(double), 64));
+    double *visc = (double *)(_mm_malloc(nStates * sizeof(double), 64));
+    double *rhoD = (double *)(_mm_malloc(nStates * nSpecies * sizeof(double), 64));
 
-  if (rank == 0){
-    printf("avg elapsed time: %.5f s\n", elapsedTime);
-    printf("avg aggregated throughput: %.3f GDOF/s (Nstates = %d)\n",
-           (size * (double)(Nstates * offset) * Nrep) / elapsedTime / 1e9,
-           size * Nstates);
+    MPI_Barrier(MPI_COMM_WORLD);
+    const auto startTime = MPI_Wtime();
+
+    for (int i = 0; i < nRep; i++) {
+      for (int n = 0; n < nStates; n++) {
+        gas->setState_TPY(T, p, Y);
+
+        visc[n] = trans->viscosity();;
+        cond[n] = trans->thermalConductivity();
+	double *rhoD_i = rhoD + n*nSpecies;
+        trans->getMixDiffCoeffs(rhoD_i);
+      }
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    const auto elapsedTime = (MPI_Wtime() - startTime);
+
+    if (rank == 0){
+      printf("--- Transport properties ---\n");
+      printf("avg elapsed time: %.5f s\n", elapsedTime); printf("avg aggregated throughput: %.3f GDOF/s (nStates = %d)\n",
+             (size * (double)(nStates * offset) * nRep) / elapsedTime / 1e9,
+             size * nStates);
+    }
+    
+    if (debug){
+      for (int i = 0; i < nStates; i++){
+        printf("cond[%d]: %.8f \n", i, cond[i]);
+        printf("visc[%d]: %.8f \n", i, visc[i]);
+      }
+      for (int i = 0; i < nStates * nSpecies; i++)
+        printf("rhoD[%d]: %.8f \n", i, rhoD[i]);
+    }
   }
-
-#if 0
-  for (int i = 0; i < Nstates * offset; i++)
-    printf("rates[%d]: %.8f \n", i, ydot[i]);
-#endif
 
   MPI_Finalize();
   exit(EXIT_SUCCESS);
