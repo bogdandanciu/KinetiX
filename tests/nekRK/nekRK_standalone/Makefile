@@ -47,10 +47,10 @@ CC=$(CXX)
 
 all: nekRK nekRK32
 
-nekRK: main.c nekRK.h
+nekRK: nekRK_sa.cpp nekRK_sa.hpp
 	$(CXX) -g $(CFLAGS) $(CF64FLAGS) $^ -o nekRK
 
-nekRK32: main.c nekRK.h
+nekRK32: nekRK_sa.cpp nekRK_sa.hpp
 	$(CXX) -g -DFP32 $(CFLAGS) $(CF32FLAGS) $^ -o nekRK32
 
 .PHONY: clean nekRK nekRK32
