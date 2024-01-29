@@ -208,10 +208,6 @@ static void setupKernelProperties()
     kernel_properties["compiler_flags"] += " -include cstdio";
     group_size = 1;
   }
-  //AMREX lib link
-  kernel_properties["compiler_flags"] += " -I$HOME/amrex/tmp_install_dir/include";
-  kernel_properties["compiler_flags"] += " -L$HOME/amrex/tmp_install_dir/lib -lamrex";
-
 
   kernel_properties["defines/p_BLOCKSIZE"] = std::to_string(group_size);
   if (tool == "Pele"){
@@ -544,9 +540,6 @@ void nekRK::init(const std::string &model_path,
   else {
     kernel_properties = _props;
   }
-  // AMREX lib link
-  kernel_properties["compiler_flags"] += " -I$HOME/amrex/tmp_install_dir/include";
-  kernel_properties["compiler_flags"] += " -L$HOME/amrex/tmp_install_dir/lib -lamrex";
 
   yamlPath = fs::path(model_path);
   group_size = std::max(_group_size, 32);
