@@ -32,10 +32,14 @@ execute_process(COMMAND ${Python3_EXECUTABLE} -m pip install ${_pip_args} --user
 set(INSTALL_PREFIX "")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/occa")
 
+set(INSTALL_PREFIX "")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/amrex")
+
 add_library(nekRK SHARED
   src/nekRK.cpp
 )
 target_link_libraries (nekRK PUBLIC libocca)
+target_link_libraries (nekRK PUBLIC amrex)
 set(INSTALL_PREFIX ".")
 
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
