@@ -552,16 +552,16 @@ def write_reaction(idx, r, loop_gibbsexp):
     if r.type == 'elementary' or r.type == 'irreversible':
         lines.append(f'{si}k = {arrhenius(r.rate_constant)};')
     elif r.type == 'three-body':
-        lines.append(f"{si}k = {arrhenius(r.rate_constant)}{f'* eff' if hasattr(r, 'efficiencies') else ' '};")
+        lines.append(f"{si}k = {arrhenius(r.rate_constant)}{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
     elif r.type == 'pressure-modification':
         lines.append(f"{si}k_inf = {arrhenius(r.rate_constant)};")
         lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
-                     f"{f'* eff' if hasattr(r, 'efficiencies') else ''};")
+                     f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
         lines.append(f"{si}k = k_inf * Pr/(1 + Pr);")
     elif r.type == 'Troe':
         lines.append(f"{si}k_inf = {arrhenius(r.rate_constant)};")
         lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
-                     f"{f'* eff' if hasattr(r, 'efficiencies') else ''};")
+                     f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
         lines.append(f"{si}logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);")
         lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / r.troe.T3}*T) + "
                      f"{r.troe.A}*exp({-1. / r.troe.T1}*T)"
@@ -574,7 +574,7 @@ def write_reaction(idx, r, loop_gibbsexp):
     elif r.type == 'SRI':
         lines.append(f"{si}k_inf = {arrhenius(r.rate_constant)};")
         lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
-                     f"{f'* eff' if hasattr(r, 'efficiencies') else ''};")
+                     f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
         lines.append(f"{si}logPr = log10(Pr);")
         lines.append(f"{si}F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
                      f"exp({-1. / r.sri.C}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});")
@@ -1186,6 +1186,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 if hasattr(r[i], 'efficiencies'):
                     tb_correction.append(
                         f"{si}k[{ids_new.index(i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};")
+                else:
+                    tb_correction.append(
+                        f"{si}k[{ids_new.index(i)}] *= Cm;")
 
         # Pressure-dependent reactions
         pd_correction = []
@@ -1195,6 +1198,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 if hasattr(r[i], 'efficiencies'):
                     pd_correction.append(
                         f"{si}k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};")
+                else:
+                    pd_correction.append(
+                        f"{si}k[{ids_new.index(rxn_len + i)}] *= Cm;")
                 pd_correction.append(
                     f"{si}k[{ids_new.index(rxn_len + i)}] /= "
                     f"(1+ k[{ids_new.index(rxn_len + i)}]/(k[{ids_new.index(i)}]+ CFLOAT_MIN));")
@@ -1207,6 +1213,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 if hasattr(r[i], 'efficiencies'):
                     troe_correction.append(
                         f"{si}k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};")
+                else:
+                    troe_correction.append(
+                        f"{si}k[{ids_new.index(rxn_len + i)}] *= Cm;")
                 troe_correction.append(
                     f"{si}k[{ids_new.index(rxn_len + i)}]/= (k[{ids_new.index(i)}] + CFLOAT_MIN);")
             troe_A, rcp_troe_T1, troe_T2, rcp_troe_T3 = [], [], [], []
