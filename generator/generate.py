@@ -527,14 +527,23 @@ def write_reaction(idx, r, loop_gibbsexp):
     def arrhenius(rc):
         A, beta, E = (
             rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
-        expression = (
-            "__NEKRK_EXP__("
-            f"{f'{f(-E)}*rcpT+' if E != 0 else ''}"
-            f"{f'{f(beta)}*lnT+' if beta != 0 else ''}"
-            f"{f(ln(A))})"
-            if A != 0 and (beta != 0 or E != 0)
-            else f"{f(A)}"
-        )
+        if beta == 0 and E != 0:
+            expression = (f'__NEKRK_EXP__({f(ln(A))} + {f(-E)}*rcpT)')
+        elif beta == 0 and E == 0:
+            expression = (f'{f(A)}')
+        elif beta != 0 and E == 0:
+            if beta == -2 and E == 0:
+                expression = (f'{f(A)}*rcpT*rcpT')
+            elif beta == -1 and E == 0:
+                expression = (f'{f(A)}*rcpT')
+            elif beta == 1 and E == 0:
+                expression = (f'{f(A)}*T')
+            elif beta == 2 and E == 0:
+                expression = (f'{f(A)}*T*T')
+            else:
+                expression = (f'__NEKRK_EXP__({f(ln(A))} + {f(beta)}*lnT)')
+        else:
+            expression = (f'__NEKRK_EXP__({f(ln(A))} + {f(beta)}*lnT + {f(-E)}*rcpT)')
         return expression
 
     def arrhenius_diff(rc):
