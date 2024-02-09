@@ -120,12 +120,24 @@ def get_parser():
     parser.add_argument('--group-rxn-repArrh',
                         required=False,
                         action='store_true',
-                        help='Group reaction in the case of unrolled code '
+                        help='Group reactions in the case of unrolled code '
                              'based on repeated beta and E_R.')
     parser.add_argument('--transport',
                         required=False,
                         default=True,
                         help='Write transport properties')
+    parser.add_argument('--nonsymDij',
+                        required=False,
+                        action='store_true',
+                        help='Compute both the upper and lower part of the'
+                             'Dij matrix, although it is symmetric. It avoids'
+                             'expensive memory allocation in some cases.')
+    parser.add_argument('--fit-rcpdiffcoeffs',
+                        required=False,
+                        action='store_true',
+                        help='Compute the reciprocal of the diffusion '
+                             'coefficients to avoid expensive divisions '
+                             'in the diffusivity kernel.')
     args = parser.parse_args()
     return args
 
@@ -172,9 +184,10 @@ class Species:
     transport properties.
     """
 
-    def __init__(self, sp_names, molar_masses, thermodynamics,
+    def __init__(self, rcp_diffcoeffs, sp_names, molar_masses, thermodynamics,
                  well_depth, dipole_moment, diameter, rotational_relaxation,
                  degrees_of_freedom, polarizability, sp_len):
+        self.rcp_diffcoeffs = rcp_diffcoeffs
         self.species_names = sp_names
         self.molar_masses = molar_masses
         self.thermodynamics = thermodynamics
@@ -306,13 +319,19 @@ class Species:
         transport_polynomials.conductivity = [
             polynomial_regression(ln(T_rng / T0), [self._conductivity(a, T) / sqrt(T) for T in T_rng])
             for a in range(self._sp_len)]
-        transport_polynomials.diffusivity = [
-            [polynomial_regression(ln(T_rng / T0), [(self._diffusivity(a, b, T)) / (T * sqrt(T)) for T in T_rng])
-             for b in range(self._sp_len)] for a in range(self._sp_len)]
+        if self.rcp_diffcoeffs:
+            # Evaluate the reciprocal polynomial to avoid expensive divisions during runtime evaluation
+            transport_polynomials.diffusivity = [
+                [polynomial_regression(ln(T_rng / T0), [((T * sqrt(T)) / self._diffusivity(a, b, T)) for T in T_rng])
+                 for b in range(self._sp_len)] for a in range(self._sp_len)]
+        else:
+            transport_polynomials.diffusivity = [
+                [polynomial_regression(ln(T_rng / T0), [(self._diffusivity(a, b, T)) / (T * sqrt(T)) for T in T_rng])
+                 for b in range(self._sp_len)] for a in range(self._sp_len)]
         return transport_polynomials
 
 
-def get_species_from_model(species):
+def get_species_from_model(species, rcp_diffcoeffs):
     """
     Extract species information and attributes from the mechanism model.
     """
@@ -345,7 +364,7 @@ def get_species_from_model(species):
     polarizability = p(lambda s: s['transport'].get('polarizability', 0) * 1e-30)  # Å³
     rotational_relaxation = p(lambda s: float(s['transport'].get('rotational-relaxation', 0)))
 
-    species = Species(sp_names, molar_masses, thermodynamics,
+    species = Species(rcp_diffcoeffs, sp_names, molar_masses, thermodynamics,
                       well_depth, dipole_moment, diameter, rotational_relaxation,
                       degrees_of_freedom, polarizability, sp_len)
     return species
@@ -1095,7 +1114,42 @@ def write_file_viscosity_unroll(file_name, output_dir, transport_polynomials, sp
     return 0
 
 
-def write_file_diffusivity_unroll(file_name, output_dir, transport_polynomials, sp_len, Mi):
+def write_file_diffusivity_nonsym_unroll(file_name, output_dir, rcp_diffcoeffs,
+                                         transport_polynomials, sp_names, sp_len, Mi):
+    """
+    Write the 'fdiffusivity.inc' file with unrolled loop specification
+    and  computation of the full Dij matrix (non-symmetrical matrix assumption).
+    """
+
+    lines = []
+    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
+                 f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
+                 f"cfloat nXi[], dfloat* out, unsigned int stride) ")
+    lines.append(f"{{")
+    for k in range(sp_len):
+        lines.append(f"{si}//{sp_names[k]}")
+        lines.append(f"{si}out[{k}*stride+id] = scale * (1.0f - nekrk_molar_mass[{k}] * nXi[{k}]) / (")
+        if rcp_diffcoeffs:
+            lines.append(
+                f"""{('+' + new_line).join(
+                    f"{di}nXi[{j}] * "
+                    f"({evaluate_polynomial(transport_polynomials.diffusivity[k if k > j else j][j if k > j else k])})"
+                    for j in list(range(k)) + list(range(k + 1, sp_len)))});""")
+        else:
+            lines.append(
+                f"""{('+' + new_line).join(
+                    f"{di}nXi[{j}] * "
+                    f"(1/"
+                    f"({evaluate_polynomial(transport_polynomials.diffusivity[k if k > j else j][j if k > j else k])}))"
+                    for j in list(range(k)) + list(range(k + 1, sp_len)))});""")
+        lines.append(f"")
+    lines.append(f"}}")
+
+    write_module(output_dir, file_name, f'{code(lines)}')
+    return 0
+
+
+def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transport_polynomials, sp_len, Mi):
     """
     Write the 'fdiffusivity.inc' file with unrolled loop specification.
     """
@@ -1114,8 +1168,12 @@ def write_file_diffusivity_unroll(file_name, output_dir, transport_polynomials, 
     lines.append(f"{{")
     for k in range(sp_len):
         for j in range(k):
-            lines.append(
-                f"{si}cfloat R{k}_{j} = 1/({evaluate_polynomial(transport_polynomials.diffusivity[k][j])});")
+            if rcp_diffcoeffs:
+                lines.append(
+                    f"{si}cfloat R{k}_{j} = {evaluate_polynomial(transport_polynomials.diffusivity[k][j])};")
+            else:
+                lines.append(
+                    f"{si}cfloat R{k}_{j} = 1/({evaluate_polynomial(transport_polynomials.diffusivity[k][j])});")
             lines.append(f"{si}cfloat S{k}_{j} = {mut(f'{S[k]}+' if S[k] else '', k, f'S{k}_{j}')}nXi[{j}]*R{k}_{j};")
             lines.append(f"{si}cfloat S{j}_{k} = {mut(f'{S[j]}+' if S[j] else '', j, f'S{j}_{k}')}nXi[{k}]*R{k}_{j};")
     for k in range(sp_len):
@@ -1774,7 +1832,63 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, transp
     return 0
 
 
-def write_file_diffusivity_roll(file_name, output_dir, align_width, target, transport_polynomials, sp_len, Mi):
+def write_file_diffusivity_nonsym_roll(file_name, output_dir, align_width, target, rcp_diffcoeffs,
+                                       transport_polynomials, sp_len, Mi):
+    """
+    Write the 'fdiffusivity.inc ' file with rolled loop specification
+    and  computation of the full Dij matrix (non-symmetrical matrix assumption).
+    """
+
+    d0, d1, d2, d3, d4 = [], [], [], [], []
+    for k in range(len(transport_polynomials.diffusivity)):
+        for j in range(len(transport_polynomials.diffusivity)):
+            d0.append(transport_polynomials.diffusivity[k][j][0])
+            d1.append(transport_polynomials.diffusivity[k][j][1])
+            d2.append(transport_polynomials.diffusivity[k][j][2])
+            d3.append(transport_polynomials.diffusivity[k][j][3])
+            d4.append(transport_polynomials.diffusivity[k][j][4])
+    var_str = ['d0', 'd1', 'd2', 'd3', 'd4']
+    var = [d0, d1, d2, d3, d4]
+
+    lines = []
+    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
+                 f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
+                 f"cfloat nXi[], dfloat* out, unsigned int stride) ")
+    lines.append(f"{{")
+    lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
+    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target.__eq__('c++17') else 'cfloat'} "
+                 f"sums[{sp_len}]={{0.}};")
+    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
+    lines.append(f"{si}{{")
+    lines.append(f"{di}for(unsigned int j=0; j<{sp_len}; j++)")
+    lines.append(f"{di}{{")
+    lines.append(f"{ti}if (k != j) {{")
+    lines.append(f"{qi}unsigned int idx = k*{sp_len}+j;")
+    if rcp_diffcoeffs:
+        lines.append(f"{qi}cfloat rcp_Dkj = d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4;")
+    else:
+        lines.append(f"{qi}cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);")
+    lines.append(f"{qi}sums[k] += nXi[j]*rcp_Dkj;")
+    lines.append(f"{ti}}}")
+    lines.append(f"{di}}}")
+    lines.append(f"{si}}}")
+    lines.append(f"")
+    lines.append(f"{write_const_expression(align_width, target, True, 'Wi', Mi)}")
+    lines.append(f"")
+    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
+    lines.append(f"{si}{{")
+    lines.append(f"{di}unsigned int idx = k*stride+id;")
+    lines.append(f"{di}out[idx] = scale * (1.0f - Wi[k]*nXi[k])/sums[k];")
+    lines.append(f"{si}}}")
+    lines.append(f"")
+    lines.append(f"}}")
+
+    write_module(output_dir, file_name, f'{code(lines)}')
+    return 0
+
+
+def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_diffcoeffs,
+                                transport_polynomials, sp_len, Mi):
     """
     Write the 'fdiffusivity.inc' file with rolled loop specification.
     """
@@ -1805,7 +1919,10 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, tran
     lines.append(f"{di}for(unsigned int j=0; j<k; j++)")
     lines.append(f"{di}{{")
     lines.append(f"{ti}unsigned int idx = k*(k-1)/2+j;")
-    lines.append(f"{ti}cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);")
+    if rcp_diffcoeffs:
+        lines.append(f"{ti}cfloat rcp_Dkj = d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4;")
+    else:
+        lines.append(f"{ti}cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);")
     lines.append(f"{ti}sums1[k] += nXi[j]*rcp_Dkj;")
     lines.append(f"{ti}sums2[j] += nXi[k]*rcp_Dkj;")
     lines.append(f"{di}}}")
@@ -1837,7 +1954,7 @@ def generate_files(mech_file=None, output_dir=None,
                    header_only=False, unroll_loops=False,
                    align_width=64, target=None,
                    loop_gibbsexp=False, group_rxn_repArrh=False,
-                   transport=True
+                   transport=True, nonsymDij=False, rcp_diffcoeffs=False
                    ):
     """
     Generate the production rates, thermodynamic and transport properties
@@ -1855,7 +1972,7 @@ def generate_files(mech_file=None, output_dir=None,
         lambda specie: any([reaction.net[species_names_init.index(specie['name'])] != 0
                             for reaction in reactions_init]), model['species'])
     # Load species and reactions with new indexing (inert species at the end)
-    species = get_species_from_model(active_sp+inert_sp)
+    species = get_species_from_model(active_sp+inert_sp, rcp_diffcoeffs)
     species_names = species.species_names
     reactions = [get_reaction_from_model(species_names, model['units'], reaction)
                  for reaction in model['reactions']]
@@ -1889,9 +2006,15 @@ def generate_files(mech_file=None, output_dir=None,
                                                 transport_polynomials.viscosity]
         transport_polynomials.conductivity = [[(sqrt(T_ref) / 2) * p for p in P] for P in
                                                  transport_polynomials.conductivity]
-        transport_polynomials.diffusivity = [
-            [[(sqrt(T_ref) / const.R) * p for p in P]
-             for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
+        if rcp_diffcoeffs:
+            # The reciprocal polynomial is evaluated
+            transport_polynomials.diffusivity = [
+                [[(const.R / sqrt(T_ref)) * p for p in P]
+                 for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
+        else:
+            transport_polynomials.diffusivity = [
+                [[(sqrt(T_ref) / const.R) * p for p in P]
+                 for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
 
     #########################
     # Write subroutine files
@@ -1930,8 +2053,12 @@ def generate_files(mech_file=None, output_dir=None,
                                                transport_polynomials, species_names)
                 write_file_viscosity_unroll(viscosity_file, output_dir,
                                             transport_polynomials, species_len, Mi)
-                write_file_diffusivity_unroll(diffusivity_file, output_dir,
-                                              transport_polynomials, species_len, Mi)
+                if nonsymDij:
+                    write_file_diffusivity_nonsym_unroll(diffusivity_file, output_dir, rcp_diffcoeffs,
+                                                         transport_polynomials, species_names, species_len, Mi)
+                else:
+                    write_file_diffusivity_unroll(diffusivity_file, output_dir, rcp_diffcoeffs,
+                                                  transport_polynomials, species_len, Mi)
         else:  # Rolled code
             precisions = [32, 64]
             for p in precisions:
@@ -1952,8 +2079,14 @@ def generate_files(mech_file=None, output_dir=None,
                                              transport_polynomials, species_len)
                 write_file_viscosity_roll(viscosity_file, output_dir, align_width, target,
                                           transport_polynomials, species_len, Mi)
-                write_file_diffusivity_roll(diffusivity_file, output_dir, align_width, target,
-                                            transport_polynomials, species_len, Mi)
+                if nonsymDij:
+                    write_file_diffusivity_nonsym_roll(diffusivity_file, output_dir,
+                                                       align_width, target, rcp_diffcoeffs,
+                                                       transport_polynomials, species_len, Mi)
+                else:
+                    write_file_diffusivity_roll(diffusivity_file, output_dir,
+                                                align_width, target, rcp_diffcoeffs,
+                                                transport_polynomials, species_len, Mi)
 
     return 0
 
@@ -1974,4 +2107,7 @@ if __name__ == "__main__":
                    target=args.target,
                    loop_gibbsexp=args.loop_gibbsexp,
                    group_rxn_repArrh = args.group_rxn_repArrh,
-                   transport=args.transport)
+                   transport=args.transport,
+                   nonsymDij=args.nonsymDij,
+                   rcp_diffcoeffs=args.fit_rcpdiffcoeffs
+                   )
