@@ -15,7 +15,7 @@ Dependencies:
 
 ```sh
 mkdir build; cd build
-cmake [-DCMAKE_INSTALL_PREFIX=$NEKRK_PATH] ..
+cmake [-DCMAKE_INSTALL_PREFIX=$NEKRK_PATH] [-DAMReX_GPU_BACKEND=CUDA] ..
 make -j4 install
 ```
 
