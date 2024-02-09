@@ -117,6 +117,11 @@ def get_parser():
                         action='store_true',
                         help='Loop calculation of gibbs exponential in case '
                              'the code is unrolled.')
+    parser.add_argument('--group-rxn-repArrh',
+                        required=False,
+                        action='store_true',
+                        help='Group reaction in the case of unrolled code '
+                             'based on repeated beta and E_R.')
     parser.add_argument('--transport',
                         required=False,
                         default=True,
@@ -618,6 +623,141 @@ def write_reaction(idx, r, loop_gibbsexp):
     return f'{code(lines)}'
 
 
+def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
+    """
+    Write reaction for the unrolled code.
+    """
+    lines = []
+    for count, (idx, r) in enumerate(grouped_rxn, start=0):
+        if count >= 1:
+            previous_r = grouped_rxn[count-1][1]
+
+        lines.append(f"{si}//{idx + 1}: {r.description}")
+
+        if hasattr(r, 'efficiencies'):
+            efficiency = [f'{f(efficiency - 1)}*Ci[{specie}]' if efficiency != 2 else f'Ci[{specie}]'
+                          for specie, efficiency in enumerate(r.efficiencies) if efficiency != 1]
+            lines.append(f'''{si}eff = Cm{f"+{'+'.join(efficiency)}" if efficiency else ''};''')
+
+        def arrhenius(rc):
+            A, beta, E = (
+                rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
+            if beta == 0 and E != 0:
+                expression = f'__NEKRK_EXP__({f(ln(A))} + {f(-E)}*rcpT)'
+            elif beta == 0 and E == 0:
+                expression = f'{f(A)}'
+            elif beta != 0 and E == 0:
+                if beta == -2 and E == 0:
+                    expression = f'{f(A)}*rcpT*rcpT'
+                elif beta == -1 and E == 0:
+                    expression = f'{f(A)}*rcpT'
+                elif beta == 1 and E == 0:
+                    expression = f'{f(A)}*T'
+                elif beta == 2 and E == 0:
+                    expression = f'{f(A)}*T*T'
+                else:
+                    expression = f'__NEKRK_EXP__({f(ln(A))} + {f(beta)}*lnT)'
+            else:
+                expression = f'__NEKRK_EXP__({f(ln(A))} + {f(beta)}*lnT + {f(-E)}*rcpT)'
+            return expression
+
+        def arrhenius_diff(rc):
+            A_inf, beta_inf, E_inf = (
+                rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
+            A0, beta0, E0 = r.k0.preexponential_factor, r.k0.temperature_exponent, r.k0.activation_temperature
+            expression = (
+                f"__NEKRK_EXP__("
+                f"{f'{f(-E0 + E_inf)}*rcpT+' if (E0 - E_inf) != 0 else ''}"
+                f"{f'{f(beta0 - beta_inf)}*lnT+' if (beta0 - beta_inf) != 0 else ''}{f(ln(A0) - ln(A_inf))})"
+                if (A0 - A_inf) != 0 and ((beta0 - beta_inf) != 0 or (E0 - E_inf) != 0) else f'{f(A0 / A_inf)}'
+            )
+            return expression
+
+        if r.type == 'elementary' or r.type == 'irreversible':
+            if idx == first_idx:
+                lines.append(f'{si}k = {arrhenius(r.rate_constant)};')
+            else:
+                lines.append(f'{si}k *= '
+                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
+        elif r.type == 'three-body':
+            if idx == first_idx:
+                lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
+            else:
+                lines.append(f"{si}k *= "
+                             f"{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};")
+            lines.append(f"{si}k_corr = k {f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
+        elif r.type == 'pressure-modification':
+            if idx == first_idx:
+                lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
+            else:
+                lines.append(f'{si}k *= '
+                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
+            lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
+                         f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
+            lines.append(f"{si}k_corr = k * Pr/(1 + Pr);")
+        elif r.type == 'Troe':
+            if idx == first_idx:
+                lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
+            else:
+                lines.append(f'{si}k *= '
+                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
+            lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
+                         f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
+            lines.append(f"{si}logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);")
+            lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / r.troe.T3}*T) + "
+                         f"{r.troe.A}*exp({-1. / r.troe.T1}*T)"
+                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            lines.append(f"{si}troe_c = -.4 - .67 * logFcent;")
+            lines.append(f"{si}troe_n = .75 - 1.27 * logFcent;")
+            lines.append(f"{si}troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));")
+            lines.append(f"{si}F = __NEKRK_POW__(10, logFcent/(1.0 + troe*troe));")
+            lines.append(f"{si}k_corr = k * Pr/(1 + Pr) * F;")
+        elif r.type == 'SRI':
+            if idx == first_idx:
+                lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
+            else:
+                lines.append(f'k *= '
+                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
+            lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
+                         f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
+            lines.append(f"{si}logPr = log10(Pr);")
+            lines.append(f"{si}F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
+                         f"exp({-1. / r.sri.C}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});")
+            lines.append(f"{si}k_corr = k * Pr/(1 + Pr) * F;")
+        else:
+            exit(r.type)
+
+        phase_space = lambda reagents: '*'.join(
+            '*'.join([f'Ci[{specie}]'] * coefficient) for specie, coefficient in enumerate(reagents) if
+            coefficient != 0.)
+        Rf = phase_space(r.reactants)
+        lines.append(f"{si}Rf= {Rf};")
+        if r.type == 'irreversible':
+            lines.append(f"{si}cR = k * Rf;")
+        else:
+            pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
+            if loop_gibbsexp:
+                lines.append(f"{si}k_rev = {compute_k_rev_unroll(r)}")
+            else:
+                lines.append(f"{si}k_rev = __NEKRK_EXP_OVERFLOW__("
+                             f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
+                             f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};")
+            lines.append(f"{si}Rr = k_rev * {phase_space(r.products)};")
+            if r.type == 'elementary' or r.type == 'irreversible':
+                lines.append(f"{si}cR = k * (Rf - Rr);")
+            else:
+                lines.append(f"{si}cR = k_corr * (Rf - Rr);")
+        lines.append(f"#ifdef DEBUG")
+        lines.append(f'{si}printf("{idx + 1}: %+.15e\\n", cR);')
+        lines.append(f"#endif")
+        lines.append(f"""{code(
+            f"{si}rates[{specie}] += {imul(net, 'cR')};" for specie, net in enumerate(r.net) if net != 0)}""")
+        lines.append(f"")
+
+    return f'{code(lines)}'
+
+
+
 def evaluate_polynomial(P):
     """
     Create a string representation of the polynomial evaluation.
@@ -788,7 +928,8 @@ def write_file_mech(file_name, output_dir, sp_names, sp_len, active_sp_len, rxn_
     return 0
 
 
-def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, reactions, active_len, sp_len, sp_thermo):
+def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxn_repArrh,
+                            reactions, active_len, sp_len, sp_thermo):
     """
     Write the 'rates.inc'('frates.inc') file with unrolled loop specification.
     Loops are expanded by replicating their body multiple times, reducing the
@@ -819,13 +960,36 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, reactions, act
     lines.append(f'{si}cfloat Cm = {"+".join([f"Ci[{specie}]" for specie in range(sp_len)])};')
     lines.append(f"{si}cfloat C0 = {f(const.one_atm / const.R)} * rcpT;")
     lines.append(f"{si}cfloat rcpC0 = {f(const.R / const.one_atm)} * T;")
-    lines.append(f"{si}cfloat k, Rf, k_inf, Pr, logFcent, k_rev, Rr, cR;")
+    if group_rxn_repArrh:
+        lines.append(f"{si}cfloat k, Rf, k_corr, Pr, logFcent, k_rev, Rr, cR;")
+    else:
+        lines.append(f"{si}cfloat k, Rf, k_inf, Pr, logFcent, k_rev, Rr, cR;")
     lines.append(f"{si}cfloat eff;")
     lines.append(f"{si}cfloat logPr, F, troe, troe_c, troe_n;")
     lines.append(f"")
-    for idx, r in enumerate(reactions):
-        lines.append(f"{write_reaction(idx, r, loop_gibbsexp)}")
-    lines.append(f"}}")
+
+    if group_rxn_repArrh:
+        rxn_grouped = {}
+        for idx, r in enumerate(reactions):
+            beta = r.rate_constant.temperature_exponent
+            E_R = r.rate_constant.activation_temperature
+            # Group reactions by their beta and E_R values
+            if (beta == 0 and E_R == 0) or (E_R == 0 and beta in [-2, -1, 1, 2]):
+                be_key = (beta, E_R, idx)
+            else:
+                be_key = (beta, E_R)
+            if be_key not in rxn_grouped:
+                rxn_grouped[be_key] = []
+            rxn_grouped[be_key].append((idx, r))
+
+        for be_key, grouped_reactions in rxn_grouped.items():
+            first_idx = grouped_reactions[0][0]  # Index of the first reaction in the group
+            lines.append(f"{write_reaction_grouped(grouped_reactions, first_idx, loop_gibbsexp)}")
+        lines.append(f"}}")
+    else:
+        for idx, r in enumerate(reactions):
+            lines.append(f"{write_reaction(idx, r, loop_gibbsexp)}")
+        lines.append(f"}}")
 
     write_module(output_dir, file_name, f'{code(lines)}')
     return 0
@@ -1672,7 +1836,8 @@ def generate_files(mech_file=None, output_dir=None,
                    mole_fractions_ref=1.0, length_ref=1.0, velocity_ref=1.0,
                    header_only=False, unroll_loops=False,
                    align_width=64, target=None,
-                   loop_gibbsexp=False, transport=True
+                   loop_gibbsexp=False, group_rxn_repArrh=False,
+                   transport=True
                    ):
     """
     Generate the production rates, thermodynamic and transport properties
@@ -1753,7 +1918,7 @@ def generate_files(mech_file=None, output_dir=None,
                     new_rates_file = 'f' + rates_file
                 else:
                     new_rates_file = rates_file
-                write_file_rates_unroll(new_rates_file, output_dir, loop_gibbsexp,
+                write_file_rates_unroll(new_rates_file, output_dir, loop_gibbsexp, group_rxn_repArrh,
                                         reactions, active_sp_len, species_len, species.thermodynamics)
             set_precision(32)
             write_file_enthalpy_unroll(enthalpy_file, output_dir,
@@ -1808,4 +1973,5 @@ if __name__ == "__main__":
                    align_width=args.align_width,
                    target=args.target,
                    loop_gibbsexp=args.loop_gibbsexp,
+                   group_rxn_repArrh = args.group_rxn_repArrh,
                    transport=args.transport)
