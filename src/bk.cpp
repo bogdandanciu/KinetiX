@@ -392,6 +392,7 @@ int main(int argc, char** argv)
   int deviceIdFlag = 0;
   int unroll_loops = -1;
   bool loop_gibbsexp = false;
+  bool group_rxn_repArrh = false;
   std::string mech;
 
   debug = false;
@@ -411,6 +412,7 @@ int main(int argc, char** argv)
       {"yaml-file", required_argument, 0, 'f'},
       {"device-id", required_argument, 0, 'i'},
       {"unroll-loops", required_argument, 0, 'u'},
+      {"group-rxn-repArrh", no_argument, 0, 'a'},
       {"loop-gibbsexp", no_argument, 0, 'x'},
       {0, 0, 0, 0}
     };
@@ -459,6 +461,9 @@ int main(int argc, char** argv)
     case 'u':
       unroll_loops = std::stoi(optarg);
       break;
+    case 'a':
+      group_rxn_repArrh = true;
+      break;
     case 'x':
       loop_gibbsexp = true;
       break;
@@ -475,7 +480,8 @@ int main(int argc, char** argv)
     if(rank == 0)
       printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n --yaml-file s"
               "[--mode 1|2] [--tool s] [--repetitions n] [--rates-fp32] [--cimode n] [--debug] "
-	      "[--block-size  n] [--device-id  n] [--unroll-loops n] [-loop-gibbsexp]\n");
+	      "[--block-size  n] [--device-id  n] [--unroll-loops n] [-loop-gibbsexp] "
+	      "[--group-rxn-repArrh] \n");
     exit(EXIT_FAILURE);
   }
 
@@ -557,6 +563,7 @@ int main(int argc, char** argv)
               blockSize,
 	      (bool) unroll_loops,
               loop_gibbsexp,
+              group_rxn_repArrh,
 	      align_width,
 	      target,
               false, /* useFP64Transport */ 
