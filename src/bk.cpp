@@ -393,6 +393,8 @@ int main(int argc, char** argv)
   int unroll_loops = -1;
   bool loop_gibbsexp = false;
   bool group_rxn_repArrh = false;
+  bool nonsymDij = false;
+  bool fit_rcpDiffCoeffs = false;
   std::string mech;
 
   debug = false;
@@ -414,6 +416,8 @@ int main(int argc, char** argv)
       {"unroll-loops", required_argument, 0, 'u'},
       {"group-rxn-repArrh", no_argument, 0, 'a'},
       {"loop-gibbsexp", no_argument, 0, 'x'},
+      {"nonsymDij", no_argument, 0, 's'},
+      {"fit-rcpDiffCoeffs", no_argument, 0, 'o'},
       {0, 0, 0, 0}
     };
 
@@ -461,12 +465,19 @@ int main(int argc, char** argv)
     case 'u':
       unroll_loops = std::stoi(optarg);
       break;
-    case 'a':
-      group_rxn_repArrh = true;
-      break;
     case 'x':
       loop_gibbsexp = true;
       break;
+    case 'a':
+      group_rxn_repArrh = true;
+      break;
+    case 's':
+      nonsymDij = true;
+      break;
+    case 'o':
+      fit_rcpDiffCoeffs = true;
+      break;
+
 
     default:
       err++;
@@ -481,7 +492,7 @@ int main(int argc, char** argv)
       printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n --yaml-file s"
               "[--mode 1|2] [--tool s] [--repetitions n] [--rates-fp32] [--cimode n] [--debug] "
 	      "[--block-size  n] [--device-id  n] [--unroll-loops n] [-loop-gibbsexp] "
-	      "[--group-rxn-repArrh] \n");
+	      "[--group-rxn-repArrh] [--nonsymDij] [--fit-rcpDiffCoeffs] \n");
     exit(EXIT_FAILURE);
   }
 
@@ -564,6 +575,8 @@ int main(int argc, char** argv)
 	      (bool) unroll_loops,
               loop_gibbsexp,
               group_rxn_repArrh,
+              nonsymDij,
+              fit_rcpDiffCoeffs,
 	      align_width,
 	      target,
               false, /* useFP64Transport */ 
