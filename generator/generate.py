@@ -648,7 +648,7 @@ def write_const_expression(align_width, target, static, var_str, var):
     return f'{code(lines)}'
 
 
-def get_energy_coefficients(sp_thermo, sp_len):
+def get_energy_coefficients(thermo_prop, sp_thermo, sp_len):
     """
     Extract energy coefficients, temperature thersholds and reordering indices
     from species thermodynamic data.
@@ -686,6 +686,22 @@ def get_energy_coefficients(sp_thermo, sp_len):
                 a4.append(specie_k.pieces[1][4])
                 a5.append(specie_k.pieces[1][5])
                 a6.append(specie_k.pieces[1][6])
+
+    if thermo_prop == 'cp_R':
+        pass
+    elif thermo_prop == 'h_RT':
+        a1 = [i/2 for i in a1]
+        a2 = [i/3 for i in a2]
+        a3 = [i/4 for i in a3]
+        a4 = [i/5 for i in a4]
+    elif thermo_prop == 'g_RT':
+        a1 = [i*(1/2-1) for i in a1]
+        a2 = [i*(1/3-1/2) for i in a2]
+        a3 = [i*(1/4-1/3) for i in a3]
+        a4 = [i*(1/5-1/4) for i in a4]
+    else:
+        exit("Undefined thermodynamic property")
+
     return a0, a1, a2, a3, a4, a5, a6, ids_thermo_new, len_unique_temp_splits, unique_temp_split
 
 
@@ -710,11 +726,18 @@ def get_thermo_prop(thermo_prop, unique_temp_split, len_unique_temp_splits):
         if thermo_prop == 'cp_R':
             lines.append(
                 f"{di}cp_R[i+{sum_of_list(len_unique_temp_splits[:i])}] = a0[i_off] + a1[i_off]*T + a2[i_off]*T2 + "
-                f"a3[i_off]*T3+ a4[i_off]*T4;")
+                f"a3[i_off]*T3 + a4[i_off]*T4;")
         elif thermo_prop == 'h_RT':
             lines.append(
-                f"{di}h_RT[i+{sum_of_list(len_unique_temp_splits[:i])}] = a0[i_off] + {f(0.5)}*a1[i_off]*T + "
-                f"{f(1. / 3.)}*a2[i_off]*T2 + {f(0.25)}*a3[i_off]*T3+ {f(0.2)}*a4[i_off]*T4 + a5[i_off]*rcpT;")
+                f"{di}h_RT[i+{sum_of_list(len_unique_temp_splits[:i])}] = a0[i_off] + a1[i_off]*T + "
+                f"a2[i_off]*T2 + a3[i_off]*T3+ a4[i_off]*T4 + a5[i_off]*rcpT;")
+        elif thermo_prop == 'g_RT':
+            lines.append(
+                f"{di}gibbs0_RT[i+{sum_of_list(len_unique_temp_splits[:i])}] = "
+                f"a0[i_off]*(1-lnT) + a1[i_off]*T + a2[i_off]*T2 +"
+                f"a3[i_off]*T3 + a4[i_off]*T4 + a5[i_off]*rcpT - a6[i_off];")
+        else:
+            exit('Undefined thermodynamic property')
         lines.append(f"{si}}}")
         lines.append(f"")
     return f"{code(lines)}"
@@ -1298,28 +1321,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
 
     # Compute the gibbs energy
     (a0, a1, a2, a3, a4, a5, a6,
-     ids_gibbs_new, len_unique_temp_splits, unique_temp_split) = get_energy_coefficients(sp_thermo, sp_len)
-
-    def gibbs_energy():
-        lines = []
-        for i in range(len(unique_temp_split)):
-            if len_unique_temp_splits[i] > 1:
-                lines.append(
-                    f"{si}offset = {2 * sum_of_list(len_unique_temp_splits[:i])} + "
-                    f"(T>{unique_temp_split[i]})*{len_unique_temp_splits[i]};")
-            else:
-                lines.append(
-                    f"{si}offset = {2 * sum_of_list(len_unique_temp_splits[:i])} + (T>{unique_temp_split[i]});")
-            lines.append(f"{si}for(unsigned int i=0; i<{len_unique_temp_splits[i]}; ++i)")
-            lines.append(f"{si}{{")
-            lines.append(f"{di}i_off = i + offset;")
-            lines.append(
-                f"{di}gibbs0_RT[i+{sum_of_list(len_unique_temp_splits[:i])}] = "
-                f"a0[i_off]*(1-lnT) - a1[i_off]*{f(0.5)}*T {f(1. / 3. - 0.5)}*a2[i_off]*T2 "
-                f"{f(0.25 - 1. / 3.)}*a3[i_off]*T3 {f(0.2 - 0.25)}*a4[i_off]*T4 + a5[i_off]*rcpT - a6[i_off];")
-            lines.append(f"{si}}}")
-            lines.append(f"")
-        return f"{code(lines)}"
+     ids_gibbs_new, len_unique_temp_splits, unique_temp_split) = get_energy_coefficients('g_RT', sp_thermo, sp_len)
 
     # Reciprocal gibbs energy
     repeated_rcp_gibbs = [0] * len(sp_thermo)
@@ -1430,10 +1432,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
     lines.append(f"{si}{f'alignas({align_width}) cfloat' if target.__eq__('c++17') else 'cfloat'} "
                  f"gibbs0_RT[{sp_len}];")
-    lines.append(f"{si}unsigned int offset;")
-    lines.append(f"{si}unsigned int i_off; ")
-    lines.append(f"")
-    lines.append(f"{gibbs_energy()}")
+    lines.append(f"{get_thermo_prop('g_RT', unique_temp_split, len_unique_temp_splits)}")
     lines.append(f"{si}// Group the gibbs exponentials")
     lines.append(f"{si}for(unsigned int i=0; i<{sp_len}; ++i)")
     lines.append(f"{di}gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);")
@@ -1469,7 +1468,7 @@ def write_file_enthalpy_roll(file_name, output_dir, align_width, target, sp_ther
     """
 
     (a0, a1, a2, a3, a4, a5, a6,
-     ids_thermo_new, len_unique_temp_splits, unique_temp_split) = get_energy_coefficients(sp_thermo, sp_len)
+     ids_thermo_new, len_unique_temp_splits, unique_temp_split) = get_energy_coefficients('h_RT', sp_thermo, sp_len)
     var_str = ['a0', 'a1', 'a2', 'a3', 'a4', 'a5']
     var = [a0, a1, a2, a3, a4, a5]
 
@@ -1493,7 +1492,7 @@ def write_file_heat_capacity_roll(file_name, output_dir, align_width, target, sp
     """
 
     (a0, a1, a2, a3, a4, a5, a6,
-     ids_thermo_new, len_unique_temp_splits, unique_temp_split) = get_energy_coefficients(sp_thermo, sp_len)
+     ids_thermo_new, len_unique_temp_splits, unique_temp_split) = get_energy_coefficients('cp_R', sp_thermo, sp_len)
     var_str = ['a0', 'a1', 'a2', 'a3', 'a4']
     var = [a0, a1, a2, a3, a4]
 
