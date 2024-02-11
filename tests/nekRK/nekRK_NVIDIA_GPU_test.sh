@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --partition=booster
 #SBATCH --account=dems
-#SBATCH --time=02:00:00
+#SBATCH --time=04:00:00
 #SBATCH --cpus-per-task=12
 #SBATCH --output=mpi-out.%j
 #SBATCH --error=mpi-err.%j
@@ -18,33 +18,50 @@
 
 ulimit -s unlimited
 ##############
-#gri30-20 - 5M 
-srun bin/nekcrf_bk --backend CUDA --n-states 238000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0
+#gri30 - 53M 
 rm -rf .cache/
-srun bin/nekcrf_bk --backend CUDA --n-states 238000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30.yaml --unroll-loops 0
 rm -rf .cache/
-srun bin/nekcrf_bk --backend CUDA --n-states 238000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0 --block-size 256
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30.yaml --unroll-loops 0 --loop-gibbsexp
 rm -rf .cache/
-srun bin/nekcrf_bk --backend CUDA --n-states 238000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1 --block-size 256
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30.yaml --unroll-loops 0 --group-rxn-repArrh
 rm -rf .cache/
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30.yaml --unroll-loops 0 --loop-gibbsexp --group-rxn-repArrh
+rm -rf .cache/
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30.yaml --unroll-loops 0 --nonsymDij
+rm -rf .cache/
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30.yaml --unroll-loops 0 --fit-rcpDiffCoeffs
+rm -rf .cache/
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30.yaml --unroll-loops 0 --nonsymDij --fit-rcpDiffCoeffs
+rm -rf .cache/
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30.yaml --unroll-loops 1
+rm -rf .cache/
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30.yaml --unroll-loops 1 --nonsymDij
+rm -rf .cache/
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30.yaml --unroll-loops 1 --fit-rcpDiffCoeffs
+rm -rf .cache/
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30.yaml --unroll-loops 1 --nonsymDij --fit-rcpDiffCoeffs
 
-#gri30-20 - 20M
-srun bin/nekcrf_bk --backend CUDA --n-states 952000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0
+#LiDryer -10 M
 rm -rf .cache/
-srun bin/nekcrf_bk --backend CUDA --n-states 952000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/LiDryer.yaml --unroll-loops 0
 rm -rf .cache/
-srun bin/nekcrf_bk --backend CUDA --n-states 952000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0 --block-size 256
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/LiDryer.yaml --unroll-loops 0 --loop-gibbsexp
 rm -rf .cache/
-srun bin/nekcrf_bk --backend CUDA --n-states 952000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1 --block-size 256
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/LiDryer.yaml --unroll-loops 0 --group-rxn-repArrh
 rm -rf .cache/
-
-#gri30-20 - 40M
-srun bin/nekcrf_bk --backend CUDA --n-states 1904000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/LiDryer.yaml --unroll-loops 0 --loop-gibbsexp --group-rxn-repArrh
 rm -rf .cache/
-srun bin/nekcrf_bk --backend CUDA --n-states 1904000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/LiDryer.yaml --unroll-loops 0 --nonsymDij
 rm -rf .cache/
-srun bin/nekcrf_bk --backend CUDA --n-states 1904000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0 --block-size 256
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/LiDryer.yaml --unroll-loops 0 --fit-rcpDiffCoeffs
 rm -rf .cache/
-srun bin/nekcrf_bk --backend CUDA --n-states 1904000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1 --block-size 256
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/LiDryer.yaml --unroll-loops 0 --nonsymDij --fit-rcpDiffCoeffs
 rm -rf .cache/
-
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/LiDryer.yaml --unroll-loops 1
+rm -rf .cache/
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/LiDryer.yaml --unroll-loops 1 --nonsymDij
+rm -rf .cache/
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/LiDryer.yaml --unroll-loops 1 --fit-rcpDiffCoeffs
+rm -rf .cache/
+srun bin/nekcrf_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file mechanisms/LiDryer.yaml --unroll-loops 1 --nonsymDij --fit-rcpDiffCoeffs
