@@ -380,20 +380,24 @@ def get_reaction_from_model(sp_names, units, r):
 
     reaction = Reaction()
     reaction.description = r['equation']
+    # Regular expression to match third body reactions
+    third_body_pattern = re.compile(r'(\s*\(\+[^\)]+\))|(\s*\+\s*M\s*)')
     if version_info.minor >= 9:
         # print(r['equation'])
         [reaction.reactants, reaction.products] = [
             [sum([c for (s, c) in side if s == specie]) for specie in sp_names] for side in
             [[(s.split(' ')[1], int(s.split(' ')[0])) if ' ' in s else (s, 1) for s in
-              [s.strip() for s in side.removesuffix('(+ M)').removesuffix('+ M').removesuffix('(+M)').split(' + ')]]
+              [re.sub(third_body_pattern, '', s.strip()) for s in side.split(' + ')]]
              for side in [s.strip() for s in re.split('<?=>', r['equation'])]
              ]
         ]
     else:
+        # Regular expression to match third body reactions
+        third_body_pattern = re.compile(r'(\s*\(\+[^)]+\)$)|(\s*\+\s*M\s*$)')
         [reaction.reactants, reaction.products] = [
             [sum([c for (s, c) in side if s == specie]) for specie in sp_names] for side in
             [[(s.split(' ')[1], int(s.split(' ')[0])) if ' ' in s else (s, 1) for s in
-              [s.strip() for s in re.sub('\\+ M$', '', re.sub('\\(\\+M\\)$', '', side)).split(' + ')]]
+              [re.sub(third_body_pattern, '', s.strip()) for s in side.split(' + ')]]
              for side in [s.strip() for s in re.split('<?=>', r['equation'])]
              ]
         ]
