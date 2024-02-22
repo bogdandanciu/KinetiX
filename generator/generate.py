@@ -811,9 +811,9 @@ def write_const_expression(align_width, target, static, var_str, var):
     return f'{code(lines)}'
 
 
-def get_energy_coefficients(thermo_prop, sp_thermo, sp_len):
+def get_thermo_coeffs(thermo_prop, sp_thermo, sp_len):
     """
-    Extract energy coefficients, temperature thersholds and reordering indices
+    Extract thermodynamic coefficients, temperature thresholds and reordering indices
     from species thermodynamic data.
     """
     # Energy coefficients
@@ -1547,7 +1547,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
 
     # Compute the gibbs energy
     (a0, a1, a2, a3, a4, a5, a6,
-     ids_gibbs_new, len_unique_temp_splits, unique_temp_split) = get_energy_coefficients('g_RT', sp_thermo, sp_len)
+     ids_gibbs_new, len_unique_temp_splits, unique_temp_split) = get_thermo_coeffs('g_RT', sp_thermo, sp_len)
 
     # Reciprocal gibbs energy
     repeated_rcp_gibbs = [0] * len(sp_thermo)
@@ -1694,7 +1694,7 @@ def write_file_enthalpy_roll(file_name, output_dir, align_width, target, sp_ther
     """
 
     (a0, a1, a2, a3, a4, a5, a6,
-     ids_thermo_new, len_unique_temp_splits, unique_temp_split) = get_energy_coefficients('h_RT', sp_thermo, sp_len)
+     ids_thermo_new, len_unique_temp_splits, unique_temp_split) = get_thermo_coeffs('h_RT', sp_thermo, sp_len)
     var_str = ['a0', 'a1', 'a2', 'a3', 'a4', 'a5']
     var = [a0, a1, a2, a3, a4, a5]
 
@@ -1718,7 +1718,7 @@ def write_file_heat_capacity_roll(file_name, output_dir, align_width, target, sp
     """
 
     (a0, a1, a2, a3, a4, a5, a6,
-     ids_thermo_new, len_unique_temp_splits, unique_temp_split) = get_energy_coefficients('cp_R', sp_thermo, sp_len)
+     ids_thermo_new, len_unique_temp_splits, unique_temp_split) = get_thermo_coeffs('cp_R', sp_thermo, sp_len)
     var_str = ['a0', 'a1', 'a2', 'a3', 'a4']
     var = [a0, a1, a2, a3, a4]
 
