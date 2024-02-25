@@ -1531,8 +1531,28 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 troe_correction.append(
                     f"{si}k[{ids_new.index(rxn_len + i)}]*= k[{ids_new.index(i)}];")
 
+        # SRI reaction
+        sri_correction = []
+        if len(ids_sri_rxn) > 0:
+            sri_correction.append(f"{si}//Correct k for SRI reactions")
+            for i in ids_sri_rxn:
+                if hasattr(r[i], 'efficiencies'):
+                    sri_correction.append(
+                        f"{si}k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};")
+                else:
+                    sri_correction.append(
+                        f"{si}k[{ids_new.index(rxn_len + i)}] *= Cm;")
+                sri_correction.append(
+                    f"{si} cfloat logPr = __NEKRK_LOG10__("
+                    f"k[{ids_new.index(rxn_len + i)}]/(k[{ids_new.index(i)}] + CFLOAT_MIN) + CFLOAT_MIN);")
+                sri_correction.append(f"{si}cfloat F = {r[i].sri.D}*"
+                                      f"__NEKRK_POW__("
+                                      f"{r[i].sri.A}*exp({-r[i].sri.B}*rcpT)+ exp({-1. / r[i].sri.C}*T), "
+                                      f"1./(1.+logPr*logPr))*pow(T, {r[i].sri.E});")
+                sri_correction.append(f"{si}k[{ids_new.index(rxn_len + i)}] *= Pr/(1 + Pr) * F;")
+
         # Combine all reactions
-        all_reactions = tb_correction + pd_correction + troe_correction
+        all_reactions = tb_correction + pd_correction + troe_correction + sri_correction
         return f"{code(all_reactions)}"
 
     # Reorder reactions back to original
