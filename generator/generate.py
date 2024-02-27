@@ -346,17 +346,21 @@ def get_species_from_model(species, rcp_diffcoeffs):
     def from_model(s):
         temperature_split = s['temperature-ranges'][1]
         pieces = s['data']
+        if len(pieces) < 2:
+            # Add a dummy set of thermo coefficients and temperature split of 1000K
+            # in case the specie has only one set
+            temperature_split = 1000
+            pieces.append(pieces[0].copy())
         nasa7 = NASA7(pieces, temperature_split)
         return nasa7
 
     thermodynamics = p(lambda s: from_model(s['thermo']))
-    # Check if species have two sets of thermodynamic coefficients
+    # Check if species have more than two sets of thermodynamic coefficients
     for idx, specie in enumerate(thermodynamics):
-        try:
-            data = specie.pieces[1][0]
-        except IndexError:
+        if len(specie.pieces) > 2:
             raise SystemExit(
-                f'Specie {sp_names[idx]} has only one set of thermodynamic coefficients. Check input yaml file!')
+                f'Specie {sp_names[idx]} has more than 2 sets of thermodynamic coefficients. '
+                f'This is not currently supported!')
     degrees_of_freedom = p(lambda s: {'atom': 0, 'linear': 1, 'nonlinear': 3 / 2}[s['transport']['geometry']])
     well_depth = p(lambda s: s['transport']['well-depth'] * const.kB)
     diameter = p(lambda s: s['transport']['diameter'] * 1e-10)  # Å
