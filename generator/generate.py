@@ -56,6 +56,7 @@ from utils import polynomial_regression
 from utils import set_precision, f, f_sci_not
 from utils import sum_of_list, partition, imul
 from utils import write_module, code, si, di, ti, qi, new_line
+from utils import FLOAT_MIN, FLOAT_MAX
 import constants as const
 
 
@@ -606,32 +607,15 @@ def write_reaction(idx, r, loop_gibbsexp):
         lines.append(f"{si}logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);")
         # Add checks for troe coefficients
         if r.troe.A == 0:
-            if r.troe.T3 != 0:
-                lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / r.troe.T3}*T) + "
-                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
-            else:
-                lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1e30}*T) + "
-                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
         elif r.troe.A == 1:
-            if r.troe.T1 != 0:
-                lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / r.troe.T1}*T)"
-                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
-            else:
-                lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1e30}*T)"
-                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
         else:
-            if r.troe.T1 == 0 and r.troe.T3 != 0:
-                lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / r.troe.T3}*T) + "
-                             f"{r.troe.A}*exp({-1e30}*T)"
-                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
-            elif r.troe.T1 != 0 and r.troe.T3 == 0:
-                lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1e30}*T) + "
-                             f"{r.troe.A}*exp({-1. / r.troe.T1}*T)"
-                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
-            else:
-                lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / r.troe.T3}*T) + "
-                             f"{r.troe.A}*exp({-1. / r.troe.T1}*T)"
-                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                         f"{r.troe.A}*exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
         lines.append(f"{si}troe_c = -.4 - .67 * logFcent;")
         lines.append(f"{si}troe_n = .75 - 1.27 * logFcent;")
         lines.append(f"{si}troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));")
@@ -1508,15 +1492,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             troe_A, rcp_troe_T1, troe_T2, rcp_troe_T3 = [], [], [], []
             for i in ids_troe_rxn:
                 troe_A.append(r[i].troe.A)
-                if r[i].troe.T1 != 0:
-                    rcp_troe_T1.append(1 / r[i].troe.T1)
-                else:
-                    rcp_troe_T1.append(1e30)
+                rcp_troe_T1.append(1 / (r[i].troe.T1+FLOAT_MIN))
                 troe_T2.append(r[i].troe.T2)
-                if r[i].troe.T3 != 0:
-                    rcp_troe_T3.append(1 / r[i].troe.T3)
-                else:
-                    rcp_troe_T3.append(1e30)
+                rcp_troe_T3.append(1 / (r[i].troe.T3+FLOAT_MIN))
             ids_troe = []
             for i in ids_troe_rxn:
                 ids_troe.append(ids_new.index(rxn_len + i))
