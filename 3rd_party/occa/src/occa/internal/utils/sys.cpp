@@ -798,9 +798,9 @@ namespace occa {
                      sys::vendor::PGI   |
                      sys::vendor::PPC   |
                      sys::vendor::Pathscale)) {
-        return "-std=c++11";
+        return "-std=c++17";
       } else if (vendor_ & sys::vendor::Cray) {
-        return "-hstd=c++11";
+        return "-hstd=c++17";
       } else if (vendor_ & sys::vendor::IBM) {
         return "-qlanglvl=extended0x";
       } else if (vendor_ & sys::vendor::VisualStudio) {
