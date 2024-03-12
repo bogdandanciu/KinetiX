@@ -627,7 +627,7 @@ def write_reaction(idx, r, loop_gibbsexp):
                      f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
         lines.append(f"{si}logPr = log10(Pr);")
         lines.append(f"{si}F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
-                     f"exp({-1. / r.sri.C}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});")
+                     f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});")
         lines.append(f"{si}k = k_inf * Pr/(1 + Pr) * F;")
     else:
         exit(r.type)
@@ -709,25 +709,24 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             )
             return expression
 
+        A = r.preexponential_factor
+        p_A = previous_r.preexponential_factor
         if r.type == 'elementary' or r.type == 'irreversible':
             if idx == first_idx:
                 lines.append(f'{si}k = {arrhenius(r.rate_constant)};')
             else:
-                lines.append(f'{si}k *= '
-                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
+                lines.append(f'{si}k *= {A/p_A};')
         elif r.type == 'three-body':
             if idx == first_idx:
                 lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
             else:
-                lines.append(f"{si}k *= "
-                             f"{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};")
+                lines.append(f"{si}k *= {A/p_A};")
             lines.append(f"{si}k_corr = k {f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
         elif r.type == 'pressure-modification':
             if idx == first_idx:
                 lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
             else:
-                lines.append(f'{si}k *= '
-                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
+                lines.append(f'{si}k *= {A/p_A};')
             lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
                          f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
             lines.append(f"{si}k_corr = k * Pr/(1 + Pr);")
@@ -735,14 +734,21 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             if idx == first_idx:
                 lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
             else:
-                lines.append(f'{si}k *= '
-                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
+                lines.append(f'{si}k *= {A/p_A};')
             lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
                          f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
             lines.append(f"{si}logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);")
-            lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / r.troe.T3}*T) + "
-                         f"{r.troe.A}*exp({-1. / r.troe.T1}*T)"
-                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            # Add checks for troe coefficients
+            if r.troe.A == 0:
+                lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            elif r.troe.A == 1:
+                lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            else:
+                lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                             f"{r.troe.A}*exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
             lines.append(f"{si}troe_c = -.4 - .67 * logFcent;")
             lines.append(f"{si}troe_n = .75 - 1.27 * logFcent;")
             lines.append(f"{si}troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));")
@@ -752,13 +758,12 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             if idx == first_idx:
                 lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
             else:
-                lines.append(f'k *= '
-                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
+                lines.append(f'k *= {A/p_A};')
             lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
                          f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
             lines.append(f"{si}logPr = log10(Pr);")
             lines.append(f"{si}F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
-                         f"exp({-1. / r.sri.C}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});")
+                         f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});")
             lines.append(f"{si}k_corr = k * Pr/(1 + Pr) * F;")
         else:
             exit(r.type)
@@ -1560,7 +1565,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                     f"k[{ids_new.index(rxn_len + i)}]/(k[{ids_new.index(i)}] + CFLOAT_MIN) + CFLOAT_MIN);")
                 sri_correction.append(f"{si}cfloat F = {r[i].sri.D}*"
                                       f"__NEKRK_POW__("
-                                      f"{r[i].sri.A}*exp({-r[i].sri.B}*rcpT)+ exp({-1. / r[i].sri.C}*T), "
+                                      f"{r[i].sri.A}*exp({-r[i].sri.B}*rcpT)+ exp({-1. / (r[i].sri.C + FLOAT_MIN)}*T), "
                                       f"1./(1.+logPr*logPr))*pow(T, {r[i].sri.E});")
                 sri_correction.append(f"{si}k[{ids_new.index(rxn_len + i)}] *= Pr/(1 + Pr) * F;")
 
