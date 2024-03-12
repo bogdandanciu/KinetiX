@@ -32,7 +32,6 @@ execute_process(COMMAND ${Python3_EXECUTABLE} -m pip install ${_pip_args} --user
 set(INSTALL_PREFIX "")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/occa")
 
-# Provide an option for setting the AMReX GPU backend, default to "" (none)
 set(AMReX_GPU_BACKEND "" CACHE STRING "AMReX GPU backend")
 
 set(INSTALL_PREFIX "")

@@ -798,7 +798,6 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
     return f'{code(lines)}'
 
 
-
 def evaluate_polynomial(P):
     """
     Create a string representation of the polynomial evaluation.
