@@ -188,3 +188,7 @@ si = '    '  # single indentation
 di = si+si  # double indentation
 ti = si+si+si  # triple indentation
 qi = si+si+si+si  # quadruple indentation
+
+""" Define a maximum and minimum floating value"""
+FLOAT_MAX = 1e300
+FLOAT_MIN = 1e-300
