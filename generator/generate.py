@@ -1596,7 +1596,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             sri_correction.append(f"{si}{{")
             sri_correction.append(
                 f"{di}cfloat logPr = __NEKRK_LOG10__(k[ids_sri[i]] + CFLOAT_MIN);")
-            sri_correction.append(f"{di}cfloat F = sri_D*pow(T, sri_E[i])*"
+            sri_correction.append(f"{di}cfloat F = sri_D[i]*pow(T, sri_E[i])*"
                                   f"pow(sri_A[i]*exp(-sri_B[i]*rcpT)+exp(-rcp_sri_C[i]*T), 1./(1.+logPr*logPr));")
             sri_correction.append(f"{di}k[ids_sri[i]] /= (1.+k[ids_sri[i]]);")
             sri_correction.append(f"{di}k[ids_sri[i]] *= F;")
