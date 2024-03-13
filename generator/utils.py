@@ -170,7 +170,8 @@ def write_module(output_dir, module_name, content):
     """
     Path(f'{output_dir}').mkdir(parents=True, exist_ok=True)
     open(f'{output_dir}/{module_name}', 'w').write(
-        content.replace('- -', '+ ').replace('+ -', '- ').replace('+-', '-').replace('exp(', '__NEKRK_EXP__('))
+        content.replace('- -', '+ ').replace('+ -', '- ').replace('+-', '-').
+        replace('exp(', '__NEKRK_EXP__(').replace('pow(', '__NEKRK_POW__(').replace('log10(', '__NEKRK_LOG10__('))
 
 
 def code(lines):

@@ -1492,7 +1492,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                     troe_correction.append(
                         f"{si}k[{ids_new.index(rxn_len + i)}] *= Cm;")
                 troe_correction.append(
-                    f"{si}k[{ids_new.index(rxn_len + i)}]/= (k[{ids_new.index(i)}] + CFLOAT_MIN);")
+                    f"{si}k[{ids_new.index(rxn_len + i)}] /= (k[{ids_new.index(i)}] + CFLOAT_MIN);")
             troe_A, rcp_troe_T1, troe_T2, rcp_troe_T3 = [], [], [], []
             for i in ids_troe_rxn:
                 troe_A.append(r[i].troe.A)
@@ -1560,13 +1560,50 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                     sri_correction.append(
                         f"{si}k[{ids_new.index(rxn_len + i)}] *= Cm;")
                 sri_correction.append(
-                    f"{si} cfloat logPr = __NEKRK_LOG10__("
-                    f"k[{ids_new.index(rxn_len + i)}]/(k[{ids_new.index(i)}] + CFLOAT_MIN) + CFLOAT_MIN);")
-                sri_correction.append(f"{si}cfloat F = {r[i].sri.D}*"
-                                      f"__NEKRK_POW__("
-                                      f"{r[i].sri.A}*exp({-r[i].sri.B}*rcpT)+ exp({-1. / (r[i].sri.C + FLOAT_MIN)}*T), "
-                                      f"1./(1.+logPr*logPr))*pow(T, {r[i].sri.E});")
-                sri_correction.append(f"{si}k[{ids_new.index(rxn_len + i)}] *= Pr/(1 + Pr) * F;")
+                    f"{si}k[{ids_new.index(rxn_len + i)}] /= (k[{ids_new.index(i)}] + CFLOAT_MIN);")
+            sri_A, sri_B, rcp_sri_C, sri_D, sri_E = [], [], [], [], []
+            for i in ids_sri_rxn:
+                sri_A.append(r[i].sri.A)
+                sri_B.append(r[i].sri.B)
+                rcp_sri_C.append(1/(r[i].sri.C + FLOAT_MIN))
+                sri_D.append(r[i].sri.D)
+                sri_E.append(r[i].sri.E)
+            ids_sri = []
+            for i in ids_sri_rxn:
+                ids_sri.append(ids_new.index(rxn_len + i))
+            sri_correction.append(f"")
+            sri_correction.append(
+                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat sri_A[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_A)}}};")
+            sri_correction.append(
+                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat sri_B[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_B)}}};")
+            sri_correction.append(
+                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat rcp_sri_C[{len(ids_sri_rxn)}] = {{{f_sci_not(rcp_sri_C)}}};" if not (
+                    any([i == float('inf') for i in rcp_sri_C])) else '')
+            sri_correction.append(
+                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat sri_D[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_D)}}};")
+            sri_correction.append(
+                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat sri_E[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_E)}}};")
+            sri_correction.append(f"")
+            sri_correction.append(
+                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} int "
+                f"ids_sri[{len(ids_sri_rxn)}] = {str(ids_sri).replace('[', '{').replace(']', '}')};")
+            sri_correction.append(f"{si}for(unsigned int i = 0; i<{len(ids_sri_rxn)}; ++i)")
+            sri_correction.append(f"{si}{{")
+            sri_correction.append(
+                f"{di}cfloat logPr = __NEKRK_LOG10__(k[ids_sri[i]] + CFLOAT_MIN);")
+            sri_correction.append(f"{di}cfloat F = sri_D*pow(T, sri_E[i])*"
+                                  f"pow(sri_A[i]*exp(-sri_B[i]*rcpT)+exp(-rcp_sri_C[i]*T), 1./(1.+logPr*logPr));")
+            sri_correction.append(f"{di}k[ids_sri[i]] /= (1.+k[ids_sri[i]]);")
+            sri_correction.append(f"{di}k[ids_sri[i]] *= F;")
+            sri_correction.append(f"{si}}}")
+            for i in ids_sri_rxn:
+                sri_correction.append(
+                    f"{si}k[{ids_new.index(rxn_len + i)}]*= k[{ids_new.index(i)}];")
 
         # Combine all reactions
         all_reactions = tb_correction + pd_correction + troe_correction + sri_correction
