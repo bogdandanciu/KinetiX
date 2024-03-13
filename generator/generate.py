@@ -1696,7 +1696,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
 
     lines = []
     lines.append(f'#include <math.h>')
-    lines.append(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, __NEKRK_EXP__(x)")
+    lines.append(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, __NEKRK_EXP__(x))")
     lines.append(f'__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates'
                  f'(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4,'
                  f' const cfloat rcpT, const cfloat Ci[], cfloat* rates) ')
