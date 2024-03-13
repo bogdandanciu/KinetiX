@@ -151,7 +151,7 @@ bool checkThermo(occa::memory& o_rho,
     printf("thermoCoeffs error_inf: %e < %e (%s)\n",
            errInf,
            rtol,
-           (passed) ? "passed" : "failed with relative tolerance");
+           (passed) ? "passed" : "failed");
   }
 
   return allPassed;
