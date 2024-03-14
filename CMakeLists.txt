@@ -68,6 +68,7 @@ install(PROGRAMS generator/generate.py DESTINATION ${INSTALL_PREFIX}/generator)
 install(PROGRAMS generator/constants.py DESTINATION ${INSTALL_PREFIX}/generator)
 install(PROGRAMS generator/utils.py DESTINATION ${INSTALL_PREFIX}/generator)
 install(DIRECTORY ciData DESTINATION ${INSTALL_PREFIX}/.) 
+install(DIRECTORY tests DESTINATION ${INSTALL_PREFIX}/.)
 install(FILES README.md DESTINATION ${INSTALL_PREFIX})
 
 add_executable(nekrk_bk src/bk.cpp)
