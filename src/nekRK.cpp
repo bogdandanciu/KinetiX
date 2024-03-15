@@ -626,12 +626,12 @@ void nekRK::build(double _ref_pressure,
     cmdline = installDir +
                 "/generator/generate.py" +
                 " --mechanism " + yamlPath + 
-        	  " --output " + cacheDir + 
+        	" --output " + cacheDir + 
                 " --pressureRef " + nekRK::to_string_f(ref_pressure) + 
-        	  " --temperatureRef " + nekRK::to_string_f(ref_temperature) +
+        	" --temperatureRef " + nekRK::to_string_f(ref_temperature) +
                 " --moleFractionsRef " + ref_mole_fractions_string.c_str() + 
-        	  " --align-width " + std::to_string(align_width) + 
-        	  " --target " + target;
+        	" --align-width " + std::to_string(align_width) + 
+        	" --target " + target;
     if (unroll_loops)
       cmdline.append(" --unroll-loops");
     if (loop_gibbsexp)
