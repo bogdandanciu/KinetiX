@@ -766,7 +766,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                          f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
             lines.append(f"{si}logPr = log10(Pr);")
             lines.append(f"{si}F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
-                         f"exp({-1. / r.sri.C}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});")
+                         f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});")
             lines.append(f"{si}k_corr = k * Pr/(1 + Pr) * F;")
         else:
             exit(r.type)
