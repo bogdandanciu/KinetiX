@@ -740,9 +740,17 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
                          f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
             lines.append(f"{si}logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);")
-            lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / r.troe.T3}*T) + "
-                         f"{r.troe.A}*exp({-1. / r.troe.T1}*T)"
-                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            # Add checks for troe coefficients
+            if r.troe.A == 0:
+                lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            elif r.troe.A == 1:
+                lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            else:
+                lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                             f"{r.troe.A}*exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
             lines.append(f"{si}troe_c = -.4 - .67 * logFcent;")
             lines.append(f"{si}troe_n = .75 - 1.27 * logFcent;")
             lines.append(f"{si}troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));")
