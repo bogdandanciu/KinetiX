@@ -127,6 +127,10 @@ def get_parser():
                         required=False,
                         default=True,
                         help='Write transport properties')
+    parser.add_argument('--group-vis',
+                        required=False,
+                        action='store_true',
+                        help='Group species viscosity')
     parser.add_argument('--nonsymDij',
                         required=False,
                         action='store_true',
@@ -1097,44 +1101,64 @@ def write_file_conductivity_unroll(file_name, output_dir, transport_polynomials,
     return 0
 
 
-def write_file_viscosity_unroll(file_name, output_dir, transport_polynomials, sp_len, Mi):
+def write_file_viscosity_unroll(file_name, output_dir, group_vis, transport_polynomials, sp_names, sp_len, Mi):
     """
     Write the 'fviscosity.inc' file with unrolled loop specification.
     """
-
     lines = []
     lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat sq(cfloat x) {{ return x*x; }}")
     lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_viscosity"
                  f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[]) ")
-    lines.append(f"{{")
-    for k, P in enumerate(transport_polynomials.viscosity):
-        lines.append(f"{si}cfloat v{k} = {evaluate_polynomial(P)};")
-    lines.append(f"{code(f'{si}cfloat sum_{k} = 0.;' for k in range(sp_len))} "
-                 f"// same name is used to refer to the reciprocal evaluation "
-                 f"explicitly interleaved into the last iteration")
+    if group_vis:
+        lines.append(f"{{")
+        for k, P in enumerate(transport_polynomials.viscosity):
+            lines.append(f"{si}cfloat r{k} = {f(1.)}/({evaluate_polynomial(P)});")
+        lines.append(f"{si}cfloat v, vis = 0.;")
+        for k, P in enumerate(transport_polynomials.viscosity):
+            v_expr = f"{evaluate_polynomial(P)}"
+            denominator_parts = []
+            for j in range(sp_len):
+                Va = sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j]))
+                part = f"{new_line}{di}nXi[{j}]*sq({f(Va)}+{f(Va * sqrt(sqrt(Mi[j] / Mi[k])))}*r{j}*v)"
+                denominator_parts.append(part)
+            denominator = " + ".join(denominator_parts)
+            lines.append(f"")
+            lines.append(f"{si}//{sp_names[k]}")
+            lines.append(f"{si}v = {v_expr};")
+            lines.append(f"{si}vis += nXi[{k}]*sq(v)/({denominator}{new_line}{si});")
+        lines.append(f"{si}return vis;")
+        lines.append(f"}}")
+    else:
+        lines.append(f"{{")
+        for k, P in enumerate(transport_polynomials.viscosity):
+            lines.append(f"{si}cfloat v{k} = {evaluate_polynomial(P)};")
+        lines.append(f"{code(f'{si}cfloat sum_{k} = 0.;' for k in range(sp_len))} "
+                     f"// same name is used to refer to the reciprocal evaluation "
+                     f"explicitly interleaved into the last iteration")
 
-    def sq_v(Va):
-        return f'sq({f(Va)}+{f(Va * sqrt(sqrt(Mi[j] / Mi[k])))}*v{k}*r{j})'
+        def sq_v(Va):
+            return f'sq({f(Va)}+{f(Va * sqrt(sqrt(Mi[j] / Mi[k])))}*v{k}*r{j})'
 
-    for j in range(sp_len - 1):
-        lines.append(f"{si}{{")
-        lines.append(f"{di}cfloat r{j} = {f(1.)}/v{j};")
-        for k in range(sp_len):
-            lines.append(f"{di}sum_{k} += nXi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))};")
-        lines.append(f"{si}}}")
-    for j in [sp_len - 1]:
-        lines.append(f"{si}{{")
-        lines.append(f"{di}cfloat r{j} = {f(1.)}/v{j};")
-        for k in range(sp_len):
-            lines.append(f"{di}sum_{k} += nXi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))}; "
-                         f"/*rcp_*/sum_{k} = {f(1.)}/sum_{k};")
-        lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"""{si}return {('+' + new_line).join(f"{ti if k > 0 else ' '}nXi[{k}]*sq(v{k}) * /*rcp_*/sum_{k}"
-                                                       for k in range(sp_len))};""")
-    lines.append(f"}}")
+        for j in range(sp_len - 1):
+            lines.append(f"{si}{{")
+            lines.append(f"{di}cfloat r{j} = {f(1.)}/v{j};")
+            for k in range(sp_len):
+                lines.append(f"{di}sum_{k} += nXi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))};")
+            lines.append(f"{si}}}")
+        for j in [sp_len - 1]:
+            lines.append(f"{si}{{")
+            lines.append(f"{di}cfloat r{j} = {f(1.)}/v{j};")
+            for k in range(sp_len):
+                lines.append(f"{di}sum_{k} += nXi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))}; "
+                             f"/*rcp_*/sum_{k} = {f(1.)}/sum_{k};")
+            lines.append(f"{si}}}")
+        lines.append(f"")
+        lines.append(f"""{si}return {('+' + new_line).join(f"{ti if k > 0 else ' '}nXi[{k}]*sq(v{k}) * /*rcp_*/sum_{k}"
+                                                           for k in range(sp_len))};""")
+        lines.append(f"}}")
 
     write_module(output_dir, file_name, f'{code(lines)}')
+
     return 0
 
 
@@ -2035,7 +2059,8 @@ def generate_files(mech_file=None, output_dir=None,
                    header_only=False, unroll_loops=False,
                    align_width=64, target=None,
                    loop_gibbsexp=False, group_rxn_repArrh=False,
-                   transport=True, nonsymDij=False, rcp_diffcoeffs=False
+                   transport=True, group_vis=False,
+                   nonsymDij=False, rcp_diffcoeffs=False
                    ):
     """
     Generate the production rates, thermodynamic and transport properties
@@ -2132,8 +2157,8 @@ def generate_files(mech_file=None, output_dir=None,
             if transport:
                 write_file_conductivity_unroll(conductivity_file, output_dir,
                                                transport_polynomials, species_names)
-                write_file_viscosity_unroll(viscosity_file, output_dir,
-                                            transport_polynomials, species_len, Mi)
+                write_file_viscosity_unroll(viscosity_file, output_dir, group_vis,
+                                            transport_polynomials, species_names, species_len, Mi)
                 if nonsymDij:
                     write_file_diffusivity_nonsym_unroll(diffusivity_file, output_dir, rcp_diffcoeffs,
                                                          transport_polynomials, species_names, species_len, Mi)
@@ -2189,6 +2214,7 @@ if __name__ == "__main__":
                    loop_gibbsexp=args.loop_gibbsexp,
                    group_rxn_repArrh=args.group_rxn_repArrh,
                    transport=args.transport,
+                   group_vis=args.group_vis,
                    nonsymDij=args.nonsymDij,
                    rcp_diffcoeffs=args.fit_rcpdiffcoeffs
                    )
