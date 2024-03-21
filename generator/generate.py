@@ -661,7 +661,7 @@ def write_reaction(idx, r, loop_gibbsexp):
 
 def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
     """
-    Write reaction for the unrolled code.
+    Write grouped reaction for the unrolled code.
     """
     lines = []
     for count, (idx, r) in enumerate(grouped_rxn, start=0):
@@ -2187,7 +2187,7 @@ if __name__ == "__main__":
                    align_width=args.align_width,
                    target=args.target,
                    loop_gibbsexp=args.loop_gibbsexp,
-                   group_rxn_repArrh = args.group_rxn_repArrh,
+                   group_rxn_repArrh=args.group_rxn_repArrh,
                    transport=args.transport,
                    nonsymDij=args.nonsymDij,
                    rcp_diffcoeffs=args.fit_rcpdiffcoeffs
