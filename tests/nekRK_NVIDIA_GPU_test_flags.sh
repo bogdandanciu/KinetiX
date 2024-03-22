@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --partition=booster
 #SBATCH --account=dems
-#SBATCH --time=04:00:00
+#SBATCH --time=08:00:00
 #SBATCH --cpus-per-task=12
 #SBATCH --output=mpi-out.%j
 #SBATCH --error=mpi-err.%j
