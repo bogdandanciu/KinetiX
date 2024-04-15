@@ -408,11 +408,12 @@ def get_reaction_from_model(sp_names, units, r):
         reaction.rate_constant = rate_constant(r.get('rate-constant', r.get('high-P-rate-constant')), reactants - 1)
     else:
         reaction.rate_constant = rate_constant(r['rate-constants'][0], reactants - 1)
-        if r['type'] != 'pressure-dependent-Arrhenius': print(f"expected P-log: {r}")
+        if r['type'] != 'pressure-dependent-Arrhenius':
+            print(f"expected P-log: {r}")
         if len(r['rate-constants']) != 1:
             exit(f"unimplemented P-log: always using first rate constant {r['rate-constants'][0]} for {r} instead")
 
-    if r.get('type') == None or r.get('type') == 'elementary':
+    if r.get('type') is None or r.get('type') == 'elementary':
         if re.search('[^<]=>', r['equation']):
             reaction.type = 'irreversible'
         elif '<=>' in r['equation'] or '= ' in r['equation']:
