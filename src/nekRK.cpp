@@ -632,9 +632,7 @@ void nekRK::build(double _ref_pressure,
                 "/generator/generate.py" +
                 " --mechanism " + yamlPath + 
         	" --output " + cacheDir + 
-                " --pressureRef " + nekRK::to_string_f(ref_pressure) + 
         	" --temperatureRef " + nekRK::to_string_f(ref_temperature) +
-                " --moleFractionsRef " + ref_mole_fractions_string.c_str() + 
         	" --align-width " + std::to_string(align_width) + 
         	" --target " + target;
     if (unroll_loops)
