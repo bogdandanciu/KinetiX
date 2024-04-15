@@ -46,27 +46,10 @@ def get_parser():
                         required=True,
                         default="share/mechanisms",
                         help='Output directory.')
-    parser.add_argument('--pressureRef',
-                        required=False,
-                        default=101325.0,
-                        help='Reference pressure.')
     parser.add_argument('--temperatureRef',
                         required=False,
                         default=1000.0,
                         help='Reference temperature.')
-    parser.add_argument('--moleFractionsRef',
-                        required=False,
-                        default=1.0,
-                        help='Reference mole fractions. If argument is equal to 1.0'
-                             ' the mole fractions will be equal for all species.')
-    parser.add_argument('--lengthRef',
-                        required=False,
-                        default=1.0,
-                        help='Reference length')
-    parser.add_argument('--velocityRef',
-                        required=False,
-                        default=1.0,
-                        help='Reference velocity.')
     parser.add_argument('--header-only',
                         required=False,
                         action='store_true',
@@ -2025,8 +2008,7 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
 
 
 def generate_files(mech_file=None, output_dir=None,
-                   pressure_ref=101325.0, temperature_ref=1000.0,
-                   mole_fractions_ref=1.0, length_ref=1.0, velocity_ref=1.0,
+                   temperature_ref=1000.0,
                    header_only=False, unroll_loops=False,
                    align_width=64, target=None,
                    loop_gibbsexp=False, group_rxn_repArrh=False,
@@ -2059,21 +2041,7 @@ def generate_files(mech_file=None, output_dir=None,
 
     # Reference quantities
     Mi = species.molar_masses
-    p_ref = float(pressure_ref)
     T_ref = float(temperature_ref)
-    l_ref = float(length_ref)
-    u_ref = float(velocity_ref)
-    mole_proportions = [1. for _ in range(species_len)] \
-        if args.moleFractionsRef == 1. else [float(x) for x in mole_fractions_ref.split(',')]
-    Xi_ref = [x / sum(mole_proportions) for x in mole_proportions]
-    M_tot = sum([n * M for n, M in zip(mole_proportions, Mi)])
-    Yi_ref = [n * M / M_tot for n, M in zip(mole_proportions, Mi)]
-    M_bar = sum((m * x) for m, x in zip(Mi, Xi_ref))
-    rho_ref = M_bar * p_ref / (const.R * T_ref)
-    cp_ref = const.R / M_bar * sum(a.molar_heat_capacity_R(T_ref) * x for a, x in zip(species.thermodynamics, Xi_ref))
-    cv_ref = cp_ref - const.R / M_bar
-    rho_cp_ref = rho_ref * cp_ref
-    assert len(Xi_ref) == species_len
 
     # Load transport polynomials
     if transport and not header_only:
@@ -2173,11 +2141,7 @@ if __name__ == "__main__":
 
     generate_files(mech_file=args.mechanism,
                    output_dir=args.output,
-                   pressure_ref=args.pressureRef,
                    temperature_ref=args.temperatureRef,
-                   mole_fractions_ref=args.moleFractionsRef,
-                   length_ref=args.lengthRef,
-                   velocity_ref=args.velocityRef,
                    header_only=args.header_only,
                    unroll_loops=args.unroll_loops,
                    align_width=args.align_width,
