@@ -11,7 +11,7 @@ Requirements:
 * CUDA
 * Python v3.8 and later
 
-Dependencies:
+Installation:
 
 ```sh
 mkdir build; cd build
