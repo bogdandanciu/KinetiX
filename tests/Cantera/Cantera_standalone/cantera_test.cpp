@@ -170,8 +170,15 @@ int main(int argc, char **argv) {
 
         visc[n] = trans->viscosity();;
         cond[n] = trans->thermalConductivity();
-	double *rhoD_i = rhoD + n*nSpecies;
-        trans->getMixDiffCoeffs(rhoD_i);
+
+	double wrk1[nSpecies];
+        trans->getMixDiffCoeffs(wrk1);
+	double rho = gas->density();
+        for (int k = 0; k < nSpecies; k++){
+	  unsigned int idx = k*nStates+n;
+	  rhoD[idx] = rho * wrk1[k];
+	}
+
       }
     }
 
