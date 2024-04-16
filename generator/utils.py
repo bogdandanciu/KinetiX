@@ -3,12 +3,47 @@ Module containing utility functions and variables.
 """
 
 # Standard libraries
+import os
 from numpy import polynomial
 from numpy import square as sq
 from numpy import isfinite as is_finite
 from numpy import single
 from pathlib import Path
 from itertools import tee, filterfalse, repeat
+
+
+class CodeGenerator:
+    """
+    A utility class for generating and writing structured code to files.
+    """
+    def __init__(self, indent='    '):
+        self.lines = []
+        self.indent = indent
+
+    def add_line(self, line, level=0):
+        """Add a line of code with optional indentation."""
+        indented_line = f"{self.indent * level}{line}"
+        self.lines.append(indented_line)
+
+    def get_code(self):
+        """Return the complete code as a single string."""
+        return '\n'.join(self.lines)
+
+    def write_to_file(self, output_dir, module_name):
+        """Write the generated code to a specified file."""
+        content = self.get_code()
+        # Create the output directory if it doesn't already exist
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+        file_path = os.path.join(output_dir, module_name)
+        with open(file_path, 'w') as file:
+            updated_content = (content.replace('- -', '+ ')
+                                      .replace('+ -', '- ')
+                                      .replace('+-', '-')
+                                      .replace('exp(', '__NEKRK_EXP__(')
+                                      .replace('pow(', '__NEKRK_POW__(')
+                                      .replace('log10(', '__NEKRK_LOG10__('))
+            file.write(updated_content)
 
 
 def cube(x):
@@ -162,23 +197,6 @@ def polynomial_regression(X, Y, degree=4):
     """
 
     return polynomial.polynomial.polyfit(X, Y, deg=degree, w=[1 / sq(y) for y in Y])
-
-
-def write_module(output_dir, module_name, content):
-    """
-    Write a module file to the specified output directory.
-    """
-    Path(f'{output_dir}').mkdir(parents=True, exist_ok=True)
-    open(f'{output_dir}/{module_name}', 'w').write(
-        content.replace('- -', '+ ').replace('+ -', '- ').replace('+-', '-').
-        replace('exp(', '__NEKRK_EXP__(').replace('pow(', '__NEKRK_POW__(').replace('log10(', '__NEKRK_LOG10__('))
-
-
-def code(lines):
-    """
-    Join a list of code lines into a single code block.
-    """
-    return '\n'.join(lines)
 
 
 """ Constant representing a new line character."""

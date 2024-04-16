@@ -25,8 +25,9 @@ from utils import cube
 from utils import polynomial_regression
 from utils import set_precision, f, f_sci_not
 from utils import sum_of_list, partition, imul
-from utils import write_module, code, si, di, ti, qi, new_line
+from utils import si, di, ti, qi, new_line
 from utils import FLOAT_MIN, FLOAT_MAX
+from utils import CodeGenerator
 import constants as const
 
 
@@ -456,25 +457,38 @@ def write_thermo_piece(out, sp_indices, sp_thermo, expression, p):
     """
     Write a thermodynamic piece expression.
     """
+    cg = CodeGenerator()
+    for specie in sp_indices:
+        if '[' in out:
+            line = f"{out}{specie}] = {expression(sp_thermo[specie].pieces[p])};"
+        else:
+            line = f"cfloat {out}{specie} = {expression(sp_thermo[specie].pieces[p])};"
+        cg.add_line(line)
 
-    return code([f"{f'{out}{specie}]' if '[' in out else f'{si}cfloat {out}{specie}'} "
-                 f"= {expression(sp_thermo[specie].pieces[p])};" for specie in sp_indices])
+    return cg.get_code()
 
 
 def write_energy(out, length, expression, sp_thermo):
     """
     Write the evaluation of the energy log polynomial for a given species.
     """
-
+    cg = CodeGenerator()
     temperature_splits = {}
     for index, specie in enumerate(sp_thermo[:length]):
         temperature_splits.setdefault(specie.temp_split, []).append(index)
-    return code([f'{si}if (T <= {f(temperature_split)}) {{\n'
-                 f'{write_thermo_piece(out, species, sp_thermo, expression, 0)}\n'
-                 f'{si}}} else {{\n'
-                 f'{write_thermo_piece(out, species, sp_thermo, expression, 1)} '
-                 f'\n{si}}}'
-                 for temperature_split, species in temperature_splits.items()])
+
+    for temperature_split, species in temperature_splits.items():
+        cg.add_line(f"if (T <= {temperature_split}) {{", 1)
+        inner_code = write_thermo_piece(out, species, sp_thermo, expression, 0)
+        for line in inner_code.split('\n'):
+            cg.add_line(line, 2)
+        cg.add_line("} else {", 1)
+        inner_code = write_thermo_piece(out, species, sp_thermo, expression, 1)
+        for line in inner_code.split('\n'):
+            cg.add_line(line, 2)
+        cg.add_line("}", 1)
+
+    return cg.get_code()
 
 
 def compute_k_rev_unroll(r):
@@ -506,14 +520,13 @@ def write_reaction(idx, r, loop_gibbsexp):
     """
     Write reaction for the unrolled code.
     """
-
-    lines = []
-    lines.append(f"{si}//{idx + 1}: {r.description}")
+    cg = CodeGenerator()
+    cg.add_line(f"//{idx + 1}: {r.description}", 1)
 
     if hasattr(r, 'efficiencies'):
         efficiency = [f'{f(efficiency - 1)}*Ci[{specie}]' if efficiency != 2 else f'Ci[{specie}]'
                       for specie, efficiency in enumerate(r.efficiencies) if efficiency != 1]
-        lines.append(f'''{si}eff = Cm{f"+{'+'.join(efficiency)}" if efficiency else ''};''')
+        cg.add_line(f'''eff = Cm{f"+{'+'.join(efficiency)}" if efficiency else ''};''', 1)
 
     def arrhenius(rc):
         A, beta, E = (
@@ -550,43 +563,43 @@ def write_reaction(idx, r, loop_gibbsexp):
         return expression
 
     if r.type == 'elementary' or r.type == 'irreversible':
-        lines.append(f'{si}k = {arrhenius(r.rate_constant)};')
+        cg.add_line(f'k = {arrhenius(r.rate_constant)};', 1)
     elif r.type == 'three-body':
-        lines.append(f"{si}k = {arrhenius(r.rate_constant)}{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
+        cg.add_line(f"k = {arrhenius(r.rate_constant)}{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
     elif r.type == 'pressure-modification':
-        lines.append(f"{si}k_inf = {arrhenius(r.rate_constant)};")
-        lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
-                     f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
-        lines.append(f"{si}k = k_inf * Pr/(1 + Pr);")
+        cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
+        cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
+                    f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+        cg.add_line(f"{si}k = k_inf * Pr/(1 + Pr);", 1)
     elif r.type == 'Troe':
-        lines.append(f"{si}k_inf = {arrhenius(r.rate_constant)};")
-        lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
-                     f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
-        lines.append(f"{si}logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);")
+        cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
+        cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
+                    f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+        cg.add_line(f"logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);", 1)
         # Add checks for troe coefficients
         if r.troe.A == 0:
-            lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
-                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            cg.add_line(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                        f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
         elif r.troe.A == 1:
-            lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
-                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+            cg.add_line(f"logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
         else:
-            lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
-                         f"{r.troe.A}*exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
-                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
-        lines.append(f"{si}troe_c = -.4 - .67 * logFcent;")
-        lines.append(f"{si}troe_n = .75 - 1.27 * logFcent;")
-        lines.append(f"{si}troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));")
-        lines.append(f"{si}F = __NEKRK_POW__(10, logFcent/(1.0 + troe*troe));")
-        lines.append(f"{si}k = k_inf * Pr/(1 + Pr) * F;")
+            cg.add_line(f"logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                        f"{r.troe.A}*exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+                        f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
+        cg.add_line(f"troe_c = -.4 - .67 * logFcent;", 1)
+        cg.add_line(f"troe_n = .75 - 1.27 * logFcent;", 1)
+        cg.add_line(f"troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));", 1)
+        cg.add_line(f"F = __NEKRK_POW__(10, logFcent/(1.0 + troe*troe));", 1)
+        cg.add_line(f"k = k_inf * Pr/(1 + Pr) * F;", 1)
     elif r.type == 'SRI':
-        lines.append(f"{si}k_inf = {arrhenius(r.rate_constant)};")
-        lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
-                     f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
-        lines.append(f"{si}logPr = log10(Pr);")
-        lines.append(f"{si}F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
-                     f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});")
-        lines.append(f"{si}k = k_inf * Pr/(1 + Pr) * F;")
+        cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
+        cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
+                    f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+        cg.add_line(f"logPr = log10(Pr);", 1)
+        cg.add_line(f"F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
+                    f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});", 1)
+        cg.add_line(f"k = k_inf * Pr/(1 + Pr) * F;", 1)
     else:
         exit(r.type)
 
@@ -594,44 +607,45 @@ def write_reaction(idx, r, loop_gibbsexp):
         '*'.join([f'Ci[{specie}]'] * coefficient) for specie, coefficient in enumerate(reagents) if
         coefficient != 0.)
     Rf = phase_space(r.reactants)
-    lines.append(f"{si}Rf= {Rf};")
+    cg.add_line(f"Rf= {Rf};", 1)
     if r.type == 'irreversible':
-        lines.append(f"{si}cR = k * Rf;")
+        cg.add_line(f"cR = k * Rf;", 1)
     else:
         pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
         if loop_gibbsexp:
-            lines.append(f"{si}k_rev = {compute_k_rev_unroll(r)}")
+            cg.add_line(f"{si}k_rev = {compute_k_rev_unroll(r)}", 1)
         else:
-            lines.append(f"{si}k_rev = __NEKRK_EXP_OVERFLOW__("
-                         f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
-                         f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};")
-        lines.append(f"{si}Rr = k_rev * {phase_space(r.products)};")
-        lines.append(f"{si}cR = k * (Rf - Rr);")
-    lines.append(f"#ifdef DEBUG")
-    lines.append(f'{si}printf("{idx + 1}: %+.15e\\n", cR);')
-    lines.append(f"#endif")
-    lines.append(f"""{code(
-        f"{si}rates[{specie}] += {imul(net, 'cR')};" for specie, net in enumerate(r.net) if net != 0)}""")
-    lines.append(f"")
+            cg.add_line(f"{si}k_rev = __NEKRK_EXP_OVERFLOW__("
+                        f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
+                        f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
+        cg.add_line(f"Rr = k_rev * {phase_space(r.products)};", 1)
+        cg.add_line(f"{si}cR = k * (Rf - Rr);", 1)
+    cg.add_line(f"#ifdef DEBUG", 1)
+    cg.add_line(f'printf("{idx + 1}: %+.15e\\n", cR);', 1)
+    cg.add_line(f"#endif")
+    for specie, net in enumerate(r.net):
+        if net != 0:
+            cg.add_line(f"rates[{specie}] += {imul(net, 'cR')};", 1)
+    cg.add_line(f"")
 
-    return f'{code(lines)}'
+    return cg.get_code()
 
 
 def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
     """
     Write grouped reaction for the unrolled code.
     """
-    lines = []
+    cg = CodeGenerator()
     for count, (idx, r) in enumerate(grouped_rxn, start=0):
         if count >= 1:
             previous_r = grouped_rxn[count-1][1]
 
-        lines.append(f"{si}//{idx + 1}: {r.description}")
+        cg.add_line(f"//{idx + 1}: {r.description}", 1)
 
         if hasattr(r, 'efficiencies'):
             efficiency = [f'{f(efficiency - 1)}*Ci[{specie}]' if efficiency != 2 else f'Ci[{specie}]'
                           for specie, efficiency in enumerate(r.efficiencies) if efficiency != 1]
-            lines.append(f'''{si}eff = Cm{f"+{'+'.join(efficiency)}" if efficiency else ''};''')
+            cg.add_line(f'''eff = Cm{f"+{'+'.join(efficiency)}" if efficiency else ''};''', 1)
 
         def arrhenius(rc):
             A, beta, E = (
@@ -669,63 +683,68 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
 
         if r.type == 'elementary' or r.type == 'irreversible':
             if idx == first_idx:
-                lines.append(f'{si}k = {arrhenius(r.rate_constant)};')
+                cg.add_line(f'k = {arrhenius(r.rate_constant)};', 1)
             else:
-                lines.append(f'{si}k *= '
-                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
+                cg.add_line(f'{si}k *= '
+                            f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
+                            1)
         elif r.type == 'three-body':
             if idx == first_idx:
-                lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
+                cg.add_line(f"k = {arrhenius(r.rate_constant)};", 1)
             else:
-                lines.append(f"{si}k *= "
-                             f"{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};")
-            lines.append(f"{si}k_corr = k {f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
+                cg.add_line(f"k *= "
+                            f"{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};",
+                            1)
+            cg.add_line(f"k_corr = k {f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
         elif r.type == 'pressure-modification':
             if idx == first_idx:
-                lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
+                cg.add_line(f"k = {arrhenius(r.rate_constant)};", 1)
             else:
-                lines.append(f'{si}k *= '
-                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
-            lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
-                         f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
-            lines.append(f"{si}k_corr = k * Pr/(1 + Pr);")
+                cg.add_line(f'k *= '
+                            f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
+                            1)
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
+                        f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+            cg.add_line(f"k_corr = k * Pr/(1 + Pr);", 1)
         elif r.type == 'Troe':
             if idx == first_idx:
-                lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
+                cg.add_line(f"k = {arrhenius(r.rate_constant)};", 1)
             else:
-                lines.append(f'{si}k *= '
-                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
-            lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
-                         f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
-            lines.append(f"{si}logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);")
+                cg.add_line(f'k *= '
+                            f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
+                            1)
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
+                        f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+            cg.add_line(f"logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);", 1)
             # Add checks for troe coefficients
             if r.troe.A == 0:
-                lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
-                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+                cg.add_line(f"logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
             elif r.troe.A == 1:
-                lines.append(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
-                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
+                cg.add_line(f"logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+                            f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
             else:
-                lines.append(f"{si}logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
-                             f"{r.troe.A}*exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
-                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});")
-            lines.append(f"{si}troe_c = -.4 - .67 * logFcent;")
-            lines.append(f"{si}troe_n = .75 - 1.27 * logFcent;")
-            lines.append(f"{si}troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));")
-            lines.append(f"{si}F = __NEKRK_POW__(10, logFcent/(1.0 + troe*troe));")
-            lines.append(f"{si}k_corr = k * Pr/(1 + Pr) * F;")
+                cg.add_line(f"logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                            f"{r.troe.A}*exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+                            f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
+            cg.add_line(f"troe_c = -.4 - .67 * logFcent;", 1)
+            cg.add_line(f"troe_n = .75 - 1.27 * logFcent;", 1)
+            cg.add_line(f"troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));", 1)
+            cg.add_line(f"F = __NEKRK_POW__(10, logFcent/(1.0 + troe*troe));", 1)
+            cg.add_line(f"k_corr = k * Pr/(1 + Pr) * F;", 1)
         elif r.type == 'SRI':
             if idx == first_idx:
-                lines.append(f"{si}k = {arrhenius(r.rate_constant)};")
+                cg.add_line(f"k = {arrhenius(r.rate_constant)};", 1)
             else:
-                lines.append(f'k *= '
-                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};')
-            lines.append(f"{si}Pr = {arrhenius_diff(r.rate_constant)}"
-                         f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};")
-            lines.append(f"{si}logPr = log10(Pr);")
-            lines.append(f"{si}F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
-                         f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});")
-            lines.append(f"{si}k_corr = k * Pr/(1 + Pr) * F;")
+                cg.add_line(f'k *= '
+                            f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
+                            1)
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
+                        f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+            cg.add_line(f"logPr = log10(Pr);", 1)
+            cg.add_line(f"F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
+                        f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});", 1)
+            cg.add_line(f"k_corr = k * Pr/(1 + Pr) * F;", 1)
         else:
             exit(r.type)
 
@@ -733,30 +752,31 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             '*'.join([f'Ci[{specie}]'] * coefficient) for specie, coefficient in enumerate(reagents) if
             coefficient != 0.)
         Rf = phase_space(r.reactants)
-        lines.append(f"{si}Rf= {Rf};")
+        cg.add_line(f"Rf= {Rf};", 1)
         if r.type == 'irreversible':
-            lines.append(f"{si}cR = k * Rf;")
+            cg.add_line(f"cR = k * Rf;", 1)
         else:
             pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
             if loop_gibbsexp:
-                lines.append(f"{si}k_rev = {compute_k_rev_unroll(r)}")
+                cg.add_line(f"k_rev = {compute_k_rev_unroll(r)}", 1)
             else:
-                lines.append(f"{si}k_rev = __NEKRK_EXP_OVERFLOW__("
-                             f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
-                             f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};")
-            lines.append(f"{si}Rr = k_rev * {phase_space(r.products)};")
+                cg.add_line(f"k_rev = __NEKRK_EXP_OVERFLOW__("
+                            f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
+                            f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
+            cg.add_line(f"Rr = k_rev * {phase_space(r.products)};", 1)
             if r.type == 'elementary' or r.type == 'irreversible':
-                lines.append(f"{si}cR = k * (Rf - Rr);")
+                cg.add_line(f"cR = k * (Rf - Rr);", 1)
             else:
-                lines.append(f"{si}cR = k_corr * (Rf - Rr);")
-        lines.append(f"#ifdef DEBUG")
-        lines.append(f'{si}printf("{idx + 1}: %+.15e\\n", cR);')
-        lines.append(f"#endif")
-        lines.append(f"""{code(
-            f"{si}rates[{specie}] += {imul(net, 'cR')};" for specie, net in enumerate(r.net) if net != 0)}""")
-        lines.append(f"")
+                cg.add_line(f"cR = k_corr * (Rf - Rr);", 1)
+        cg.add_line(f"#ifdef DEBUG")
+        cg.add_line(f'printf("{idx + 1}: %+.15e\\n", cR);', 1)
+        cg.add_line(f"#endif")
+        for specie, net in enumerate(r.net):
+            if net != 0:
+                cg.add_line(f"rates[{specie}] += {imul(net, 'cR')};", 1)
+        cg.add_line(f"")
 
-    return f'{code(lines)}'
+    return cg.get_code()
 
 
 def evaluate_polynomial(P):
@@ -771,22 +791,25 @@ def write_const_expression(align_width, target, static, var_str, var):
     Create a constant expression using a scientific notation for variables or list
     of variables.
     """
-    lines = []
+    cg = CodeGenerator()
+
     if static:
-        if target=='C++17':
+        if target == 'C++17':
             vtype = f'alignas({align_width}) static constexpr'
         else:
-            vtype = f'const'
+            vtype = 'const'
     else:
-        vtype = f""
-    if type(var_str) is list and hasattr(var_str, '__iter__'):
+        vtype = ""
+
+    if isinstance(var_str, list):
         assert len(var_str) == len(var)
         for i in range(len(var_str)):
-            lines.append(f"{si}{vtype} cfloat {var_str[i]}[{len(var[i])}] = {{{f_sci_not(var[i])}}};")
-            lines.append(f"")
+            cg.add_line(f"{vtype} cfloat {var_str[i]}[{len(var[i])}] = {{{f_sci_not(var[i])}}};", 1)
+            cg.add_line("")
     else:
-        lines.append(f"{si}{vtype} cfloat {var_str}[{len(var)}] = {{{f_sci_not(var)}}};")
-    return f'{code(lines)}'
+        cg.add_line(f"{vtype} cfloat {var_str}[{len(var)}] = {{{f_sci_not(var)}}};", 1)
+
+    return cg.get_code()
 
 
 def get_thermo_coeffs(thermo_prop, sp_thermo, sp_len):
@@ -850,82 +873,84 @@ def get_thermo_prop(thermo_prop, unique_temp_split, len_unique_temp_splits):
     """
     Compute the polynomial evaluation of a specific thermodynamic property.
     """
-    lines = []
-    lines.append(f"{si}unsigned int offset;")
-    lines.append(f"{si}unsigned int i_off;")
+    cg = CodeGenerator()
+
+    cg.add_line("unsigned int offset;", 1)
+    cg.add_line("unsigned int i_off;", 1)
     for i in range(len(unique_temp_split)):
         if len_unique_temp_splits[i] > 1:
-            lines.append(
-                f"{si}offset = {2 * sum_of_list(len_unique_temp_splits[:i])} + "
-                f"(T>{unique_temp_split[i]})*{len_unique_temp_splits[i]};")
+            cg.add_line(
+                f"offset = {2 * sum_of_list(len_unique_temp_splits[:i])} + "
+                f"(T>{unique_temp_split[i]})*{len_unique_temp_splits[i]};", 1)
         else:
-            lines.append(
-                f"{si}offset = {2 * sum_of_list(len_unique_temp_splits[:i])} + (T>{unique_temp_split[i]});")
-        lines.append(f"{si}for(unsigned int i=0; i<{len_unique_temp_splits[i]}; ++i)")
-        lines.append(f"{si}{{")
-        lines.append(f"{di}i_off = i + offset;")
+            cg.add_line(
+                f"offset = {2 * sum_of_list(len_unique_temp_splits[:i])} + (T>{unique_temp_split[i]});", 1)
+        cg.add_line(f"for(unsigned int i=0; i<{len_unique_temp_splits[i]}; ++i)", 1)
+        cg.add_line("{", 1)
+        cg.add_line("i_off = i + offset;", 2)
         if thermo_prop == 'cp_R':
-            lines.append(
-                f"{di}cp_R[i+{sum_of_list(len_unique_temp_splits[:i])}] = a0[i_off] + a1[i_off]*T + a2[i_off]*T2 + "
-                f"a3[i_off]*T3 + a4[i_off]*T4;")
+            cg.add_line(
+                f"cp_R[i+{sum_of_list(len_unique_temp_splits[:i])}] = a0[i_off] + a1[i_off]*T + a2[i_off]*T2 + "
+                f"a3[i_off]*T3 + a4[i_off]*T4;", 2)
         elif thermo_prop == 'h_RT':
-            lines.append(
-                f"{di}h_RT[i+{sum_of_list(len_unique_temp_splits[:i])}] = a0[i_off] + a1[i_off]*T + "
-                f"a2[i_off]*T2 + a3[i_off]*T3+ a4[i_off]*T4 + a5[i_off]*rcpT;")
+            cg.add_line(
+                f"h_RT[i+{sum_of_list(len_unique_temp_splits[:i])}] = a0[i_off] + a1[i_off]*T + "
+                f"a2[i_off]*T2 + a3[i_off]*T3 + a4[i_off]*T4 + a5[i_off]*rcpT;", 2)
         elif thermo_prop == 'g_RT':
-            lines.append(
-                f"{di}gibbs0_RT[i+{sum_of_list(len_unique_temp_splits[:i])}] = "
+            cg.add_line(
+                f"gibbs0_RT[i+{sum_of_list(len_unique_temp_splits[:i])}] = "
                 f"a0[i_off]*(1-lnT) + a1[i_off]*T + a2[i_off]*T2 +"
-                f"a3[i_off]*T3 + a4[i_off]*T4 + a5[i_off]*rcpT - a6[i_off];")
+                f"a3[i_off]*T3 + a4[i_off]*T4 + a5[i_off]*rcpT - a6[i_off];", 2)
         else:
             exit('Undefined thermodynamic property')
-        lines.append(f"{si}}}")
-        lines.append(f"")
-    return f"{code(lines)}"
+        cg.add_line("}", 1)
+        cg.add_line("")
+
+    return cg.get_code()
 
 
 def reorder_thermo_prop(thermo_prop, unique_temp_split, ids_thermo_prop_new, sp_len):
     """
     Reorder thermodynamic property data according to new indices.
     """
-    lines = []
+    cg = CodeGenerator()
+
     if len(unique_temp_split) > 1:
-        lines.append(f"{si}//Reorder thermodynamic properties")
-        lines.append(f"{si}cfloat tmp[{sp_len}];")
-        lines.append(f"{si}for(unsigned i=0; i<{sp_len}; ++i)")
+        cg.add_line("//Reorder thermodynamic properties", 1)
+        cg.add_line(f"cfloat tmp[{sp_len}];", 1)
+        cg.add_line(f"for(unsigned i=0; i<{sp_len}; ++i)", 1)
         if thermo_prop == 'cp_R':
-            lines.append(f"{di}tmp[i] = cp_R[i];")
+            cg.add_line("tmp[i] = cp_R[i];", 2)
         elif thermo_prop == 'h_RT':
-            lines.append(f"{di}tmp[i] = h_RT[i];")
+            cg.add_line("tmp[i] = h_RT[i];", 2)
         for i in range(sp_len):
             if thermo_prop == 'cp_R':
-                lines.append(f"{si}cp_R[{i}] = tmp[{ids_thermo_prop_new.index(i)}];")
+                cg.add_line(f"cp_R[{i}] = tmp[{ids_thermo_prop_new.index(i)}];", 1)
             elif thermo_prop == 'h_RT':
-                lines.append(f"{si}h_RT[{i}] = tmp[{ids_thermo_prop_new.index(i)}];")
+                cg.add_line(f"h_RT[{i}] = tmp[{ids_thermo_prop_new.index(i)}];", 1)
     else:
-        lines.append(f'')
-    return f"{code(lines)}"
+        cg.add_line("")
+
+    return cg.get_code()
 
 
 def write_file_mech(file_name, output_dir, sp_names, sp_len, active_sp_len, rxn_len, Mi):
     """
     Write the 'mech.h' file for the reaction mechanism data.
     """
+    cg = CodeGenerator()
 
-    lines = []
-    lines.append(f'#define n_species {sp_len}')
-    lines.append(f'#define n_active_species {active_sp_len}')
-    lines.append(f'#define species_names_length '
-                 f'{reduce(lambda x, y: x + y, [len(i) for i in sp_names]) + len(sp_names)}')
-    lines.append(f'#define n_reactions {rxn_len}')
-    lines.append(f"""__NEKRK_CONST__ char species_names[species_names_length] = "{' '.join(sp_names)}";""")
-    lines.append(f"__NEKRK_CONST__ cfloat nekrk_molar_mass[n_species] = {{{', '.join([repr(w) for w in Mi])}}};")
-    lines.append(f"__NEKRK_CONST__ cfloat nekrk_rcp_molar_mass[n_species] = "
-                 f"{{{', '.join([repr(1. / w) for w in Mi])}}};")
-    lines.append(f'#define __NEKRK_NSPECIES__ n_species')
-    lines.append(f'#define __NEKRK_NACTIVESPECIES__ n_active_species')
+    cg.add_line(f'#define n_species {sp_len}')
+    cg.add_line(f'#define n_active_species {active_sp_len}')
+    cg.add_line(f'#define species_names_length {reduce(lambda x, y: x + y, [len(i) for i in sp_names]) + len(sp_names)}')
+    cg.add_line(f'#define n_reactions {rxn_len}')
+    cg.add_line(f"""__NEKRK_CONST__ char species_names[species_names_length] = "{' '.join(sp_names)}";""")
+    cg.add_line(f"__NEKRK_CONST__ cfloat nekrk_molar_mass[n_species] = {{{', '.join([repr(w) for w in Mi])}}};")
+    cg.add_line(f"__NEKRK_CONST__ cfloat nekrk_rcp_molar_mass[n_species] = {{{', '.join([repr(1. / w) for w in Mi])}}};")
+    cg.add_line(f'#define __NEKRK_NSPECIES__ n_species', 0)
+    cg.add_line(f'#define __NEKRK_NACTIVESPECIES__ n_active_species', 0)
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -938,36 +963,36 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxn_repA
     particularly beneficial for GPUs.
     """
 
-    lines = []
-    lines.append(f"#include <math.h>")
-    lines.append(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, __NEKRK_EXP__(x))")
-    lines.append(f"__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates"
+    cg = CodeGenerator()
+    cg.add_line(f"#include <math.h>")
+    cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, __NEKRK_EXP__(x))")
+    cg.add_line(f"__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates"
                  f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
                  f"const cfloat rcpT, const cfloat Ci[], cfloat* rates) ")
-    lines.append(f"{{")
-    lines.append(f"{si}cfloat gibbs0_RT[{active_len}];")
+    cg.add_line(f"{{")
+    cg.add_line(f"cfloat gibbs0_RT[{active_len}];", 1)
     expression = lambda a: (f"{f(a[5])} * rcpT + {f(a[0] - a[6])} + {f(-a[0])} * lnT + "
                             f"{f(-a[1] / 2)} * T + {f((1. / 3. - 1. / 2.) * a[2])} * T2 + "
                             f"{f((1. / 4. - 1. / 3.) * a[3])} * T3 + {f((1. / 5. - 1. / 4.) * a[4])} * T4")
-    lines.append(f'{write_energy(f"{di}gibbs0_RT[", active_len, expression, sp_thermo)}')
+    cg.add_line(f'{write_energy(f"{di}gibbs0_RT[", active_len, expression, sp_thermo)}')
     if loop_gibbsexp:
-        # lines.append(f"{si}cfloat rcp_gibbs0_RT[{active_len}];")
-        lines.append(f"{si}for(unsigned int i=0; i<{active_len}; ++i)")
-        lines.append(f"{si}{{")
-        lines.append(f"{di}gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);")
-        # lines.append(f"{di}rcp_gibbs0_RT[i] = 1./gibbs0_RT[i];")
-        lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f'{si}cfloat Cm = {"+".join([f"Ci[{specie}]" for specie in range(sp_len)])};')
-    lines.append(f"{si}cfloat C0 = {f(const.one_atm / const.R)} * rcpT;")
-    lines.append(f"{si}cfloat rcpC0 = {f(const.R / const.one_atm)} * T;")
+        # cg.add_line(f"cfloat rcp_gibbs0_RT[{active_len}];", 1)
+        cg.add_line(f"for(unsigned int i=0; i<{active_len}; ++i)", 1)
+        cg.add_line(f"{{", 1)
+        cg.add_line(f"gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);", 2)
+        # cg.add_line(f"rcp_gibbs0_RT[i] = 1./gibbs0_RT[i];", 2)
+        cg.add_line(f"}}", 1)
+    cg.add_line("")
+    cg.add_line(f'cfloat Cm = {"+".join([f"Ci[{specie}]" for specie in range(sp_len)])};', 1)
+    cg.add_line(f"cfloat C0 = {f(const.one_atm / const.R)} * rcpT;", 1)
+    cg.add_line(f"cfloat rcpC0 = {f(const.R / const.one_atm)} * T;", 1)
     if group_rxn_repArrh:
-        lines.append(f"{si}cfloat k, Rf, k_corr, Pr, logFcent, k_rev, Rr, cR;")
+        cg.add_line(f"cfloat k, Rf, k_corr, Pr, logFcent, k_rev, Rr, cR;", 1)
     else:
-        lines.append(f"{si}cfloat k, Rf, k_inf, Pr, logFcent, k_rev, Rr, cR;")
-    lines.append(f"{si}cfloat eff;")
-    lines.append(f"{si}cfloat logPr, F, troe, troe_c, troe_n;")
-    lines.append(f"")
+        cg.add_line(f"cfloat k, Rf, k_inf, Pr, logFcent, k_rev, Rr, cR;", 1)
+    cg.add_line(f"cfloat eff;", 1)
+    cg.add_line(f"cfloat logPr, F, troe, troe_c, troe_n;", 1)
+    cg.add_line("")
 
     if group_rxn_repArrh:
         rxn_grouped = {}
@@ -985,14 +1010,14 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxn_repA
 
         for be_key, grouped_reactions in rxn_grouped.items():
             first_idx = grouped_reactions[0][0]  # Index of the first reaction in the group
-            lines.append(f"{write_reaction_grouped(grouped_reactions, first_idx, loop_gibbsexp)}")
-        lines.append(f"}}")
+            cg.add_line(f"{write_reaction_grouped(grouped_reactions, first_idx, loop_gibbsexp)}")
+        cg.add_line(f"}}")
     else:
         for idx, r in enumerate(reactions):
-            lines.append(f"{write_reaction(idx, r, loop_gibbsexp)}")
-        lines.append(f"}}")
+            cg.add_line(f"{write_reaction(idx, r, loop_gibbsexp)}")
+        cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1000,17 +1025,17 @@ def write_file_enthalpy_unroll(file_name, output_dir, sp_len, sp_thermo):
     """
     Write the 'fenthalpy_RT.inc' file with unrolled loop specification.
     """
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_enthalpy_RT"
-                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
-                 f"const cfloat rcpT,cfloat* h_RT)")
-    lines.append(f"{{")
+    cg = CodeGenerator()
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_enthalpy_RT"
+                f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
+                f"const cfloat rcpT,cfloat* h_RT)")
+    cg.add_line(f"{{")
     expression = lambda a: (f'{f(a[0])} + {f(a[1] / 2)} * T + {f(a[2] / 3)} * T2 + '
                             f'{f(a[3] / 4)} * T3 + {f(a[4] / 5)} * T4 + {f(a[5])} * rcpT')
-    lines.append(f'{write_energy(f"{di}h_RT[", sp_len, expression, sp_thermo)}')
-    lines.append(f"}}")
+    cg.add_line(f'{write_energy(f"{di}h_RT[", sp_len, expression, sp_thermo)}')
+    cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1018,16 +1043,16 @@ def write_file_heat_capacity_unroll(file_name, output_dir, sp_len, sp_thermo):
     """
     Write the 'fheat_capacity_R.inc' file with unrolled loop specification.
     """
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_molar_heat_capacity_R"
-                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
-                 f"const cfloat rcpT,cfloat* cp_R)")
-    lines.append(f"{{")
+    cg = CodeGenerator()
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_molar_heat_capacity_R"
+                f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
+                f"const cfloat rcpT,cfloat* cp_R)")
+    cg.add_line(f"{{")
     expression = lambda a: f'{f(a[0])} + {f(a[1])} * T + {f(a[2])} * T2 + {f(a[3])} * T3 + {f(a[4])} * T4'
-    lines.append(f'{write_energy(f"{di}cp_R[", sp_len, expression, sp_thermo)}')
-    lines.append(f"}}")
+    cg.add_line(f'{write_energy(f"{di}cp_R[", sp_len, expression, sp_thermo)}')
+    cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1036,22 +1061,22 @@ def write_file_conductivity_unroll(file_name, output_dir, transport_polynomials,
     Write the 'fconductivity.inc' file with unrolled loop specification.
     """
 
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_conductivity"
-                 f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[])")
-    lines.append(f"{{")
-    lines.append(f"{si}cfloat lambda_k, a = 0., b = 0.;")
-    lines.append(f"")
+    cg = CodeGenerator()
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_conductivity"
+                f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[])")
+    cg.add_line(f"{{")
+    cg.add_line(f"cfloat lambda_k, a = 0., b = 0.;", 1)
+    cg.add_line(f"")
     for k, P in enumerate(transport_polynomials.conductivity):
-        lines.append(f"{si}//{sp_names[k]}")
-        lines.append(f"{si}lambda_k = {evaluate_polynomial(P)};")
-        lines.append(f"{si}a += nXi[{k}]*lambda_k;")
-        lines.append(f"{si}b += nXi[{k}]/lambda_k;")
-        lines.append(f"")
-    lines.append(f"{si}return a/rcpMbar + rcpMbar/b;")
-    lines.append(f"}}")
+        cg.add_line(f"//{sp_names[k]}", 1)
+        cg.add_line(f"lambda_k = {evaluate_polynomial(P)};", 1)
+        cg.add_line(f"a += nXi[{k}]*lambda_k;", 1)
+        cg.add_line(f"b += nXi[{k}]/lambda_k;", 1)
+        cg.add_line(f"")
+    cg.add_line(f"return a/rcpMbar + rcpMbar/b;", 1)
+    cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1059,15 +1084,15 @@ def write_file_viscosity_unroll(file_name, output_dir, group_vis, transport_poly
     """
     Write the 'fviscosity.inc' file with unrolled loop specification.
     """
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat sq(cfloat x) {{ return x*x; }}")
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_viscosity"
-                 f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[]) ")
+    cg = CodeGenerator()
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat sq(cfloat x) {{ return x*x; }}")
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_viscosity"
+                f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[]) ")
     if group_vis:
-        lines.append(f"{{")
+        cg.add_line(f"{{")
         for k, P in enumerate(transport_polynomials.viscosity):
-            lines.append(f"{si}cfloat r{k} = {f(1.)}/({evaluate_polynomial(P)});")
-        lines.append(f"{si}cfloat v, vis = 0.;")
+            cg.add_line(f"cfloat r{k} = {f(1.)}/({evaluate_polynomial(P)});", 1)
+        cg.add_line(f"cfloat v, vis = 0.;", 1)
         for k, P in enumerate(transport_polynomials.viscosity):
             v_expr = f"{evaluate_polynomial(P)}"
             denominator_parts = []
@@ -1076,43 +1101,43 @@ def write_file_viscosity_unroll(file_name, output_dir, group_vis, transport_poly
                 part = f"{new_line}{di}nXi[{j}]*sq({f(Va)}+{f(Va * sqrt(sqrt(Mi[j] / Mi[k])))}*r{j}*v)"
                 denominator_parts.append(part)
             denominator = " + ".join(denominator_parts)
-            lines.append(f"")
-            lines.append(f"{si}//{sp_names[k]}")
-            lines.append(f"{si}v = {v_expr};")
-            lines.append(f"{si}vis += nXi[{k}]*sq(v)/({denominator}{new_line}{si});")
-        lines.append(f"{si}return vis;")
-        lines.append(f"}}")
+            cg.add_line("")
+            cg.add_line(f"//{sp_names[k]}", 1)
+            cg.add_line(f"v = {v_expr};", 1)
+            cg.add_line(f"vis += nXi[{k}]*sq(v)/({denominator}{new_line}{si});", 1)
+        cg.add_line(f"return vis;", 1)
+        cg.add_line(f"}}")
     else:
-        lines.append(f"{{")
+        cg.add_line(f"{{")
         for k, P in enumerate(transport_polynomials.viscosity):
-            lines.append(f"{si}cfloat v{k} = {evaluate_polynomial(P)};")
-        lines.append(f"{code(f'{si}cfloat sum_{k} = 0.;' for k in range(sp_len))} "
-                     f"// same name is used to refer to the reciprocal evaluation "
-                     f"explicitly interleaved into the last iteration")
+            cg.add_line(f"cfloat v{k} = {evaluate_polynomial(P)};", 1)
+        for k in range(sp_len):
+            cg.add_line(f"cfloat sum_{k} = 0.;", 1)
+        cg.add_line(f"// same name is used to refer to the reciprocal evaluation "
+                    f"explicitly interleaved into the last iteration", 1)
 
         def sq_v(Va):
             return f'sq({f(Va)}+{f(Va * sqrt(sqrt(Mi[j] / Mi[k])))}*v{k}*r{j})'
 
         for j in range(sp_len - 1):
-            lines.append(f"{si}{{")
-            lines.append(f"{di}cfloat r{j} = {f(1.)}/v{j};")
+            cg.add_line(f"{{", 1)
+            cg.add_line(f"cfloat r{j} = {f(1.)}/v{j};", 2)
             for k in range(sp_len):
-                lines.append(f"{di}sum_{k} += nXi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))};")
-            lines.append(f"{si}}}")
+                cg.add_line(f"sum_{k} += nXi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))};", 2)
+            cg.add_line(f"}}", 1)
         for j in [sp_len - 1]:
-            lines.append(f"{si}{{")
-            lines.append(f"{di}cfloat r{j} = {f(1.)}/v{j};")
+            cg.add_line(f"{{", 1)
+            cg.add_line(f"cfloat r{j} = {f(1.)}/v{j};", 2)
             for k in range(sp_len):
-                lines.append(f"{di}sum_{k} += nXi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))}; "
-                             f"/*rcp_*/sum_{k} = {f(1.)}/sum_{k};")
-            lines.append(f"{si}}}")
-        lines.append(f"")
-        lines.append(f"""{si}return {('+' + new_line).join(f"{ti if k > 0 else ' '}nXi[{k}]*sq(v{k}) * /*rcp_*/sum_{k}"
-                                                           for k in range(sp_len))};""")
-        lines.append(f"}}")
+                cg.add_line(f"sum_{k} += nXi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))}; "
+                            f"/*rcp_*/sum_{k} = {f(1.)}/sum_{k};", 2)
+            cg.add_line(f"}}", 1)
+        cg.add_line("")
+        cg.add_line(f"""return {('+' + new_line).join(f"{ti if k > 0 else ' '}nXi[{k}]*sq(v{k}) * /*rcp_*/sum_{k}"
+                                                           for k in range(sp_len))};""", 1)
+        cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
-
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1123,31 +1148,31 @@ def write_file_diffusivity_nonsym_unroll(file_name, output_dir, rcp_diffcoeffs,
     and  computation of the full Dij matrix (non-symmetrical matrix assumption).
     """
 
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
-                 f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
-                 f"cfloat nXi[], dfloat* out, unsigned int stride) ")
-    lines.append(f"{{")
+    cg = CodeGenerator()
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
+                f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
+                f"cfloat nXi[], dfloat* out, unsigned int stride) ")
+    cg.add_line(f"{{")
     for k in range(sp_len):
-        lines.append(f"{si}//{sp_names[k]}")
-        lines.append(f"{si}out[{k}*stride+id] = scale * (1.0f - nekrk_molar_mass[{k}] * nXi[{k}]) / (")
+        cg.add_line(f"//{sp_names[k]}", 1)
+        cg.add_line(f"out[{k}*stride+id] = scale * (1.0f - nekrk_molar_mass[{k}] * nXi[{k}]) / (", 1)
         if rcp_diffcoeffs:
-            lines.append(
+            cg.add_line(
                 f"""{('+' + new_line).join(
                     f"{di}nXi[{j}] * "
                     f"({evaluate_polynomial(transport_polynomials.diffusivity[k if k > j else j][j if k > j else k])})"
                     for j in list(range(k)) + list(range(k + 1, sp_len)))});""")
         else:
-            lines.append(
+            cg.add_line(
                 f"""{('+' + new_line).join(
                     f"{di}nXi[{j}] * "
                     f"(1/"
                     f"({evaluate_polynomial(transport_polynomials.diffusivity[k if k > j else j][j if k > j else k])}))"
                     for j in list(range(k)) + list(range(k + 1, sp_len)))});""")
-        lines.append(f"")
-    lines.append(f"}}")
+        cg.add_line(f"")
+    cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1155,8 +1180,7 @@ def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transpo
     """
     Write the 'fdiffusivity.inc' file with unrolled loop specification.
     """
-
-    lines = []
+    cg = CodeGenerator()
 
     S = [''] * sp_len
 
@@ -1164,24 +1188,25 @@ def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transpo
         S[i] = v
         return y
 
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
-                 f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
-                 f"cfloat nXi[], dfloat* out, unsigned int stride) ")
-    lines.append(f"{{")
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
+                f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
+                f"cfloat nXi[], dfloat* out, unsigned int stride) ")
+    cg.add_line(f"{{")
     for k in range(sp_len):
         for j in range(k):
             if rcp_diffcoeffs:
-                lines.append(
-                    f"{si}cfloat R{k}_{j} = {evaluate_polynomial(transport_polynomials.diffusivity[k][j])};")
+                cg.add_line(
+                    f"cfloat R{k}_{j} = {evaluate_polynomial(transport_polynomials.diffusivity[k][j])};", 1)
             else:
-                lines.append(
-                    f"{si}cfloat R{k}_{j} = 1/({evaluate_polynomial(transport_polynomials.diffusivity[k][j])});")
-            lines.append(f"{si}cfloat S{k}_{j} = {mut(f'{S[k]}+' if S[k] else '', k, f'S{k}_{j}')}nXi[{j}]*R{k}_{j};")
-            lines.append(f"{si}cfloat S{j}_{k} = {mut(f'{S[j]}+' if S[j] else '', j, f'S{j}_{k}')}nXi[{k}]*R{k}_{j};")
+                cg.add_line(
+                    f"cfloat R{k}_{j} = 1/({evaluate_polynomial(transport_polynomials.diffusivity[k][j])});", 1)
+            cg.add_line(f"cfloat S{k}_{j} = {mut(f'{S[k]}+' if S[k] else '', k, f'S{k}_{j}')}nXi[{j}]*R{k}_{j};", 1)
+            cg.add_line(f"cfloat S{j}_{k} = {mut(f'{S[j]}+' if S[j] else '', j, f'S{j}_{k}')}nXi[{k}]*R{k}_{j};", 1)
     for k in range(sp_len):
-        lines.append(f"{si}out[{k}*stride+id] = scale * (1.0f - {Mi[k]}f*nXi[{k}])/{S[k]};")
-    lines.append(f"}}")
-    write_module(output_dir, file_name, f'{code(lines)}')
+        cg.add_line(f"out[{k}*stride+id] = scale * (1.0f - {Mi[k]}f*nXi[{k}])/{S[k]};", 1)
+    cg.add_line(f"}}")
+
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1320,65 +1345,65 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             A_new[idx_unique_re] = A_new[idx_unique_re] / math.exp(A_new[idx_unique_a_re])
 
     def set_k():
-        lines = []
+        cg = CodeGenerator()
         if len(ids_E0B0) > 0:
-            lines.append(f'{si}// {len(ids_E0B0)} rate constants with E_R = 0 and beta = 0 ')
-            lines.append(f'{si}for(unsigned int i=0; i<{len(ids_E0B0)}; ++i)')
-            lines.append(f'{si}{{')
-            lines.append(f'{di}k[i+{len(ids_EB)}] = A[i+{len(ids_EB)}];')
-            lines.append(f'{si}}}')
+            cg.add_line(f'// {len(ids_E0B0)} rate constants with E_R = 0 and beta = 0 ', 1)
+            cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0B0)}; ++i)', 1)
+            cg.add_line(f'{{', 1)
+            cg.add_line(f'k[i+{len(ids_EB)}] = A[i+{len(ids_EB)}];', 2)
+            cg.add_line(f'}}', 1)
         if len(ids_E0Bneg2) > 0:
             start_ids_E0Bneg2 = len(ids_EB) + len(ids_E0B0)
-            lines.append(f'{si}// {len(ids_E0Bneg2)} rate constants with E_R = 0 and beta = -2 ')
-            lines.append(f'{si}cfloat rcpT_2 = rcpT*rcpT;')
-            lines.append(f'{si}for(unsigned int i=0; i<{len(ids_E0Bneg2)}; ++i)')
-            lines.append(f'{si}{{')
-            lines.append(f'{di}k[i+{start_ids_E0Bneg2}] = A[i+{start_ids_E0Bneg2}]*rcpT_2;')
-            lines.append(f'{si}}}')
+            cg.add_line(f'// {len(ids_E0Bneg2)} rate constants with E_R = 0 and beta = -2 ', 1)
+            cg.add_line(f'cfloat rcpT_2 = rcpT*rcpT;', 1)
+            cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0Bneg2)}; ++i)', 1)
+            cg.add_line(f'{{', 1)
+            cg.add_line(f'k[i+{start_ids_E0Bneg2}] = A[i+{start_ids_E0Bneg2}]*rcpT_2;', 2)
+            cg.add_line(f'}}', 1)
         if len(ids_E0Bneg1) > 0:
             start_ids_E0Bneg1 = len(ids_EB) + len(ids_E0B0) + len(ids_E0Bneg2)
-            lines.append(f'{si}// {len(ids_E0Bneg1)} rate constants with E_R = 0 and beta = -1 ')
-            lines.append(f'{si}for(unsigned int i=0; i<{len(ids_E0Bneg1)}; ++i)')
-            lines.append(f'{si}{{')
-            lines.append(f'{di}k[i+{start_ids_E0Bneg1}] = A[i+{start_ids_E0Bneg1}]*rcpT;')
-            lines.append(f'{si}}}')
+            cg.add_line(f'// {len(ids_E0Bneg1)} rate constants with E_R = 0 and beta = -1 ', 1)
+            cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0Bneg1)}; ++i)', 1)
+            cg.add_line(f'{{', 1)
+            cg.add_line(f'k[i+{start_ids_E0Bneg1}] = A[i+{start_ids_E0Bneg1}]*rcpT;', 2)
+            cg.add_line(f'}}', 1)
         if len(ids_E0B1) > 0:
             start_ids_E0B1 = len(ids_EB) + len(ids_E0B0) + len(ids_E0Bneg2) + len(ids_E0Bneg1)
-            lines.append(f'{si}// {len(ids_E0B1)} rate constants with E_R = 0 and beta = 1 ')
-            lines.append(f'{si}for(unsigned int i=0; i<{len(ids_E0B1)}; ++i)')
-            lines.append(f'{si}{{')
-            lines.append(f'{di}k[i+{start_ids_E0B1}] = A[i+{start_ids_E0B1}]*T;')
-            lines.append(f'{si}}}')
+            cg.add_line(f'// {len(ids_E0B1)} rate constants with E_R = 0 and beta = 1 ', 1)
+            cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0B1)}; ++i)', 1)
+            cg.add_line(f'{{', 1)
+            cg.add_line(f'k[i+{start_ids_E0B1}] = A[i+{start_ids_E0B1}]*T;', 2)
+            cg.add_line(f'}}', 1)
         if len(ids_E0B2) > 0:
             start_ids_E0B2 = len(ids_EB) + len(ids_E0B0) + len(ids_E0Bneg2) + len(ids_E0Bneg1) + len(ids_E0B1)
-            lines.append(f'{si}// {len(ids_E0B2)} rate constants with E_R = 0 and beta = 2 ')
-            lines.append(f'{si}cfloat T_2 = T*T;')
-            lines.append(f'{si}for(unsigned int i=0; i<{len(ids_E0B1)}; ++i)')
-            lines.append(f'{si}{{')
-            lines.append(f'{di}k[i+{start_ids_E0B2}] = A[i+{start_ids_E0B2}]*T_2;')
-            lines.append(f'{si}}}')
+            cg.add_line(f'// {len(ids_E0B2)} rate constants with E_R = 0 and beta = 2 ', 1)
+            cg.add_line(f'cfloat T_2 = T*T;', 1)
+            cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0B1)}; ++i)', 1)
+            cg.add_line(f'{{', 1)
+            cg.add_line(f'k[i+{start_ids_E0B2}] = A[i+{start_ids_E0B2}]*T_2;', 2)
+            cg.add_line(f'}}', 1)
         if len(ids_ErBr) > 0:
             start_ids_ErBr = len(ids_new) - len(ids_ErBr)
-            lines.append(
-                f'{si}// {len(ids_ErBr)} rate constants with E_R and '
-                f'beta the same as for other rate constants which have already been computed ')
-            lines.append(f'{si}for(unsigned int i=0; i<{len(unique_pos_ids_ErBr)}; ++i)')
-            lines.append(f'{si}{{')
-            lines.append(
-                f'{di}k[i+{start_ids_ErBr}] = A[i+{start_ids_ErBr}]*k[i+{len(ids_EB) - len(unique_pos_ids_ErBr)}];')
-            lines.append(f'{si}}}')
+            cg.add_line(
+                f'// {len(ids_ErBr)} rate constants with E_R and '
+                f'beta the same as for other rate constants which have already been computed ', 1)
+            cg.add_line(f'for(unsigned int i=0; i<{len(unique_pos_ids_ErBr)}; ++i)', 1)
+            cg.add_line(f'{{', 1)
+            cg.add_line(
+                f'k[i+{start_ids_ErBr}] = A[i+{start_ids_ErBr}]*k[i+{len(ids_EB) - len(unique_pos_ids_ErBr)}];', 2)
+            cg.add_line(f'}}', 1)
             if (len(pos_ids_ErBr) - len(unique_pos_ids_ErBr)) > 0:
                 for i in range(len(pos_ids_ErBr) - len(unique_pos_ids_ErBr)):
                     start_ids_ErBr_rep = len(ids_new) - (len(pos_ids_ErBr) - len(unique_pos_ids_ErBr)) + i
                     ids_k_rep = ids_EB.index(ids_ErBr_values[len(unique_pos_ids_ErBr) + i])
-                    lines.append(f'{si}k[{start_ids_ErBr_rep}]=A[{start_ids_ErBr_rep}]*k[{ids_k_rep}];')
-        return f'{code(lines)}'
+                    cg.add_line(f'k[{start_ids_ErBr_rep}]=A[{start_ids_ErBr_rep}]*k[{ids_k_rep}];', 1)
+        return cg.get_code()
 
     ids_eff = []
     dic_unique_eff = {}
 
     def reodrder_eff(r):
-        lines = []
+        cg = CodeGenerator()
         dic_eff = {}
         count = 0
         for i in range(len(r)):
@@ -1410,12 +1435,12 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                             ci.append(f"-Ci[{specie}]")
                         else:
                             ci.append(f"{f(efficiency - 1.)}*Ci[{specie}]")
-                lines.append(f"{si}cfloat eff{i} = Cm + {'+'.join(ci)};")
+                cg.add_line(f"cfloat eff{i} = Cm + {'+'.join(ci)};", 1)
 
-            return f'{code(lines)}'
+            return cg.get_code()
         else:
-            lines.append(f'')
-            return f'{code(lines)}'
+            cg.add_line("")
+            return cg.get_code()
 
     # Correct k based on reaction type
     ids_er_rxn, ids_3b_rxn, ids_pd_rxn, ids_troe_rxn, ids_sri_rxn = [], [], [], [], []
@@ -1435,45 +1460,47 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
 
     def corr_k(r):
         # Three-body reactions
-        tb_correction = []
+        cg_tb = CodeGenerator()
         if len(ids_3b_rxn) > 0:
-            tb_correction.append(f"{si}//Correct k for three-body reactions")
+            cg_tb.add_line(f"//Correct k for three-body reactions", 1)
             for i in ids_3b_rxn:
                 if hasattr(r[i], 'efficiencies'):
-                    tb_correction.append(
-                        f"{si}k[{ids_new.index(i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};")
+                    cg_tb.add_line(
+                        f"k[{ids_new.index(i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
                 else:
-                    tb_correction.append(
-                        f"{si}k[{ids_new.index(i)}] *= Cm;")
+                    cg_tb.add_line(
+                        f"k[{ids_new.index(i)}] *= Cm;", 1)
 
         # Pressure-dependent reactions
-        pd_correction = []
+        cg_pd = CodeGenerator()
         if len(ids_pd_rxn) > 0:
-            pd_correction.append(f"{si}//Correct k for pressure-dependent reactions")
+            cg_pd.add_line("")
+            cg_pd.add_line(f"//Correct k for pressure-dependent reactions", 1)
             for i in ids_pd_rxn:
                 if hasattr(r[i], 'efficiencies'):
-                    pd_correction.append(
-                        f"{si}k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};")
+                    cg_pd.add_line(
+                        f"k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
                 else:
-                    pd_correction.append(
-                        f"{si}k[{ids_new.index(rxn_len + i)}] *= Cm;")
-                pd_correction.append(
-                    f"{si}k[{ids_new.index(rxn_len + i)}] /= "
-                    f"(1+ k[{ids_new.index(rxn_len + i)}]/(k[{ids_new.index(i)}]+ CFLOAT_MIN));")
+                    cg_pd.add_line(
+                        f"k[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
+                cg_pd.add_line(
+                    f"k[{ids_new.index(rxn_len + i)}] /= "
+                    f"(1+ k[{ids_new.index(rxn_len + i)}]/(k[{ids_new.index(i)}]+ CFLOAT_MIN));", 1)
 
         # Troe reactions
-        troe_correction = []
+        cg_troe = CodeGenerator()
         if len(ids_troe_rxn) > 0:
-            troe_correction.append(f"{si}//Correct k for troe reactions")
+            cg_troe.add_line("")
+            cg_troe.add_line(f"//Correct k for troe reactions", 1)
             for i in ids_troe_rxn:
                 if hasattr(r[i], 'efficiencies'):
-                    troe_correction.append(
-                        f"{si}k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};")
+                    cg_troe.add_line(
+                        f"k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
                 else:
-                    troe_correction.append(
-                        f"{si}k[{ids_new.index(rxn_len + i)}] *= Cm;")
-                troe_correction.append(
-                    f"{si}k[{ids_new.index(rxn_len + i)}] /= (k[{ids_new.index(i)}] + CFLOAT_MIN);")
+                    cg_troe.add_line(
+                        f"k[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
+                cg_troe.add_line(
+                    f"k[{ids_new.index(rxn_len + i)}] /= (k[{ids_new.index(i)}] + CFLOAT_MIN);", 1)
             troe_A, rcp_troe_T1, troe_T2, rcp_troe_T3 = [], [], [], []
             for i in ids_troe_rxn:
                 troe_A.append(r[i].troe.A)
@@ -1483,65 +1510,67 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             ids_troe = []
             for i in ids_troe_rxn:
                 ids_troe.append(ids_new.index(rxn_len + i))
-            troe_correction.append(f"")
-            troe_correction.append(
-                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
-                f"cfloat troe_A[{len(ids_troe_rxn)}] = {{{f_sci_not(troe_A)}}};")
-            troe_correction.append(
-                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
-                f"cfloat rcp_troe_T1[{len(ids_troe_rxn)}] = {{{f_sci_not(rcp_troe_T1)}}};")
-            troe_correction.append(
-                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+            cg_troe.add_line("")
+            cg_troe.add_line(
+                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat troe_A[{len(ids_troe_rxn)}] = {{{f_sci_not(troe_A)}}};", 1)
+            cg_troe.add_line(
+                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat rcp_troe_T1[{len(ids_troe_rxn)}] = {{{f_sci_not(rcp_troe_T1)}}};", 1)
+            cg_troe.add_line(
+                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
                 f"cfloat troe_T2[{len(ids_troe_rxn)}] = {{{f_sci_not(troe_T2)}}};" if not (
-                    any([i == float('inf') for i in troe_T2])) else '')
-            troe_correction.append(
-                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
-                f"cfloat rcp_troe_T3[{len(ids_troe_rxn)}] = {{{f_sci_not(rcp_troe_T3)}}};")
-            troe_correction.append(f"")
-            troe_correction.append(
-                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} int "
-                f"ids_troe[{len(ids_troe_rxn)}] = {str(ids_troe).replace('[', '{').replace(']', '}')};")
-            troe_correction.append(
-                f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
-                f"logFcent[{len(ids_troe_rxn)}];")
-            troe_correction.append(f"{si}for(unsigned int i = 0; i<{len(ids_troe_rxn)}; ++i)")
-            troe_correction.append(f"{si}{{")
-            troe_correction.append(
-                f"{di}logFcent[i] = __NEKRK_LOG10__(({f(1.)} - troe_A[i])*exp(-T*rcp_troe_T3[i]) + "
-                f"troe_A[i]*exp(-T*rcp_troe_T1[i]){f'+ exp(-troe_T2[i]*rcpT)' if troe_T2[0] < float('inf') else ''});")
-            troe_correction.append(f"{si}}}")
-            troe_correction.append(f"{si}for(unsigned int i = 0; i<{len(ids_troe_rxn)}; ++i)")
-            troe_correction.append(f"{si}{{")
-            troe_correction.append(
-                f"{di}cfloat troe_c = {f(-0.4)} - {f(0.67)} * logFcent[i];")
-            troe_correction.append(
-                f"{di}cfloat troe_n = {f(0.75)} - {f(1.27)} * logFcent[i];")
-            troe_correction.append(
-                f"{di}cfloat logPr = __NEKRK_LOG10__(k[ids_troe[i]] + CFLOAT_MIN);")
-            troe_correction.append(
-                f"{di}cfloat troe = (troe_c + logPr)/(troe_n - {f(0.14)}*(troe_c + logPr)+CFLOAT_MIN);")
-            troe_correction.append(
-                f"{di}cfloat F = __NEKRK_POW__(10, logFcent[i]/({f(1.0)} + troe*troe));")
-            troe_correction.append(f"{di}k[ids_troe[i]] /= ({f(1.)}+k[ids_troe[i]]);")
-            troe_correction.append(f"{di}k[ids_troe[i]] *= F;")
-            troe_correction.append(f"{si}}}")
+                    any([i == float('inf') for i in troe_T2])) else '', 1)
+            cg_troe.add_line(
+                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat rcp_troe_T3[{len(ids_troe_rxn)}] = {{{f_sci_not(rcp_troe_T3)}}};", 1)
+            cg_troe.add_line("")
+            cg_troe.add_line(
+                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} int "
+                f"ids_troe[{len(ids_troe_rxn)}] = {str(ids_troe).replace('[', '{').replace(']', '}')};", 1)
+            cg_troe.add_line(
+                f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+                f"logFcent[{len(ids_troe_rxn)}];", 1)
+            cg_troe.add_line(f"for(unsigned int i = 0; i<{len(ids_troe_rxn)}; ++i)", 1)
+            cg_troe.add_line(f"{{", 1)
+            cg_troe.add_line(
+                f"logFcent[i] = __NEKRK_LOG10__(({f(1.)} - troe_A[i])*exp(-T*rcp_troe_T3[i]) + "
+                f"troe_A[i]*exp(-T*rcp_troe_T1[i]){f'+ exp(-troe_T2[i]*rcpT)' if troe_T2[0] < float('inf') else ''});",
+                2)
+            cg_troe.add_line(f"}}", 1)
+            cg_troe.add_line(f"for(unsigned int i = 0; i<{len(ids_troe_rxn)}; ++i)", 1)
+            cg_troe.add_line(f"{{", 1)
+            cg_troe.add_line(
+                f"cfloat troe_c = {f(-0.4)} - {f(0.67)} * logFcent[i];", 2)
+            cg_troe.add_line(
+                f"cfloat troe_n = {f(0.75)} - {f(1.27)} * logFcent[i];", 2)
+            cg_troe.add_line(
+                f"cfloat logPr = __NEKRK_LOG10__(k[ids_troe[i]] + CFLOAT_MIN);", 2)
+            cg_troe.add_line(
+                f"cfloat troe = (troe_c + logPr)/(troe_n - {f(0.14)}*(troe_c + logPr)+CFLOAT_MIN);", 2)
+            cg_troe.add_line(
+                f"cfloat F = __NEKRK_POW__(10, logFcent[i]/({f(1.0)} + troe*troe));", 2)
+            cg_troe.add_line(f"k[ids_troe[i]] /= ({f(1.)}+k[ids_troe[i]]);", 2)
+            cg_troe.add_line(f"k[ids_troe[i]] *= F;", 2)
+            cg_troe.add_line(f"}}", 1)
             for i in ids_troe_rxn:
-                troe_correction.append(
-                    f"{si}k[{ids_new.index(rxn_len + i)}]*= k[{ids_new.index(i)}];")
+                cg_troe.add_line(
+                    f"k[{ids_new.index(rxn_len + i)}]*= k[{ids_new.index(i)}];", 1)
 
         # SRI reaction
-        sri_correction = []
+        cg_sri = CodeGenerator()
         if len(ids_sri_rxn) > 0:
-            sri_correction.append(f"{si}//Correct k for SRI reactions")
+            cg_sri.add_line("")
+            cg_sri.add_line(f"//Correct k for SRI reactions", 1)
             for i in ids_sri_rxn:
                 if hasattr(r[i], 'efficiencies'):
-                    sri_correction.append(
-                        f"{si}k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};")
+                    cg_sri.add_line(
+                        f"k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
                 else:
-                    sri_correction.append(
-                        f"{si}k[{ids_new.index(rxn_len + i)}] *= Cm;")
-                sri_correction.append(
-                    f"{si}k[{ids_new.index(rxn_len + i)}] /= (k[{ids_new.index(i)}] + CFLOAT_MIN);")
+                    cg_sri.add_line(
+                        f"k[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
+                cg_sri.add_line(
+                    f"k[{ids_new.index(rxn_len + i)}] /= (k[{ids_new.index(i)}] + CFLOAT_MIN);", 1)
             sri_A, sri_B, rcp_sri_C, sri_D, sri_E = [], [], [], [], []
             for i in ids_sri_rxn:
                 sri_A.append(r[i].sri.A)
@@ -1552,53 +1581,53 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             ids_sri = []
             for i in ids_sri_rxn:
                 ids_sri.append(ids_new.index(rxn_len + i))
-            sri_correction.append(f"")
-            sri_correction.append(
-                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
-                f"cfloat sri_A[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_A)}}};")
-            sri_correction.append(
-                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
-                f"cfloat sri_B[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_B)}}};")
-            sri_correction.append(
-                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+            cg_sri.add_line("")
+            cg_sri.add_line(
+                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat sri_A[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_A)}}};", 1)
+            cg_sri.add_line(
+                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat sri_B[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_B)}}};", 1)
+            cg_sri.add_line(
+                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
                 f"cfloat rcp_sri_C[{len(ids_sri_rxn)}] = {{{f_sci_not(rcp_sri_C)}}};" if not (
-                    any([i == float('inf') for i in rcp_sri_C])) else '')
-            sri_correction.append(
-                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
-                f"cfloat sri_D[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_D)}}};")
-            sri_correction.append(
-                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
-                f"cfloat sri_E[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_E)}}};")
-            sri_correction.append(f"")
-            sri_correction.append(
-                f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} int "
-                f"ids_sri[{len(ids_sri_rxn)}] = {str(ids_sri).replace('[', '{').replace(']', '}')};")
-            sri_correction.append(f"{si}for(unsigned int i = 0; i<{len(ids_sri_rxn)}; ++i)")
-            sri_correction.append(f"{si}{{")
-            sri_correction.append(
-                f"{di}cfloat logPr = __NEKRK_LOG10__(k[ids_sri[i]] + CFLOAT_MIN);")
-            sri_correction.append(f"{di}cfloat F = sri_D[i]*pow(T, sri_E[i])*"
-                                  f"pow(sri_A[i]*exp(-sri_B[i]*rcpT)+exp(-rcp_sri_C[i]*T), 1./(1.+logPr*logPr));")
-            sri_correction.append(f"{di}k[ids_sri[i]] /= (1.+k[ids_sri[i]]);")
-            sri_correction.append(f"{di}k[ids_sri[i]] *= F;")
-            sri_correction.append(f"{si}}}")
+                    any([i == float('inf') for i in rcp_sri_C])) else '', 1)
+            cg_sri.add_line(
+                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat sri_D[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_D)}}};", 1)
+            cg_sri.add_line(
+                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"cfloat sri_E[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_E)}}};", 1)
+            cg_sri.add_line("")
+            cg_sri.add_line(
+                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} int "
+                f"ids_sri[{len(ids_sri_rxn)}] = {str(ids_sri).replace('[', '{').replace(']', '}')};", 1)
+            cg_sri.add_line(f"for(unsigned int i = 0; i<{len(ids_sri_rxn)}; ++i)", 1)
+            cg_sri.add_line(f"{{", 1)
+            cg_sri.add_line(
+                f"cfloat logPr = __NEKRK_LOG10__(k[ids_sri[i]] + CFLOAT_MIN);", 2)
+            cg_sri.add_line(f"cfloat F = sri_D[i]*pow(T, sri_E[i])*"
+                                  f"pow(sri_A[i]*exp(-sri_B[i]*rcpT)+exp(-rcp_sri_C[i]*T), 1./(1.+logPr*logPr));", 2)
+            cg_sri.add_line(f"k[ids_sri[i]] /= (1.+k[ids_sri[i]]);", 2)
+            cg_sri.add_line(f"k[ids_sri[i]] *= F;", 2)
+            cg_sri.add_line(f"}}", 1)
             for i in ids_sri_rxn:
-                sri_correction.append(
-                    f"{si}k[{ids_new.index(rxn_len + i)}]*= k[{ids_new.index(i)}];")
+                cg_sri.add_line(
+                    f"k[{ids_new.index(rxn_len + i)}]*= k[{ids_new.index(i)}];", 1)
 
         # Combine all reactions
-        all_reactions = tb_correction + pd_correction + troe_correction + sri_correction
-        return f"{code(all_reactions)}"
+        reaction_corr = cg_tb.get_code()  + cg_pd.get_code() + cg_troe.get_code() + cg_sri.get_code()
+        return reaction_corr
 
     # Reorder reactions back to original
     def reorder_k(r):
-        lines = []
+        cg = CodeGenerator()
         for i in range(len(r)):
             if hasattr(rxn[i], 'k0'):
-                lines.append(f"{si}k[{i}] = tmp[{ids_new.index(rxn_len + i)}];")
+                cg.add_line(f"k[{i}] = tmp[{ids_new.index(rxn_len + i)}];", 1)
             else:
-                lines.append(f"{si}k[{i}] = tmp[{ids_new.index(i)}];")
-        return f"{code(lines)}"
+                cg.add_line(f"{si}k[{i}] = tmp[{ids_new.index(i)}];", 1)
+        return cg.get_code()
 
     # Compute the gibbs energy
     (a0, a1, a2, a3, a4, a5, a6,
@@ -1615,7 +1644,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
 
     # Compute reverse rates
     def compute_k_rev(r):
-        lines = []
+        cg = CodeGenerator()
         for i in range(len(r)):
             pow_C0_sum_net = '*'.join(["C0" if r[i].sum_net < 0 else 'rcpC0'] * abs(-r[i].sum_net))
             gibbs_terms = []
@@ -1629,9 +1658,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 if net > 0:
                     for o in range(net):
                         gibbs_terms.append(f"gibbs0_RT[{ids_gibbs_new.index(j)}]")
-            lines.append(
-                f"{si}k_rev[{i}] = {'*'.join(gibbs_terms)}{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};")
-        return f"{code(lines)}"
+            cg.add_line(
+                f"k_rev[{i}] = {'*'.join(gibbs_terms)}{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
+        return cg.get_code()
 
     # Compute reaction rates
     def compute_rates(r):
@@ -1639,107 +1668,107 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             '*'.join([f'Ci[{specie}]'] * coefficient) for specie, coefficient in enumerate(reagents) if
             coefficient != 0.)
 
-        lines = []
+        cg = CodeGenerator()
         for i in range(len(r)):
-            lines.append(f"{si}//{i + 1}: {r[i].description}")
+            cg.add_line(f"//{i + 1}: {r[i].description}", 1)
             if r[i].type == 'irreversible':
                 if hasattr(r[i], 'k0'):
-                    lines.append(f"{si}cR = k[{ids_new.index(rxn_len + i)}]*({phaseSpace(r[i].reactants)});")
+                    cg.add_line(f"cR = k[{ids_new.index(rxn_len + i)}]*({phaseSpace(r[i].reactants)});", 1)
                 else:
-                    lines.append(f"{si}cR = k[{ids_new.index(i)}]*({phaseSpace(r[i].reactants)});")
+                    cg.add_line(f"cR = k[{ids_new.index(i)}]*({phaseSpace(r[i].reactants)});", 1)
             else:
                 if hasattr(r[i], 'k0'):
-                    lines.append(
-                        f"{si}cR = k[{ids_new.index(rxn_len + i)}]*({phaseSpace(r[i].reactants)}-"
-                        f"k_rev[{i}]*{phaseSpace(r[i].products)});")
+                    cg.add_line(
+                        f"cR = k[{ids_new.index(rxn_len + i)}]*({phaseSpace(r[i].reactants)}-"
+                        f"k_rev[{i}]*{phaseSpace(r[i].products)});", 1)
                 else:
-                    lines.append(
-                        f"{si}cR = k[{ids_new.index(i)}]*({phaseSpace(r[i].reactants)}-"
-                        f"k_rev[{i}]*{phaseSpace(r[i].products)});")
-            lines.append(f"#ifdef DEBUG")
-            lines.append(f"{si}printf(\"{i + 1}: %+.15e\\n\", cR);")
+                    cg.add_line(
+                        f"cR = k[{ids_new.index(i)}]*({phaseSpace(r[i].reactants)}-"
+                        f"k_rev[{i}]*{phaseSpace(r[i].products)});", 1)
+            cg.add_line(f"#ifdef DEBUG")
+            cg.add_line(f"printf(\"{i + 1}: %+.15e\\n\", cR);", 1)
             if hasattr(r[i], 'k0'):
-                lines.append(
-                    f"{si}printf(\"{i + 1}: %+.15e, %+.15e\\n\", k[{ids_new.index(rxn_len + i)}], k_rev[{i}]);")
+                cg.add_line(
+                    f"printf(\"{i + 1}: %+.15e, %+.15e\\n\", k[{ids_new.index(rxn_len + i)}], k_rev[{i}]);", 1)
             else:
-                lines.append(
-                    f"{si}printf(\"{i + 1}: %+.15e, %+.15e\\n\", k[{ids_new.index(i)}], k_rev[{i}]);")
-            lines.append(f"#endif")
-            lines.append(code(
-                f"{si}rates[{specie}] += {imul(net, 'cR')};" for specie, net in enumerate(r[i].net) if
-                net != 0))
-            lines.append(f"")
-        return f"{code(lines)}"
+                cg.add_line(
+                    f"printf(\"{i + 1}: %+.15e, %+.15e\\n\", k[{ids_new.index(i)}], k_rev[{i}]);", 1)
+            cg.add_line(f"#endif")
+            for specie, net in enumerate(r[i].net):
+                if net != 0:  # Only generate code for non-zero net changes
+                    cg.add_line(f"rates[{specie}] += {imul(net, 'cR')};", 1)
+            cg.add_line(f"")
+        return cg.get_code()
 
     #############
     # Write file
     #############
 
-    lines = []
-    lines.append(f'#include <math.h>')
-    lines.append(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, __NEKRK_EXP__(x))")
-    lines.append(f'__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates'
+    cg = CodeGenerator()
+    cg.add_line(f'#include <math.h>')
+    cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, __NEKRK_EXP__(x))")
+    cg.add_line(f'__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates'
                  f'(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4,'
                  f' const cfloat rcpT, const cfloat Ci[], cfloat* rates) ')
-    lines.append(f'{{')
-    lines.append(f"{si}// Regrouping of rate constants to eliminate redundant operations")
+    cg.add_line(f'{{')
+    cg.add_line(f"// Regrouping of rate constants to eliminate redundant operations", 1)
     var_str = ['A', 'beta', 'E_R']
     var = [A_new, beta_new_reduced, E_R_new_reduced]
-    lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
-                 f"k[{len(ids_new)}];")
-    lines.append(f"{si}// Compute the {len(ids_EB)} rate constants for which an evaluation is necessary")
-    lines.append(f"{si}for(unsigned int i=0; i<{len(ids_EB)}; ++i)")
-    lines.append(f"{si}{{")
-    lines.append(f"{di}cfloat blogT = beta[i]*lnT;")
-    lines.append(f"{di}cfloat E_RT = E_R[i]*rcpT;")
-    lines.append(f"{di}cfloat diff = blogT - E_RT;")
-    lines.append(f"{di}k[i] = __NEKRK_EXP__(A[i] + diff);")
-    lines.append(f"{si}}}")
-    lines.append(f"{set_k()}")
-    lines.append(f"")
-    lines.append(f"{si}// Correct rate constants based on reaction type")
-    lines.append(f"{si}cfloat Cm = 0;")
-    lines.append(f"{si}for(unsigned int i=0; i<{sp_len}; ++i)")
-    lines.append(f"{di}Cm += Ci[i];")
-    lines.append(f"")
-    lines.append(f"{reodrder_eff(rxn)}")
-    lines.append(f"")
-    lines.append(f"{corr_k(rxn)}")
-    lines.append(f"")
-    lines.append(f"{si}// Compute the gibbs energy")
+    cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+                 f"k[{len(ids_new)}];", 1)
+    cg.add_line(f"// Compute the {len(ids_EB)} rate constants for which an evaluation is necessary", 1)
+    cg.add_line(f"for(unsigned int i=0; i<{len(ids_EB)}; ++i)", 1)
+    cg.add_line(f"{{", 1)
+    cg.add_line(f"cfloat blogT = beta[i]*lnT;", 2)
+    cg.add_line(f"cfloat E_RT = E_R[i]*rcpT;", 2)
+    cg.add_line(f"cfloat diff = blogT - E_RT;", 2)
+    cg.add_line(f"k[i] = __NEKRK_EXP__(A[i] + diff);", 2)
+    cg.add_line(f"}}", 1)
+    cg.add_line(f"{set_k()}")
+    cg.add_line("")
+    cg.add_line(f"// Correct rate constants based on reaction type", 1)
+    cg.add_line(f"cfloat Cm = 0;", 1)
+    cg.add_line(f"for(unsigned int i=0; i<{sp_len}; ++i)", 1)
+    cg.add_line(f"Cm += Ci[i];", 2)
+    cg.add_line("")
+    cg.add_line(f"{reodrder_eff(rxn)}")
+    cg.add_line("")
+    cg.add_line(f"{corr_k(rxn)}")
+    cg.add_line("")
+    cg.add_line(f"// Compute the gibbs energy", 1)
     var_str = ['a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6']
     var = [a0, a1, a2, a3, a4, a5, a6]
-    lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
-                 f"gibbs0_RT[{sp_len}];")
-    lines.append(f"{get_thermo_prop('g_RT', unique_temp_split, len_unique_temp_splits)}")
-    lines.append(f"{si}// Group the gibbs exponentials")
-    lines.append(f"{si}for(unsigned int i=0; i<{sp_len}; ++i)")
-    lines.append(f"{di}gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);")
-    lines.append(f"")
-    lines.append(f"{si}// Compute the reciprocal of the gibbs exponential")
-    lines.append(f"{si}{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+    cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+                 f"gibbs0_RT[{sp_len}];", 1)
+    cg.add_line(f"{get_thermo_prop('g_RT', unique_temp_split, len_unique_temp_splits)}")
+    cg.add_line(f"// Group the gibbs exponentials", 1)
+    cg.add_line(f"for(unsigned int i=0; i<{sp_len}; ++i)", 1)
+    cg.add_line(f"gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);", 2)
+    cg.add_line("")
+    cg.add_line(f"// Compute the reciprocal of the gibbs exponential", 1)
+    cg.add_line(f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
                  f"int ids_rcp_gibbs[{len(ids_rcp_gibbs_reordered)}] = "
-                 f"{str(ids_rcp_gibbs_reordered).replace('[', '{').replace(']', '}')};")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
-                 f"rcp_gibbs0_RT[{len(ids_rcp_gibbs_reordered)}];")
-    lines.append(f"{si}for(unsigned int i=0; i<{len(ids_rcp_gibbs_reordered)}; ++i)")
-    lines.append(f"{di}rcp_gibbs0_RT[i] = {f(1.)}/gibbs0_RT[ids_rcp_gibbs[i]];")
-    lines.append(f"")
-    lines.append(f"{si}// Compute reverse rates")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
-                 f"k_rev[{rxn_len}]; ")
-    lines.append(f"{si}cfloat C0 = {f(const.one_atm / const.R)} * rcpT;")
-    lines.append(f"{si}cfloat rcpC0 = {f(const.R / const.one_atm)} * T;")
-    lines.append(f"{compute_k_rev(rxn)}")
-    lines.append(f"")
-    lines.append(f"{si}// Compute the reaction rates")
-    lines.append(f"{si}cfloat cR;")
-    lines.append(f"{compute_rates(rxn)}")
-    lines.append(f"}}")
+                 f"{str(ids_rcp_gibbs_reordered).replace('[', '{').replace(']', '}')};", 1)
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+                f"rcp_gibbs0_RT[{len(ids_rcp_gibbs_reordered)}];", 1)
+    cg.add_line(f"for(unsigned int i=0; i<{len(ids_rcp_gibbs_reordered)}; ++i)", 1)
+    cg.add_line(f"rcp_gibbs0_RT[i] = {f(1.)}/gibbs0_RT[ids_rcp_gibbs[i]];", 2)
+    cg.add_line("")
+    cg.add_line(f"// Compute reverse rates", 1)
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+                 f"k_rev[{rxn_len}]; ", 1)
+    cg.add_line(f"cfloat C0 = {f(const.one_atm / const.R)} * rcpT;", 1)
+    cg.add_line(f"cfloat rcpC0 = {f(const.R / const.one_atm)} * T;", 1)
+    cg.add_line(f"{compute_k_rev(rxn)}")
+    cg.add_line("")
+    cg.add_line(f"// Compute the reaction rates", 1)
+    cg.add_line(f"cfloat cR;", 1)
+    cg.add_line(f"{compute_rates(rxn)}")
+    cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1753,17 +1782,17 @@ def write_file_enthalpy_roll(file_name, output_dir, align_width, target, sp_ther
     var_str = ['a0', 'a1', 'a2', 'a3', 'a4', 'a5']
     var = [a0, a1, a2, a3, a4, a5]
 
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_enthalpy_RT(const cfloat lnT, const cfloat T, "
-                 f"const cfloat T2, const cfloat T3, const cfloat T4, const cfloat rcpT,cfloat h_RT[]) ")
-    lines.append(f"{{")
-    lines.append(f"{si}//Integration coefficients")
-    lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    lines.append(f"{get_thermo_prop('h_RT', unique_temp_split, len_unique_temp_splits)}")
-    lines.append(f"{reorder_thermo_prop('h_RT', unique_temp_split, ids_thermo_new, sp_len)}")
-    lines.append(f"}}")
+    cg = CodeGenerator()
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_enthalpy_RT(const cfloat lnT, const cfloat T, "
+                f"const cfloat T2, const cfloat T3, const cfloat T4, const cfloat rcpT,cfloat h_RT[]) ")
+    cg.add_line(f"{{")
+    cg.add_line(f"//Integration coefficients", 1)
+    cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
+    cg.add_line(f"{get_thermo_prop('h_RT', unique_temp_split, len_unique_temp_splits)}")
+    cg.add_line(f"{reorder_thermo_prop('h_RT', unique_temp_split, ids_thermo_new, sp_len)}")
+    cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1777,18 +1806,18 @@ def write_file_heat_capacity_roll(file_name, output_dir, align_width, target, sp
     var_str = ['a0', 'a1', 'a2', 'a3', 'a4']
     var = [a0, a1, a2, a3, a4]
 
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_molar_heat_capacity_R"
-                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
-                 f"const cfloat rcpT,cfloat cp_R[]) ")
-    lines.append(f"{{")
-    lines.append(f"{si}//Integration coefficients")
-    lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    lines.append(f"{get_thermo_prop('cp_R', unique_temp_split, len_unique_temp_splits)}")
-    lines.append(f"{reorder_thermo_prop('cp_R', unique_temp_split, ids_thermo_new, sp_len)}")
-    lines.append(f"}}")
+    cg = CodeGenerator()
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_molar_heat_capacity_R"
+                f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
+                f"const cfloat rcpT,cfloat cp_R[]) ")
+    cg.add_line(f"{{")
+    cg.add_line(f"{si}//Integration coefficients")
+    cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
+    cg.add_line(f"{get_thermo_prop('cp_R', unique_temp_split, len_unique_temp_splits)}")
+    cg.add_line(f"{reorder_thermo_prop('cp_R', unique_temp_split, ids_thermo_new, sp_len)}")
+    cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1807,24 +1836,24 @@ def write_file_conductivity_roll(file_name, output_dir, align_width, target, tra
     var_str = ['b0', 'b1', 'b2', 'b3', 'b4']
     var = [b0, b1, b2, b3, b4]
 
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_conductivity"
-                 f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[])")
-    lines.append(f"{{")
-    lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    lines.append(f"{si}cfloat lambda_k, sum1=0., sum2=0.;")
-    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
-    lines.append(f"{si}{{")
-    lines.append(f"{di}lambda_k = b0[k] + b1[k]*lnT + b2[k]*lnT2 + b3[k]*lnT3 + b4[k]*lnT4;")
-    lines.append(f"{di}sum1 += nXi[k]*lambda_k;")
-    lines.append(f"{di}sum2 += nXi[k]/lambda_k;")
-    lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"{si}return sum1/rcpMbar + rcpMbar/sum2;")
-    lines.append(f"")
-    lines.append(f"}}")
+    cg = CodeGenerator()
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_conductivity"
+                f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[])")
+    cg.add_line(f"{{")
+    cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
+    cg.add_line(f"cfloat lambda_k, sum1=0., sum2=0.;", 1)
+    cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
+    cg.add_line(f"{{", 1)
+    cg.add_line(f"lambda_k = b0[k] + b1[k]*lnT + b2[k]*lnT2 + b3[k]*lnT3 + b4[k]*lnT4;", 2)
+    cg.add_line(f"sum1 += nXi[k]*lambda_k;", 2)
+    cg.add_line(f"sum2 += nXi[k]/lambda_k;", 2)
+    cg.add_line(f"}}", 1)
+    cg.add_line("")
+    cg.add_line(f"return sum1/rcpMbar + rcpMbar/sum2;", 1)
+    cg.add_line("")
+    cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1852,42 +1881,42 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, transp
     var2_str = ['C1', 'C2']
     var2 = [C1, C2]
 
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_viscosity"
-                 f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[]) ")
-    lines.append(f"{{")
-    lines.append(f"{write_const_expression(align_width, target, True, var1_str, var1)}")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} mue[{sp_len}];")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} rcp_mue[{sp_len}];")
-    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
-    lines.append(f"{si}{{")
-    lines.append(f"{di}mue[k] = a0[k] + a1[k]*lnT + a2[k]*lnT2 + a3[k]*lnT3 + a4[k]*lnT4;")
-    lines.append(f"{di}rcp_mue[k] = 1./mue[k];")
-    lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"{write_const_expression(align_width, target, True, var2_str, var2)}")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
-                 f"sums[{sp_len}]={{0.}};")
-    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
-    lines.append(f"{si}{{")
-    lines.append(f"{di}for(unsigned int j=0; j<{sp_len}; j++)")
-    lines.append(f"{di}{{")
-    lines.append(f"{ti}unsigned int idx = {sp_len}*k+j;")
-    lines.append(f"{ti}cfloat sqrt_Phi_kj = C1[idx] + C2[idx]*mue[k]*rcp_mue[j];")
-    lines.append(f"{ti}sums[k] += nXi[j]*sqrt_Phi_kj*sqrt_Phi_kj;")
-    lines.append(f"{di}}}")
-    lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"{si}cfloat vis = 0.;")
-    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
-    lines.append(f"{si}{{")
-    lines.append(f"{di}vis += nXi[k]*mue[k]*mue[k]/sums[k];")
-    lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"{si}return vis;")
-    lines.append(f"}}")
+    cg = CodeGenerator()
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_viscosity"
+                f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[]) ")
+    cg.add_line(f"{{")
+    cg.add_line(f"{write_const_expression(align_width, target, True, var1_str, var1)}")
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} mue[{sp_len}];", 1)
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} rcp_mue[{sp_len}];", 1)
+    cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
+    cg.add_line(f"{{", 1)
+    cg.add_line(f"mue[k] = a0[k] + a1[k]*lnT + a2[k]*lnT2 + a3[k]*lnT3 + a4[k]*lnT4;", 2)
+    cg.add_line(f"rcp_mue[k] = 1./mue[k];", 2)
+    cg.add_line(f"}}", 1)
+    cg.add_line("")
+    cg.add_line(f"{write_const_expression(align_width, target, True, var2_str, var2)}")
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+                 f"sums[{sp_len}]={{0.}};", 1)
+    cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
+    cg.add_line(f"{{", 1)
+    cg.add_line(f"for(unsigned int j=0; j<{sp_len}; j++)", 2)
+    cg.add_line(f"{{", 2)
+    cg.add_line(f"unsigned int idx = {sp_len}*k+j;", 3)
+    cg.add_line(f"cfloat sqrt_Phi_kj = C1[idx] + C2[idx]*mue[k]*rcp_mue[j];", 3)
+    cg.add_line(f"sums[k] += nXi[j]*sqrt_Phi_kj*sqrt_Phi_kj;", 3)
+    cg.add_line(f"}}", 2)
+    cg.add_line(f"}}", 1)
+    cg.add_line("")
+    cg.add_line(f"cfloat vis = 0.;", 1)
+    cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
+    cg.add_line(f"{{", 1)
+    cg.add_line(f"vis += nXi[k]*mue[k]*mue[k]/sums[k];", 2)
+    cg.add_line(f"}}", 1)
+    cg.add_line("")
+    cg.add_line(f"return vis;", 1)
+    cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1909,40 +1938,40 @@ def write_file_diffusivity_nonsym_roll(file_name, output_dir, align_width, targe
     var_str = ['d0', 'd1', 'd2', 'd3', 'd4']
     var = [d0, d1, d2, d3, d4]
 
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
+    cg = CodeGenerator()
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
                  f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
                  f"cfloat nXi[], dfloat* out, unsigned int stride) ")
-    lines.append(f"{{")
-    lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
-                 f"sums[{sp_len}]={{0.}};")
-    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
-    lines.append(f"{si}{{")
-    lines.append(f"{di}for(unsigned int j=0; j<{sp_len}; j++)")
-    lines.append(f"{di}{{")
-    lines.append(f"{ti}if (k != j) {{")
-    lines.append(f"{qi}unsigned int idx = k*{sp_len}+j;")
+    cg.add_line(f"{{")
+    cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+                f"sums[{sp_len}]={{0.}};", 1)
+    cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
+    cg.add_line(f"{{", 1)
+    cg.add_line(f"for(unsigned int j=0; j<{sp_len}; j++)", 2)
+    cg.add_line(f"{{", 2)
+    cg.add_line(f"if (k != j) {{", 3)
+    cg.add_line(f"unsigned int idx = k*{sp_len}+j;", 4)
     if rcp_diffcoeffs:
-        lines.append(f"{qi}cfloat rcp_Dkj = d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4;")
+        cg.add_line(f"cfloat rcp_Dkj = d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4;", 4)
     else:
-        lines.append(f"{qi}cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);")
-    lines.append(f"{qi}sums[k] += nXi[j]*rcp_Dkj;")
-    lines.append(f"{ti}}}")
-    lines.append(f"{di}}}")
-    lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"{write_const_expression(align_width, target, True, 'Wi', Mi)}")
-    lines.append(f"")
-    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
-    lines.append(f"{si}{{")
-    lines.append(f"{di}unsigned int idx = k*stride+id;")
-    lines.append(f"{di}out[idx] = scale * (1.0f - Wi[k]*nXi[k])/sums[k];")
-    lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"}}")
+        cg.add_line(f"cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);", 4)
+    cg.add_line(f"sums[k] += nXi[j]*rcp_Dkj;", 4)
+    cg.add_line(f"}}", 3)
+    cg.add_line(f"}}", 2)
+    cg.add_line(f"}}", 1)
+    cg.add_line("")
+    cg.add_line(f"{write_const_expression(align_width, target, True, 'Wi', Mi)}")
+    cg.add_line("")
+    cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
+    cg.add_line(f"{{", 1)
+    cg.add_line(f"unsigned int idx = k*stride+id;", 2)
+    cg.add_line(f"out[idx] = scale * (1.0f - Wi[k]*nXi[k])/sums[k];", 2)
+    cg.add_line(f"}}", 1)
+    cg.add_line("")
+    cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
@@ -1963,47 +1992,47 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
     var_str = ['d0', 'd1', 'd2', 'd3', 'd4']
     var = [d0, d1, d2, d3, d4]
 
-    lines = []
-    lines.append(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
-                 f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
-                 f"cfloat nXi[], dfloat* out, unsigned int stride) ")
-    lines.append(f"{{")
-    lines.append(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
-                 f"sums1[{sp_len}]={{0.}};")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
-                 f"sums2[{sp_len}]={{0.}};")
-    lines.append(f"{si}for(unsigned int k=1; k<{sp_len}; k++)")
-    lines.append(f"{si}{{")
-    lines.append(f"{di}for(unsigned int j=0; j<k; j++)")
-    lines.append(f"{di}{{")
-    lines.append(f"{ti}unsigned int idx = k*(k-1)/2+j;")
+    cg = CodeGenerator()
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
+                f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
+                f"cfloat nXi[], dfloat* out, unsigned int stride) ")
+    cg.add_line(f"{{")
+    cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+                 f"sums1[{sp_len}]={{0.}};", 1)
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+                 f"sums2[{sp_len}]={{0.}};", 1)
+    cg.add_line(f"for(unsigned int k=1; k<{sp_len}; k++)", 1)
+    cg.add_line(f"{{", 1)
+    cg.add_line(f"for(unsigned int j=0; j<k; j++)", 2)
+    cg.add_line(f"{{", 2)
+    cg.add_line(f"unsigned int idx = k*(k-1)/2+j;", 3)
     if rcp_diffcoeffs:
-        lines.append(f"{ti}cfloat rcp_Dkj = d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4;")
+        cg.add_line(f"cfloat rcp_Dkj = d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4;", 3)
     else:
-        lines.append(f"{ti}cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);")
-    lines.append(f"{ti}sums1[k] += nXi[j]*rcp_Dkj;")
-    lines.append(f"{ti}sums2[j] += nXi[k]*rcp_Dkj;")
-    lines.append(f"{di}}}")
-    lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"{si}{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} sums[{sp_len}];")
-    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
-    lines.append(f"{si}{{")
-    lines.append(f"{di}sums[k] = sums1[k] + sums2[k];")
-    lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"{write_const_expression(align_width, target, True, 'Wi', Mi)}")
-    lines.append(f"")
-    lines.append(f"{si}for(unsigned int k=0; k<{sp_len}; k++)")
-    lines.append(f"{si}{{")
-    lines.append(f"{di}unsigned int idx = k*stride+id;")
-    lines.append(f"{di}out[idx] = scale * (1.0f - Wi[k]*nXi[k])/sums[k];")
-    lines.append(f"{si}}}")
-    lines.append(f"")
-    lines.append(f"}}")
+        cg.add_line(f"cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);", 3)
+    cg.add_line(f"sums1[k] += nXi[j]*rcp_Dkj;", 3)
+    cg.add_line(f"sums2[j] += nXi[k]*rcp_Dkj;", 3)
+    cg.add_line(f"}}", 2)
+    cg.add_line(f"}}", 1)
+    cg.add_line("")
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} sums[{sp_len}];", 1)
+    cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
+    cg.add_line(f"{{", 1)
+    cg.add_line(f"sums[k] = sums1[k] + sums2[k];", 2)
+    cg.add_line(f"}}", 1)
+    cg.add_line("")
+    cg.add_line(f"{write_const_expression(align_width, target, True, 'Wi', Mi)}")
+    cg.add_line(f"")
+    cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
+    cg.add_line(f"{{", 1)
+    cg.add_line(f"unsigned int idx = k*stride+id;", 2)
+    cg.add_line(f"out[idx] = scale * (1.0f - Wi[k]*nXi[k])/sums[k];", 2)
+    cg.add_line(f"}}", 1)
+    cg.add_line("")
+    cg.add_line(f"}}")
 
-    write_module(output_dir, file_name, f'{code(lines)}')
+    cg.write_to_file(output_dir, file_name)
     return 0
 
 
