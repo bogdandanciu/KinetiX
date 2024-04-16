@@ -25,7 +25,6 @@ from utils import cube
 from utils import polynomial_regression
 from utils import set_precision, f, f_sci_not
 from utils import sum_of_list, partition, imul
-from utils import si, di, ti, qi, new_line
 from utils import FLOAT_MIN, FLOAT_MAX
 from utils import CodeGenerator
 import constants as const
@@ -570,7 +569,7 @@ def write_reaction(idx, r, loop_gibbsexp):
         cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
         cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
                     f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
-        cg.add_line(f"{si}k = k_inf * Pr/(1 + Pr);", 1)
+        cg.add_line(f"k = k_inf * Pr/(1 + Pr);", 1)
     elif r.type == 'Troe':
         cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
         cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
@@ -578,7 +577,7 @@ def write_reaction(idx, r, loop_gibbsexp):
         cg.add_line(f"logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);", 1)
         # Add checks for troe coefficients
         if r.troe.A == 0:
-            cg.add_line(f"{si}logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+            cg.add_line(f"logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
         elif r.troe.A == 1:
             cg.add_line(f"logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
@@ -613,14 +612,14 @@ def write_reaction(idx, r, loop_gibbsexp):
     else:
         pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
         if loop_gibbsexp:
-            cg.add_line(f"{si}k_rev = {compute_k_rev_unroll(r)}", 1)
+            cg.add_line(f"k_rev = {compute_k_rev_unroll(r)}", 1)
         else:
-            cg.add_line(f"{si}k_rev = __NEKRK_EXP_OVERFLOW__("
+            cg.add_line(f"k_rev = __NEKRK_EXP_OVERFLOW__("
                         f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
                         f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
         cg.add_line(f"Rr = k_rev * {phase_space(r.products)};", 1)
-        cg.add_line(f"{si}cR = k * (Rf - Rr);", 1)
-    cg.add_line(f"#ifdef DEBUG", 1)
+        cg.add_line(f"cR = k * (Rf - Rr);", 1)
+    cg.add_line(f"#ifdef DEBUG")
     cg.add_line(f'printf("{idx + 1}: %+.15e\\n", cR);', 1)
     cg.add_line(f"#endif")
     for specie, net in enumerate(r.net):
@@ -685,7 +684,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             if idx == first_idx:
                 cg.add_line(f'k = {arrhenius(r.rate_constant)};', 1)
             else:
-                cg.add_line(f'{si}k *= '
+                cg.add_line(f'k *= '
                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
                             1)
         elif r.type == 'three-body':
@@ -974,7 +973,7 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxn_repA
     expression = lambda a: (f"{f(a[5])} * rcpT + {f(a[0] - a[6])} + {f(-a[0])} * lnT + "
                             f"{f(-a[1] / 2)} * T + {f((1. / 3. - 1. / 2.) * a[2])} * T2 + "
                             f"{f((1. / 4. - 1. / 3.) * a[3])} * T3 + {f((1. / 5. - 1. / 4.) * a[4])} * T4")
-    cg.add_line(f'{write_energy(f"{di}gibbs0_RT[", active_len, expression, sp_thermo)}')
+    cg.add_line(f'{write_energy(f"gibbs0_RT[", active_len, expression, sp_thermo)}')
     if loop_gibbsexp:
         # cg.add_line(f"cfloat rcp_gibbs0_RT[{active_len}];", 1)
         cg.add_line(f"for(unsigned int i=0; i<{active_len}; ++i)", 1)
@@ -1032,7 +1031,7 @@ def write_file_enthalpy_unroll(file_name, output_dir, sp_len, sp_thermo):
     cg.add_line(f"{{")
     expression = lambda a: (f'{f(a[0])} + {f(a[1] / 2)} * T + {f(a[2] / 3)} * T2 + '
                             f'{f(a[3] / 4)} * T3 + {f(a[4] / 5)} * T4 + {f(a[5])} * rcpT')
-    cg.add_line(f'{write_energy(f"{di}h_RT[", sp_len, expression, sp_thermo)}')
+    cg.add_line(f'{write_energy(f"h_RT[", sp_len, expression, sp_thermo)}')
     cg.add_line(f"}}")
 
     cg.write_to_file(output_dir, file_name)
@@ -1049,7 +1048,7 @@ def write_file_heat_capacity_unroll(file_name, output_dir, sp_len, sp_thermo):
                 f"const cfloat rcpT,cfloat* cp_R)")
     cg.add_line(f"{{")
     expression = lambda a: f'{f(a[0])} + {f(a[1])} * T + {f(a[2])} * T2 + {f(a[3])} * T3 + {f(a[4])} * T4'
-    cg.add_line(f'{write_energy(f"{di}cp_R[", sp_len, expression, sp_thermo)}')
+    cg.add_line(f'{write_energy(f"cp_R[", sp_len, expression, sp_thermo)}')
     cg.add_line(f"}}")
 
     cg.write_to_file(output_dir, file_name)
@@ -1098,13 +1097,13 @@ def write_file_viscosity_unroll(file_name, output_dir, group_vis, transport_poly
             denominator_parts = []
             for j in range(sp_len):
                 Va = sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j]))
-                part = f"{new_line}{di}nXi[{j}]*sq({f(Va)}+{f(Va * sqrt(sqrt(Mi[j] / Mi[k])))}*r{j}*v)"
+                part = f"{cg.new_line}{cg.di}nXi[{j}]*sq({f(Va)}+{f(Va * sqrt(sqrt(Mi[j] / Mi[k])))}*r{j}*v)"
                 denominator_parts.append(part)
             denominator = " + ".join(denominator_parts)
             cg.add_line("")
             cg.add_line(f"//{sp_names[k]}", 1)
             cg.add_line(f"v = {v_expr};", 1)
-            cg.add_line(f"vis += nXi[{k}]*sq(v)/({denominator}{new_line}{si});", 1)
+            cg.add_line(f"vis += nXi[{k}]*sq(v)/({denominator}{cg.new_line}{cg.si});", 1)
         cg.add_line(f"return vis;", 1)
         cg.add_line(f"}}")
     else:
@@ -1133,7 +1132,7 @@ def write_file_viscosity_unroll(file_name, output_dir, group_vis, transport_poly
                             f"/*rcp_*/sum_{k} = {f(1.)}/sum_{k};", 2)
             cg.add_line(f"}}", 1)
         cg.add_line("")
-        cg.add_line(f"""return {('+' + new_line).join(f"{ti if k > 0 else ' '}nXi[{k}]*sq(v{k}) * /*rcp_*/sum_{k}"
+        cg.add_line(f"""return {('+' + cg.new_line).join(f"{cg.ti if k > 0 else ' '}nXi[{k}]*sq(v{k}) * /*rcp_*/sum_{k}"
                                                            for k in range(sp_len))};""", 1)
         cg.add_line(f"}}")
 
@@ -1158,14 +1157,14 @@ def write_file_diffusivity_nonsym_unroll(file_name, output_dir, rcp_diffcoeffs,
         cg.add_line(f"out[{k}*stride+id] = scale * (1.0f - nekrk_molar_mass[{k}] * nXi[{k}]) / (", 1)
         if rcp_diffcoeffs:
             cg.add_line(
-                f"""{('+' + new_line).join(
-                    f"{di}nXi[{j}] * "
+                f"""{('+' + cg.new_line).join(
+                    f"{cg.di}nXi[{j}] * "
                     f"({evaluate_polynomial(transport_polynomials.diffusivity[k if k > j else j][j if k > j else k])})"
                     for j in list(range(k)) + list(range(k + 1, sp_len)))});""")
         else:
             cg.add_line(
-                f"""{('+' + new_line).join(
-                    f"{di}nXi[{j}] * "
+                f"""{('+' + cg.new_line).join(
+                    f"{cg.di}nXi[{j}] * "
                     f"(1/"
                     f"({evaluate_polynomial(transport_polynomials.diffusivity[k if k > j else j][j if k > j else k])}))"
                     for j in list(range(k)) + list(range(k + 1, sp_len)))});""")
@@ -1626,7 +1625,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             if hasattr(rxn[i], 'k0'):
                 cg.add_line(f"k[{i}] = tmp[{ids_new.index(rxn_len + i)}];", 1)
             else:
-                cg.add_line(f"{si}k[{i}] = tmp[{ids_new.index(i)}];", 1)
+                cg.add_line(f"k[{i}] = tmp[{ids_new.index(i)}];", 1)
         return cg.get_code()
 
     # Compute the gibbs energy
@@ -1811,7 +1810,7 @@ def write_file_heat_capacity_roll(file_name, output_dir, align_width, target, sp
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
                 f"const cfloat rcpT,cfloat cp_R[]) ")
     cg.add_line(f"{{")
-    cg.add_line(f"{si}//Integration coefficients")
+    cg.add_line(f"//Integration coefficients", 1)
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
     cg.add_line(f"{get_thermo_prop('cp_R', unique_temp_split, len_unique_temp_splits)}")
     cg.add_line(f"{reorder_thermo_prop('cp_R', unique_temp_split, ids_thermo_new, sp_len)}")

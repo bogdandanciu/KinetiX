@@ -18,11 +18,14 @@ class CodeGenerator:
     """
     def __init__(self, indent='    '):
         self.lines = []
-        self.indent = indent
+        self.si = indent  # single indent
+        self.di = 2 * indent  # double indent
+        self.ti = 3 * indent  # triple indent
+        self.new_line = '\n'  # new line
 
     def add_line(self, line, level=0):
         """Add a line of code with optional indentation."""
-        indented_line = f"{self.indent * level}{line}"
+        indented_line = f"{self.si * level}{line}"
         self.lines.append(indented_line)
 
     def get_code(self):
@@ -198,15 +201,6 @@ def polynomial_regression(X, Y, degree=4):
 
     return polynomial.polynomial.polyfit(X, Y, deg=degree, w=[1 / sq(y) for y in Y])
 
-
-""" Constant representing a new line character."""
-new_line = '\n'
-
-""" Indentation levels for output code."""
-si = '    '  # single indentation
-di = si+si  # double indentation
-ti = si+si+si  # triple indentation
-qi = si+si+si+si  # quadruple indentation
 
 """ Maximum and minimum floating point values"""
 FLOAT_MAX = 1e300
