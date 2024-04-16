@@ -123,11 +123,12 @@ int main(int argc, char **argv) {
 
     for(int i=0; i<Nrep; i++) {
       for(int n=0; n<Nstates; n++) {
-        const cfloat lnT = log(T);
+	const cfloat T_nondim = T/T;
+        const cfloat lnT = log(T_nondim);
         const cfloat lnT2 = lnT * lnT;
         const cfloat lnT3 = lnT * lnT * lnT;
         const cfloat lnT4 = lnT * lnT * lnT * lnT;
-        const cfloat sqrT = sqrt(T);
+        const cfloat sqrT = sqrt(T_nondim);
         
 	cfloat wrk1[__NEKRK_NSPECIES__];
         
@@ -140,7 +141,7 @@ int main(int argc, char **argv) {
 	}
 
         cond[n] = nekrk_conductivity(iW, lnT, lnT2, lnT3, lnT4, wrk1) * sqrT;
-        visc[n]  = nekrk_viscosity(lnT, lnT2, lnT3, lnT4, wrk1);
+        visc[n] = nekrk_viscosity(lnT, lnT2, lnT3, lnT4, wrk1) * sqrT;
         nekrk_density_diffusivity(n, sqrT, lnT, lnT2, lnT3, lnT4, wrk1, rhoD, Nstates);
       }
     }
