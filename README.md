@@ -8,8 +8,8 @@ Requirements:
 * C++17/C99 compatible compilers + GNU/Intel Fortran
 * MPI-3.1 or later
 * CMake version 3.18 or later
-* CUDA
 * Python v3.8 and later
+* CUDA
 
 Installation:
 
