@@ -1,5 +1,5 @@
 # Introduction
-Generation of thermochemical and transport properties
+Generation of reaction kinetics, thermodynamics and transport properties kernels
 
 ## How to build
 
