@@ -31,7 +31,7 @@
                               wrk1, rhoDi, offset);
 
     conductivity[id] =  sqrT * nekrk_conductivity(rcpMbar, lnT, lnT2,
-                                                              lnT3, lnT4, wrk1);
+                                                  lnT3, lnT4, wrk1);
 
     viscosity[id] = sqrT * nekrk_viscosity(lnT, lnT2, lnT3, lnT4, wrk1);
   }
