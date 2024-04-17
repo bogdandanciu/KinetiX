@@ -264,27 +264,27 @@ class Species:
         return (3. / 16. * sqrt(2. * pi / self._reduced_mass(a, b)) * pow(const.kB * T, 3. / 2.) /
                 (pi * sq(self._reduced_diameter(a, b)) * self._omega_star_11(a, b, T)))
 
-    def transport_polynomials(self, T0):
+    def transport_polynomials(self):
         T_rng = linspace(300., 3000., 50)
 
         class TransportPolynomials:
             pass
 
         transport_polynomials = TransportPolynomials()
-        transport_polynomials.viscosity = [
-            polynomial_regression(ln(T_rng / T0), [sqrt(self._viscosity(a, T) / sqrt(T)) for T in T_rng])
-            for a in range(self._sp_len)]
         transport_polynomials.conductivity = [
-            polynomial_regression(ln(T_rng / T0), [self._conductivity(a, T) / sqrt(T) for T in T_rng])
+            polynomial_regression(ln(T_rng), [self._conductivity(a, T) / sqrt(T) for T in T_rng])
+            for a in range(self._sp_len)]
+        transport_polynomials.viscosity = [
+            polynomial_regression(ln(T_rng), [sqrt(self._viscosity(a, T) / sqrt(T)) for T in T_rng])
             for a in range(self._sp_len)]
         if self.rcp_diffcoeffs:
             # Evaluate the reciprocal polynomial to avoid expensive divisions during runtime evaluation
             transport_polynomials.diffusivity = [
-                [polynomial_regression(ln(T_rng / T0), [((T * sqrt(T)) / self._diffusivity(a, b, T)) for T in T_rng])
+                [polynomial_regression(ln(T_rng), [((T * sqrt(T)) / self._diffusivity(a, b, T)) for T in T_rng])
                  for b in range(self._sp_len)] for a in range(self._sp_len)]
         else:
             transport_polynomials.diffusivity = [
-                [polynomial_regression(ln(T_rng / T0), [(self._diffusivity(a, b, T)) / (T * sqrt(T)) for T in T_rng])
+                [polynomial_regression(ln(T_rng), [(self._diffusivity(a, b, T)) / (T * sqrt(T)) for T in T_rng])
                  for b in range(self._sp_len)] for a in range(self._sp_len)]
         return transport_polynomials
 
@@ -2036,7 +2036,6 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
 
 
 def generate_files(mech_file=None, output_dir=None,
-                   temperature_ref=1000.0,
                    header_only=False, unroll_loops=False,
                    align_width=64, target=None,
                    loop_gibbsexp=False, group_rxn_repArrh=False,
@@ -2066,27 +2065,23 @@ def generate_files(mech_file=None, output_dir=None,
     species_len = len(species_names)
     active_sp_len = len(active_sp)
     reactions_len = len(reactions)
-
-    # Reference quantities
     Mi = species.molar_masses
-    T_ref = float(temperature_ref)
 
     # Load transport polynomials
     if transport and not header_only:
-        transport_polynomials = species.transport_polynomials(T_ref)
-        # need to multiply by dimensional sqrt(T): multiply by sqrt(T_ref) here and later on by sqrt(T_nondim)
-        transport_polynomials.viscosity = [[sqrt(sqrt(T_ref)) * p for p in P] for P in
-                                                transport_polynomials.viscosity]
-        transport_polynomials.conductivity = [[(sqrt(T_ref) / 2) * p for p in P] for P in
+        transport_polynomials = species.transport_polynomials()
+        transport_polynomials.conductivity = [[1/2 * p for p in P] for P in
                                                  transport_polynomials.conductivity]
+        transport_polynomials.viscosity = [[p for p in P] for P in
+                                                transport_polynomials.viscosity]
         if rcp_diffcoeffs:
             # The reciprocal polynomial is evaluated
             transport_polynomials.diffusivity = [
-                [[(const.R / sqrt(T_ref)) * p for p in P]
+                [[const.R * p for p in P]
                  for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
         else:
             transport_polynomials.diffusivity = [
-                [[(sqrt(T_ref) / const.R) * p for p in P]
+                [[1/const.R * p for p in P]
                  for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
 
     #########################
@@ -2169,7 +2164,6 @@ if __name__ == "__main__":
 
     generate_files(mech_file=args.mechanism,
                    output_dir=args.output,
-                   temperature_ref=args.temperatureRef,
                    header_only=args.header_only,
                    unroll_loops=args.unroll_loops,
                    align_width=args.align_width,

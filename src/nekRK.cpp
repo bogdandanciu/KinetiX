@@ -421,12 +421,12 @@ static void buildMechKernels(bool transport)
     includeProp["compiler_flags"] += " -include " + cacheDir + "/frates.inc";
 
     production_rates_fpmix_kernel = buildKernel("productionRates.okl",
-                                                 "productionRates",
+                                                "productionRates",
                                                  addOccaCompilerFlags(includeProp, kernel_properties_mixed));
 
     production_rates_fp32_kernel = buildKernel("productionRates.okl",
-                                                "productionRates",
-                                                addOccaCompilerFlags(includeProp, kernel_properties_fp32));
+                                               "productionRates",
+                                               addOccaCompilerFlags(includeProp, kernel_properties_fp32));
   }
 
   if (transport) {
@@ -632,7 +632,6 @@ void nekRK::build(double _ref_pressure,
                 "/generator/generate.py" +
                 " --mechanism " + yamlPath + 
         	" --output " + cacheDir + 
-        	" --temperatureRef " + nekRK::to_string_f(ref_temperature) +
         	" --align-width " + std::to_string(align_width) + 
         	" --target " + target;
     if (unroll_loops)
@@ -805,7 +804,8 @@ void nekRK::mixtureAvgTransportProps(int n_states,
          o_state, 
          o_conductivity, 
          o_viscosity,
-         o_density_diffusivity);
+         o_density_diffusivity,
+         ref_temperature);
 }
 
 void nekRK::thermodynamicProps(int n_states,

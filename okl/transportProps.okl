@@ -1,15 +1,15 @@
-@kernel void transport(
-  const int n_states,
-  const int offsetT,
-  const int offset,
-  const dfloat pressure,
-  @restrict const dfloat* state,
-  @restrict dfloat* conductivity,
-  @restrict dfloat* viscosity,
-  @restrict dfloat* rhoDi)
+@kernel void transport(const int n_states,
+                       const int offsetT,
+                       const int offset,
+                       const dfloat pressure,
+                       @restrict const dfloat* state,
+                       @restrict dfloat* conductivity,
+                       @restrict dfloat* viscosity,
+                       @restrict dfloat* rhoDi,
+                       const double Tref)
 {
   for(int id = 0; id < n_states; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
-    const cfloat T = state[id];
+    const cfloat T = Tref * state[id];
     const cfloat lnT = log(T);
     const cfloat sqrT = sqrt(T);
     const cfloat lnT2 = lnT * lnT;
@@ -27,12 +27,13 @@
       }
     }
 
-    nekrk_density_diffusivity(id, sqrT, lnT, lnT2, lnT3, lnT4,
-                              wrk1, rhoDi, offset);
-
     conductivity[id] =  sqrT * nekrk_conductivity(rcpMbar, lnT, lnT2,
                                                   lnT3, lnT4, wrk1);
 
     viscosity[id] = sqrT * nekrk_viscosity(lnT, lnT2, lnT3, lnT4, wrk1);
+
+    nekrk_density_diffusivity(id, sqrT, lnT, lnT2, lnT3, lnT4,
+                              wrk1, rhoDi, offset);
+
   }
 }
