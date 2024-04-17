@@ -123,12 +123,11 @@ int main(int argc, char **argv) {
 
     for(int i=0; i<Nrep; i++) {
       for(int n=0; n<Nstates; n++) {
-	const cfloat T_nondim = T/T;
-        const cfloat lnT = log(T_nondim);
+        const cfloat lnT = log(T);
         const cfloat lnT2 = lnT * lnT;
         const cfloat lnT3 = lnT * lnT * lnT;
         const cfloat lnT4 = lnT * lnT * lnT * lnT;
-        const cfloat sqrT = sqrt(T_nondim);
+        const cfloat sqrT = sqrt(T);
         
 	cfloat wrk1[__NEKRK_NSPECIES__];
         
