@@ -793,7 +793,7 @@ def write_const_expression(align_width, target, static, var_str, var):
     cg = CodeGenerator()
 
     if static:
-        if target == 'C++17':
+        if target == 'c++17':
             vtype = f'alignas({align_width}) static constexpr'
         else:
             vtype = 'const'
@@ -1511,24 +1511,24 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 ids_troe.append(ids_new.index(rxn_len + i))
             cg_troe.add_line("")
             cg_troe.add_line(
-                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
                 f"cfloat troe_A[{len(ids_troe_rxn)}] = {{{f_sci_not(troe_A)}}};", 1)
             cg_troe.add_line(
-                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
                 f"cfloat rcp_troe_T1[{len(ids_troe_rxn)}] = {{{f_sci_not(rcp_troe_T1)}}};", 1)
             cg_troe.add_line(
-                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
                 f"cfloat troe_T2[{len(ids_troe_rxn)}] = {{{f_sci_not(troe_T2)}}};" if not (
                     any([i == float('inf') for i in troe_T2])) else '', 1)
             cg_troe.add_line(
-                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
                 f"cfloat rcp_troe_T3[{len(ids_troe_rxn)}] = {{{f_sci_not(rcp_troe_T3)}}};", 1)
             cg_troe.add_line("")
             cg_troe.add_line(
-                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} int "
+                f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} int "
                 f"ids_troe[{len(ids_troe_rxn)}] = {str(ids_troe).replace('[', '{').replace(']', '}')};", 1)
             cg_troe.add_line(
-                f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+                f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
                 f"logFcent[{len(ids_troe_rxn)}];", 1)
             cg_troe.add_line(f"for(unsigned int i = 0; i<{len(ids_troe_rxn)}; ++i)", 1)
             cg_troe.add_line(f"{{", 1)
@@ -1582,24 +1582,24 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 ids_sri.append(ids_new.index(rxn_len + i))
             cg_sri.add_line("")
             cg_sri.add_line(
-                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
                 f"cfloat sri_A[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_A)}}};", 1)
             cg_sri.add_line(
-                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
                 f"cfloat sri_B[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_B)}}};", 1)
             cg_sri.add_line(
-                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
                 f"cfloat rcp_sri_C[{len(ids_sri_rxn)}] = {{{f_sci_not(rcp_sri_C)}}};" if not (
                     any([i == float('inf') for i in rcp_sri_C])) else '', 1)
             cg_sri.add_line(
-                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
                 f"cfloat sri_D[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_D)}}};", 1)
             cg_sri.add_line(
-                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+                f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
                 f"cfloat sri_E[{len(ids_sri_rxn)}] = {{{f_sci_not(sri_E)}}};", 1)
             cg_sri.add_line("")
             cg_sri.add_line(
-                f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} int "
+                f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} int "
                 f"ids_sri[{len(ids_sri_rxn)}] = {str(ids_sri).replace('[', '{').replace(']', '}')};", 1)
             cg_sri.add_line(f"for(unsigned int i = 0; i<{len(ids_sri_rxn)}; ++i)", 1)
             cg_sri.add_line(f"{{", 1)
@@ -1714,7 +1714,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     var_str = ['A', 'beta', 'E_R']
     var = [A_new, beta_new_reduced, E_R_new_reduced]
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
                  f"k[{len(ids_new)}];", 1)
     cg.add_line(f"// Compute the {len(ids_EB)} rate constants for which an evaluation is necessary", 1)
     cg.add_line(f"for(unsigned int i=0; i<{len(ids_EB)}; ++i)", 1)
@@ -1739,7 +1739,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     var_str = ['a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6']
     var = [a0, a1, a2, a3, a4, a5, a6]
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
                  f"gibbs0_RT[{sp_len}];", 1)
     cg.add_line(f"{get_thermo_prop('g_RT', unique_temp_split, len_unique_temp_splits)}")
     cg.add_line(f"// Group the gibbs exponentials", 1)
@@ -1747,16 +1747,16 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     cg.add_line(f"gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);", 2)
     cg.add_line("")
     cg.add_line(f"// Compute the reciprocal of the gibbs exponential", 1)
-    cg.add_line(f"{f'alignas({align_width}) static constexpr' if target=='C++17' else 'const'} "
+    cg.add_line(f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
                  f"int ids_rcp_gibbs[{len(ids_rcp_gibbs_reordered)}] = "
                  f"{str(ids_rcp_gibbs_reordered).replace('[', '{').replace(']', '}')};", 1)
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
                 f"rcp_gibbs0_RT[{len(ids_rcp_gibbs_reordered)}];", 1)
     cg.add_line(f"for(unsigned int i=0; i<{len(ids_rcp_gibbs_reordered)}; ++i)", 1)
     cg.add_line(f"rcp_gibbs0_RT[i] = {f(1.)}/gibbs0_RT[ids_rcp_gibbs[i]];", 2)
     cg.add_line("")
     cg.add_line(f"// Compute reverse rates", 1)
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
                  f"k_rev[{rxn_len}]; ", 1)
     cg.add_line(f"cfloat C0 = {f(const.one_atm / const.R)} * rcpT;", 1)
     cg.add_line(f"cfloat rcpC0 = {f(const.R / const.one_atm)} * T;", 1)
@@ -1885,8 +1885,8 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, transp
                 f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[]) ")
     cg.add_line(f"{{")
     cg.add_line(f"{write_const_expression(align_width, target, True, var1_str, var1)}")
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} mue[{sp_len}];", 1)
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} rcp_mue[{sp_len}];", 1)
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} mue[{sp_len}];", 1)
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} rcp_mue[{sp_len}];", 1)
     cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
     cg.add_line(f"mue[k] = a0[k] + a1[k]*lnT + a2[k]*lnT2 + a3[k]*lnT3 + a4[k]*lnT4;", 2)
@@ -1894,7 +1894,7 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, transp
     cg.add_line(f"}}", 1)
     cg.add_line("")
     cg.add_line(f"{write_const_expression(align_width, target, True, var2_str, var2)}")
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
                  f"sums[{sp_len}]={{0.}};", 1)
     cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
@@ -1943,7 +1943,7 @@ def write_file_diffusivity_nonsym_roll(file_name, output_dir, align_width, targe
                  f"cfloat nXi[], dfloat* out, unsigned int stride) ")
     cg.add_line(f"{{")
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
                 f"sums[{sp_len}]={{0.}};", 1)
     cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
@@ -1997,9 +1997,9 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
                 f"cfloat nXi[], dfloat* out, unsigned int stride) ")
     cg.add_line(f"{{")
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
                  f"sums1[{sp_len}]={{0.}};", 1)
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} "
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
                  f"sums2[{sp_len}]={{0.}};", 1)
     cg.add_line(f"for(unsigned int k=1; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
@@ -2015,7 +2015,7 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
     cg.add_line(f"}}", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='C++17' else 'cfloat'} sums[{sp_len}];", 1)
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} sums[{sp_len}];", 1)
     cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
     cg.add_line(f"sums[k] = sums1[k] + sums2[k];", 2)
