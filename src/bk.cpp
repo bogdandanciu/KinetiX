@@ -566,7 +566,7 @@ int main(int argc, char** argv)
     std::cout << "number of repetitions: " << nRep << '\n';
   }
 
-  const std::string target = (device.mode() == "Serial") ? "c++17" : device.mode();
+  const std::string target = (device.mode() == "Serial") ? "C++17" : device.mode();
   if(unroll_loops < 0) 
     unroll_loops = (device.mode() == "Serial") ? 0 : 1;
   const int align_width = (device.mode() == "Serial") ? 64 : 0;
