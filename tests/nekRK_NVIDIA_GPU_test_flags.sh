@@ -25,7 +25,7 @@ srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 
 rm -rf .cache/
 srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --loop-gibbsexp
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --loop-gibbsexp --group-rxn-repArrh
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll
 rm -rf .cache/
 srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --group-vis
 rm -rf .cache/
@@ -47,7 +47,7 @@ srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 
 rm -rf .cache/
 srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp --group-rxn-repArrh
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll
 rm -rf .cache/
 srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --group-vis
 rm -rf .cache/
@@ -69,7 +69,7 @@ srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 
 rm -rf .cache/
 srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --group-rxn-repArrh
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll
 rm -rf .cache/
 srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --group-vis
 rm -rf .cache/

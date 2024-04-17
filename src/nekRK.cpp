@@ -52,7 +52,7 @@ int group_size;
 bool verbose;
 bool unroll_loops;
 bool loop_gibbsexp;
-bool group_rxn_repArrh;
+bool group_rxnUnroll;
 bool group_vis;
 bool nonsymDij;
 bool fit_rcpDiffCoeffs;
@@ -464,7 +464,7 @@ void nekRK::init(const std::string &model_path,
                  int _group_size,
                  bool _unroll_loops,
                  bool _loop_gibbsexp,
-                 bool _group_rxn_repArrh,
+                 bool _group_rxnUnroll,
 		 bool _group_vis,
 		 bool _nonsymDij,
                  bool _fit_rcpDiffCoeffs,
@@ -485,7 +485,7 @@ void nekRK::init(const std::string &model_path,
               _group_size,
               _unroll_loops,
 	      _loop_gibbsexp,
-	      _group_rxn_repArrh,
+	      _group_rxnUnroll,
 	      _group_vis,
               _nonsymDij,
               _fit_rcpDiffCoeffs,
@@ -504,7 +504,7 @@ void nekRK::init(const std::string &model_path,
                  int _group_size,
                  bool _unroll_loops,
                  bool _loop_gibbsexp,
-                 bool _group_rxn_repArrh,
+                 bool _group_rxnUnroll,
 		 bool _group_vis,
 		 bool _nonsymDij,
                  bool _fit_rcpDiffCoeffs,
@@ -561,7 +561,7 @@ void nekRK::init(const std::string &model_path,
   group_size = std::max(_group_size, 32);
   unroll_loops = _unroll_loops;
   loop_gibbsexp = _loop_gibbsexp;
-  group_rxn_repArrh = _group_rxn_repArrh;
+  group_rxnUnroll = _group_rxnUnroll;
   group_vis = _group_vis;
   nonsymDij = _nonsymDij;
   fit_rcpDiffCoeffs = _fit_rcpDiffCoeffs;
@@ -638,8 +638,8 @@ void nekRK::build(double _ref_pressure,
       cmdline.append(" --unroll-loops");
     if (loop_gibbsexp)
       cmdline.append(" --loop-gibbsexp");
-    if (group_rxn_repArrh)
-      cmdline.append(" --group-rxn-repArrh");
+    if (group_rxnUnroll)
+      cmdline.append(" --group-rxnunroll");
     if (group_vis)
        cmdline.append(" --group-vis");
     if (nonsymDij)

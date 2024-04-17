@@ -392,7 +392,7 @@ int main(int argc, char** argv)
   int deviceIdFlag = 0;
   int unroll_loops = -1;
   bool loop_gibbsexp = false;
-  bool group_rxn_repArrh = false;
+  bool group_rxnUnroll = false;
   bool group_vis = false;
   bool nonsymDij = false;
   bool fit_rcpDiffCoeffs = false;
@@ -415,7 +415,7 @@ int main(int argc, char** argv)
       {"yaml-file", required_argument, 0, 'f'},
       {"device-id", required_argument, 0, 'i'},
       {"unroll-loops", required_argument, 0, 'u'},
-      {"group-rxn-repArrh", no_argument, 0, 'a'},
+      {"group-rxnUnroll", no_argument, 0, 'a'},
       {"loop-gibbsexp", no_argument, 0, 'x'},
       {"group-vis", no_argument, 0, 'v'},
       {"nonsymDij", no_argument, 0, 's'},
@@ -471,7 +471,7 @@ int main(int argc, char** argv)
       loop_gibbsexp = true;
       break;
     case 'a':
-      group_rxn_repArrh = true;
+      group_rxnUnroll = true;
       break;
     case 'v':
       group_vis = true;
@@ -497,7 +497,7 @@ int main(int argc, char** argv)
       printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n --yaml-file s"
               "[--mode 1|2] [--tool s] [--repetitions n] [--rates-fp32] [--cimode n] [--debug] "
 	      "[--block-size  n] [--device-id  n] [--unroll-loops n] [-loop-gibbsexp] "
-	      "[--group-rxn-repArrh] [--group-vis] [--nonsymDij] [--fit-rcpDiffCoeffs] \n");
+	      "[--group-rxnUnroll] [--group-vis] [--nonsymDij] [--fit-rcpDiffCoeffs] \n");
     exit(EXIT_FAILURE);
   }
 
@@ -579,7 +579,7 @@ int main(int argc, char** argv)
               blockSize,
 	      (bool) unroll_loops,
               loop_gibbsexp,
-              group_rxn_repArrh,
+              group_rxnUnroll,
               group_vis,
               nonsymDij,
               fit_rcpDiffCoeffs,

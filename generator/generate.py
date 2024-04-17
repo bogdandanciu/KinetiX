@@ -71,7 +71,7 @@ def get_parser():
                         action='store_true',
                         help='Loop calculation of gibbs exponential in case '
                              'the code is unrolled.')
-    parser.add_argument('--group-rxn-repArrh',
+    parser.add_argument('--group-rxnunroll',
                         required=False,
                         action='store_true',
                         help='Group reactions in the case of unrolled code '
@@ -953,7 +953,7 @@ def write_file_mech(file_name, output_dir, sp_names, sp_len, active_sp_len, rxn_
     return 0
 
 
-def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxn_repArrh,
+def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunroll,
                             reactions, active_len, sp_len, sp_thermo):
     """
     Write the 'rates.inc'('frates.inc') file with unrolled loop specification.
@@ -985,7 +985,7 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxn_repA
     cg.add_line(f'cfloat Cm = {"+".join([f"Ci[{specie}]" for specie in range(sp_len)])};', 1)
     cg.add_line(f"cfloat C0 = {f(const.one_atm / const.R)} * rcpT;", 1)
     cg.add_line(f"cfloat rcpC0 = {f(const.R / const.one_atm)} * T;", 1)
-    if group_rxn_repArrh:
+    if group_rxnunroll:
         cg.add_line(f"cfloat k, Rf, k_corr, Pr, logFcent, k_rev, Rr, cR;", 1)
     else:
         cg.add_line(f"cfloat k, Rf, k_inf, Pr, logFcent, k_rev, Rr, cR;", 1)
@@ -993,7 +993,7 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxn_repA
     cg.add_line(f"cfloat logPr, F, troe, troe_c, troe_n;", 1)
     cg.add_line("")
 
-    if group_rxn_repArrh:
+    if group_rxnunroll:
         rxn_grouped = {}
         for idx, r in enumerate(reactions):
             beta = r.rate_constant.temperature_exponent
@@ -2038,7 +2038,7 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
 def generate_files(mech_file=None, output_dir=None,
                    header_only=False, unroll_loops=False,
                    align_width=64, target=None,
-                   loop_gibbsexp=False, group_rxn_repArrh=False,
+                   loop_gibbsexp=False, group_rxnunroll=False,
                    transport=True, group_vis=False,
                    nonsymDij=False, rcp_diffcoeffs=False
                    ):
@@ -2109,7 +2109,7 @@ def generate_files(mech_file=None, output_dir=None,
                     new_rates_file = 'f' + rates_file
                 else:
                     new_rates_file = rates_file
-                write_file_rates_unroll(new_rates_file, output_dir, loop_gibbsexp, group_rxn_repArrh,
+                write_file_rates_unroll(new_rates_file, output_dir, loop_gibbsexp, group_rxnunroll,
                                         reactions, active_sp_len, species_len, species.thermodynamics)
             set_precision(32)
             write_file_enthalpy_unroll(enthalpy_file, output_dir,
@@ -2169,7 +2169,7 @@ if __name__ == "__main__":
                    align_width=args.align_width,
                    target=args.target,
                    loop_gibbsexp=args.loop_gibbsexp,
-                   group_rxn_repArrh=args.group_rxn_repArrh,
+                   group_rxnunroll=args.group_rxnunroll,
                    transport=args.transport,
                    group_vis=args.group_vis,
                    nonsymDij=args.nonsymDij,
