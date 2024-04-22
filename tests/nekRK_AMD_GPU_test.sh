@@ -16,33 +16,69 @@
 
 ulimit -s unlimited
 ##############
-#gri30-20 - 5M 
-srun bin/nekcrf_bk --backend HIP --n-states 238000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0
-rm -rf .cache/
-srun bin/nekcrf_bk --backend HIP --n-states 238000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1
-rm -rf .cache/
-srun bin/nekcrf_bk --backend HIP --n-states 238000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0 --block-size 256
-rm -rf .cache/
-srun bin/nekcrf_bk --backend HIP --n-states 238000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1 --block-size 256
-rm -rf .cache/
 
-#gri30-20 - 20M
-srun bin/nekcrf_bk --backend HIP --n-states 952000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0
+#LiDryer
 rm -rf .cache/
-srun bin/nekcrf_bk --backend HIP --n-states 952000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1
 rm -rf .cache/
-srun bin/nekcrf_bk --backend HIP --n-states 952000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0 --block-size 256
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --loop-gibbsexp
 rm -rf .cache/
-srun bin/nekcrf_bk --backend HIP --n-states 952000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1 --block-size 256
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll
 rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --group-vis
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --fit-rcpDiffCoeffs
+rm -rf .cache
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --fit-rcpDiffCoeffs --nonsymDij 
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 0
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 0 --fit-rcpDiffCoeffs
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 0 --fit-rcpDiffCoeffs --nonsymDij 
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --tool Pele
 
-#gri30-20 - 40M
-srun bin/nekcrf_bk --backend HIP --n-states 1904000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0
+#gri30 
 rm -rf .cache/
-srun bin/nekcrf_bk --backend HIP --n-states 1904000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1
 rm -rf .cache/
-srun bin/nekcrf_bk --backend HIP --n-states 1904000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 0 --block-size 256
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp
 rm -rf .cache/
-srun bin/nekcrf_bk --backend HIP --n-states 1904000 --repetitions 100 --mode 0 --yaml-file mechanisms/gri30-20.yaml --unroll-loops 1 --block-size 256
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll
 rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --group-vis
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --fit-rcpDiffCoeffs
+rm -rf .cache
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --fit-rcpDiffCoeffs --nonsymDij 
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 0
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 0 --fit-rcpDiffCoeffs
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 0 --fit-rcpDiffCoeffs --nonsymDij 
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --tool Pele
 
+#Konnov 
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --group-vis
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --fit-rcpDiffCoeffs
+rm -rf .cache
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --fit-rcpDiffCoeffs --nonsymDij 
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 0
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 0 --fit-rcpDiffCoeffs
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 0 --fit-rcpDiffCoeffs --nonsymDij 
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend HIP --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --tool Pele
