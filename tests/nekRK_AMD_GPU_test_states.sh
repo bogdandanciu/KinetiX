@@ -3,7 +3,7 @@
 #SBATCH -J nekRK
 #SBATCH -o %x-%j.out
 #SBATCH -e %x-%j.err
-#SBATCH -t 02:00:00
+#SBATCH -t 08:00:00
 #SBATCH -N 1
 #SBATCH -p standard-g
 #SBATCH --ntasks-per-node=2
