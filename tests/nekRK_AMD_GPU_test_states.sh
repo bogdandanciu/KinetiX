@@ -11,7 +11,7 @@
 
 # -------
 # 2560 GPU compute nodes
-# 4× NVIDIA MI250x GPUs
+# 4× AMD MI250x GPUs
 # -------
 
 ulimit -s unlimited
