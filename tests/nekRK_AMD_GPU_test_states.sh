@@ -14,6 +14,11 @@
 # 4× AMD MI250x GPUs
 # -------
 
+#module purge
+#module load PrgEnv-gnu rocm craype-accel-amd-gfx90a craype-x86-trento cray-python
+#module unload cray-libsci
+#module list
+
 ulimit -s unlimited
 ##############
 
