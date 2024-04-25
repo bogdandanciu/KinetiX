@@ -402,7 +402,6 @@ static void buildMechKernels(bool transport)
 
   {
     occa::properties includeProp;
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
@@ -414,7 +413,6 @@ static void buildMechKernels(bool transport)
 
   {
     occa::properties includeProp;
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
@@ -432,7 +430,6 @@ static void buildMechKernels(bool transport)
   if (transport) {
 
     occa::properties includeProp;
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.cpp";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fconductivity.inc";
     includeProp["compiler_flags"] += " -include " + cacheDir + "/fviscosity.inc";
