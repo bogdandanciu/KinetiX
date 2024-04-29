@@ -44,47 +44,51 @@ srun ../bin/nekrk_bk --backend CUDA --n-states 20000000 --repetitions 100 --mode
 srun ../bin/nekrk_bk --backend CUDA --n-states 20000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --tool Pele
 
 ###gri30 
-#5M
+# 2M
+rm -rf .cache/
+srun ../bin/nekrk_bk --backend CUDA --n-states 37037 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll --fit-rcpDiffCoeffs
+srun ../bin/nekrk_bk --backend CUDA --n-states 37037 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --tool Pele
+# 5M
 rm -rf .cache/
 srun ../bin/nekrk_bk --backend CUDA --n-states 92590 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll --fit-rcpDiffCoeffs
 srun ../bin/nekrk_bk --backend CUDA --n-states 92590 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --tool Pele
-#10M
+# 10M
 srun ../bin/nekrk_bk --backend CUDA --n-states 185180 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll --fit-rcpDiffCoeffs
 srun ../bin/nekrk_bk --backend CUDA --n-states 185180 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --tool Pele
-#20M
+# 20M
 srun ../bin/nekrk_bk --backend CUDA --n-states 370360 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll --fit-rcpDiffCoeffs
 srun ../bin/nekrk_bk --backend CUDA --n-states 370360 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --tool Pele
-#50M
+# 50M
 srun ../bin/nekrk_bk --backend CUDA --n-states 925900 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll --fit-rcpDiffCoeffs
 srun ../bin/nekrk_bk --backend CUDA --n-states 925900 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --tool Pele
-#100M
+# 100M
 srun ../bin/nekrk_bk --backend CUDA --n-states 1851800 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll --fit-rcpDiffCoeffs
 srun ../bin/nekrk_bk --backend CUDA --n-states 1851800 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --tool Pele
-#200M
+# 200M
 srun ../bin/nekrk_bk --backend CUDA --n-states 3703600 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll --fit-rcpDiffCoeffs
 srun ../bin/nekrk_bk --backend CUDA --n-states 3703600 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --tool Pele
 
 ###Konnov 
-#2M
+# 2M
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 15384 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs
+srun ../bin/nekrk_bk --backend CUDA --n-states 15384 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs --group-vis
 srun ../bin/nekrk_bk --backend CUDA --n-states 15384 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --tool Pele
-#5M
-srun ../bin/nekrk_bk --backend CUDA --n-states 38460 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs
+# 5M
+srun ../bin/nekrk_bk --backend CUDA --n-states 38460 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs --group-vis
 srun ../bin/nekrk_bk --backend CUDA --n-states 38460 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --tool Pele
-#10M
-srun ../bin/nekrk_bk --backend CUDA --n-states 76920 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs
+# 10M
+srun ../bin/nekrk_bk --backend CUDA --n-states 76920 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs --group-vis
 srun ../bin/nekrk_bk --backend CUDA --n-states 76920 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --tool Pele
-#20M
-srun ../bin/nekrk_bk --backend CUDA --n-states 153840 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs
+# 20M
+srun ../bin/nekrk_bk --backend CUDA --n-states 153840 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs --group-vis
 srun ../bin/nekrk_bk --backend CUDA --n-states 153840 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --tool Pele
-#50M
-srun ../bin/nekrk_bk --backend CUDA --n-states 384600 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs
+# 50M
+srun ../bin/nekrk_bk --backend CUDA --n-states 384600 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs --group-vis
 srun ../bin/nekrk_bk --backend CUDA --n-states 384600 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --tool Pele
-#100M
-srun ../bin/nekrk_bk --backend CUDA --n-states 769200 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs
+# 100M
+srun ../bin/nekrk_bk --backend CUDA --n-states 769200 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs --group-vis
 srun ../bin/nekrk_bk --backend CUDA --n-states 769200 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --tool Pele
-#200M
-srun ../bin/nekrk_bk --backend CUDA --n-states 1538400 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs
+# 200M
+srun ../bin/nekrk_bk --backend CUDA --n-states 1538400 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --fit-rcpDiffCoeffs --group-vis
 srun ../bin/nekrk_bk --backend CUDA --n-states 1538400 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --tool Pele
 
