@@ -85,7 +85,7 @@ def partition(pred, iterable):
 
 
 """ Variable representing the floating point precision of generated files."""
-precision = 64
+precision = 'FP64'
 
 
 def set_precision(new_value):
@@ -103,13 +103,13 @@ def f(c):
     """
 
     global precision
-    if precision == 64:
+    if precision == 'FP64':
         if c == 0.:
             return '0.'
         if c == 1.:
             return '1.'
         return repr(c)
-    elif precision == 32:
+    elif precision == 'FP32':
         if not is_finite(single(c)):
             print(f'/!\\ WARNING: {c} constant already overflows single precision')
         return f'{c}f'
@@ -124,12 +124,12 @@ def f_sci_not(x):
     """
 
     global precision
-    if precision == 64:
+    if precision == 'FP64':
         if hasattr(x, '__iter__'):
             return ', '.join(['{:.16e}'.format(i) for i in x])
         else:
             return "{:.16e}".format(x)
-    elif precision == 32:
+    elif precision == 'FP32':
         if hasattr(x, '__iter__'):
             return ', '.join(['{:.16e}f'.format(i) for i in x])
         else:

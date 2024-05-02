@@ -2102,10 +2102,10 @@ def generate_files(mech_file=None, output_dir=None,
     else:
         write_file_mech(mech_file, output_dir, species_names, species_len, active_sp_len, reactions_len, Mi)
         if unroll_loops:  # Unrolled code
-            precisions = [32, 64]
+            precisions = ['FP32', 'FP64']
             for p in precisions:
                 set_precision(p)
-                if p == 32:
+                if p == 'FP32':
                     new_rates_file = 'f' + rates_file
                 else:
                     new_rates_file = rates_file
@@ -2128,16 +2128,16 @@ def generate_files(mech_file=None, output_dir=None,
                     write_file_diffusivity_unroll(diffusivity_file, output_dir, rcp_diffcoeffs,
                                                   transport_polynomials, species_len, Mi)
         else:  # Rolled code
-            precisions = [32, 64]
+            precisions = ['FP32', 'FP64']
             for p in precisions:
                 set_precision(p)
-                if p == 32:
+                if p == 'FP32':
                     new_rates_file = 'f' + rates_file
                 else:
                     new_rates_file = rates_file
                 write_file_rates_roll(new_rates_file, output_dir, align_width, target,
                                       species.thermodynamics, species_len, reactions, reactions_len)
-            set_precision(32)
+            set_precision('FP32')
             write_file_enthalpy_roll(enthalpy_file, output_dir, align_width, target,
                                      species.thermodynamics, species_len)
             write_file_heat_capacity_roll(heat_capacity_file, output_dir, align_width, target,
