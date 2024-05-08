@@ -574,16 +574,16 @@ def write_reaction(idx, r, loop_gibbsexp):
         cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
         cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
                     f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
-        cg.add_line(f"logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);", 1)
+        cg.add_line(f"logPr = log10(Pr + CFLOAT_MIN);", 1)
         # Add checks for troe coefficients
         if r.troe.A == 0:
-            cg.add_line(f"logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+            cg.add_line(f"logFcent = log10(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
         elif r.troe.A == 1:
-            cg.add_line(f"logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+            cg.add_line(f"logFcent = log10(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
                          f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
         else:
-            cg.add_line(f"logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+            cg.add_line(f"logFcent = log10({1 - r.troe.A}*exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
                         f"{r.troe.A}*exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
                         f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
         cg.add_line(f"troe_c = -.4 - .67 * logFcent;", 1)
@@ -714,16 +714,16 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                             1)
             cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
                         f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
-            cg.add_line(f"logPr = __NEKRK_LOG10__(Pr + CFLOAT_MIN);", 1)
+            cg.add_line(f"logPr = log10(Pr + CFLOAT_MIN);", 1)
             # Add checks for troe coefficients
             if r.troe.A == 0:
-                cg.add_line(f"logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                cg.add_line(f"logFcent = log10(exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
                              f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
             elif r.troe.A == 1:
-                cg.add_line(f"logFcent = __NEKRK_LOG10__(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
+                cg.add_line(f"logFcent = log10(exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
             else:
-                cg.add_line(f"logFcent = __NEKRK_LOG10__({1 - r.troe.A}*exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
+                cg.add_line(f"logFcent = log10({1 - r.troe.A}*exp({-1. / (r.troe.T3 + FLOAT_MIN)}*T) + "
                             f"{r.troe.A}*exp({-1. / (r.troe.T1 + FLOAT_MIN)}*T)"
                             f"{f' + exp({-r.troe.T2}*rcpT)' if r.troe.T2 < float('inf') else ''});", 1)
             cg.add_line(f"troe_c = -.4 - .67 * logFcent;", 1)
@@ -1533,7 +1533,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg_troe.add_line(f"for(unsigned int i = 0; i<{len(ids_troe_rxn)}; ++i)", 1)
             cg_troe.add_line(f"{{", 1)
             cg_troe.add_line(
-                f"logFcent[i] = __NEKRK_LOG10__(({f(1.)} - troe_A[i])*exp(-T*rcp_troe_T3[i]) + "
+                f"logFcent[i] = log10(({f(1.)} - troe_A[i])*exp(-T*rcp_troe_T3[i]) + "
                 f"troe_A[i]*exp(-T*rcp_troe_T1[i]){f'+ exp(-troe_T2[i]*rcpT)' if troe_T2[0] < float('inf') else ''});",
                 2)
             cg_troe.add_line(f"}}", 1)
@@ -1544,7 +1544,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg_troe.add_line(
                 f"cfloat troe_n = {f(0.75)} - {f(1.27)} * logFcent[i];", 2)
             cg_troe.add_line(
-                f"cfloat logPr = __NEKRK_LOG10__(k[ids_troe[i]] + CFLOAT_MIN);", 2)
+                f"cfloat logPr = log10(k[ids_troe[i]] + CFLOAT_MIN);", 2)
             cg_troe.add_line(
                 f"cfloat troe = (troe_c + logPr)/(troe_n - {f(0.14)}*(troe_c + logPr)+CFLOAT_MIN);", 2)
             cg_troe.add_line(
@@ -1604,7 +1604,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg_sri.add_line(f"for(unsigned int i = 0; i<{len(ids_sri_rxn)}; ++i)", 1)
             cg_sri.add_line(f"{{", 1)
             cg_sri.add_line(
-                f"cfloat logPr = __NEKRK_LOG10__(k[ids_sri[i]] + CFLOAT_MIN);", 2)
+                f"cfloat logPr = log10(k[ids_sri[i]] + CFLOAT_MIN);", 2)
             cg_sri.add_line(f"cfloat F = sri_D[i]*pow(T, sri_E[i])*"
                                   f"pow(sri_A[i]*exp(-sri_B[i]*rcpT)+exp(-rcp_sri_C[i]*T), 1./(1.+logPr*logPr));", 2)
             cg_sri.add_line(f"k[ids_sri[i]] /= (1.+k[ids_sri[i]]);", 2)
