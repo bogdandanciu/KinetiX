@@ -2111,7 +2111,7 @@ def generate_files(mech_file=None, output_dir=None,
                     new_rates_file = rates_file
                 write_file_rates_unroll(new_rates_file, output_dir, loop_gibbsexp, group_rxnunroll,
                                         reactions, active_sp_len, species_len, species.thermodynamics)
-            set_precision(32)
+            set_precision('FP32')
             write_file_enthalpy_unroll(enthalpy_file, output_dir,
                                        species_len, species.thermodynamics)
             write_file_heat_capacity_unroll(heat_capacity_file, output_dir,
