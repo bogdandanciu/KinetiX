@@ -531,7 +531,7 @@ def write_reaction(idx, r, loop_gibbsexp):
         A, beta, E = (
             rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
         if beta == 0 and E != 0:
-            expression = f'__NEKRK_EXP__({f(ln(A))} + {f(-E)}*rcpT)'
+            expression = f'exp({f(ln(A))} + {f(-E)}*rcpT)'
         elif beta == 0 and E == 0:
             expression = f'{f(A)}'
         elif beta != 0 and E == 0:
@@ -544,9 +544,9 @@ def write_reaction(idx, r, loop_gibbsexp):
             elif beta == 2 and E == 0:
                 expression = f'{f(A)}*T*T'
             else:
-                expression = f'__NEKRK_EXP__({f(ln(A))} + {f(beta)}*lnT)'
+                expression = f'exp({f(ln(A))} + {f(beta)}*lnT)'
         else:
-            expression = f'__NEKRK_EXP__({f(ln(A))} + {f(beta)}*lnT + {f(-E)}*rcpT)'
+            expression = f'exp({f(ln(A))} + {f(beta)}*lnT + {f(-E)}*rcpT)'
         return expression
 
     def arrhenius_diff(rc):
@@ -554,7 +554,7 @@ def write_reaction(idx, r, loop_gibbsexp):
             rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
         A0, beta0, E0 = r.k0.preexponential_factor, r.k0.temperature_exponent, r.k0.activation_temperature
         expression = (
-            f"__NEKRK_EXP__("
+            f"exp("
             f"{f'{f(-E0 + E_inf)}*rcpT+' if (E0 - E_inf) != 0 else ''}"
             f"{f'{f(beta0 - beta_inf)}*lnT+' if (beta0 - beta_inf) != 0 else ''}{f(ln(A0) - ln(A_inf))})"
             if (A0 - A_inf) != 0 and ((beta0 - beta_inf) != 0 or (E0 - E_inf) != 0) else f'{f(A0 / A_inf)}'
@@ -589,7 +589,7 @@ def write_reaction(idx, r, loop_gibbsexp):
         cg.add_line(f"troe_c = -.4 - .67 * logFcent;", 1)
         cg.add_line(f"troe_n = .75 - 1.27 * logFcent;", 1)
         cg.add_line(f"troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));", 1)
-        cg.add_line(f"F = __NEKRK_POW__(10, logFcent/(1.0 + troe*troe));", 1)
+        cg.add_line(f"F = pow(10, logFcent/(1.0 + troe*troe));", 1)
         cg.add_line(f"k = k_inf * Pr/(1 + Pr) * F;", 1)
     elif r.type == 'SRI':
         cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
@@ -650,7 +650,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             A, beta, E = (
                 rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
             if beta == 0 and E != 0:
-                expression = f'__NEKRK_EXP__({f(ln(A))} + {f(-E)}*rcpT)'
+                expression = f'exp({f(ln(A))} + {f(-E)}*rcpT)'
             elif beta == 0 and E == 0:
                 expression = f'{f(A)}'
             elif beta != 0 and E == 0:
@@ -663,9 +663,9 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                 elif beta == 2 and E == 0:
                     expression = f'{f(A)}*T*T'
                 else:
-                    expression = f'__NEKRK_EXP__({f(ln(A))} + {f(beta)}*lnT)'
+                    expression = f'exp({f(ln(A))} + {f(beta)}*lnT)'
             else:
-                expression = f'__NEKRK_EXP__({f(ln(A))} + {f(beta)}*lnT + {f(-E)}*rcpT)'
+                expression = f'exp({f(ln(A))} + {f(beta)}*lnT + {f(-E)}*rcpT)'
             return expression
 
         def arrhenius_diff(rc):
@@ -673,7 +673,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                 rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
             A0, beta0, E0 = r.k0.preexponential_factor, r.k0.temperature_exponent, r.k0.activation_temperature
             expression = (
-                f"__NEKRK_EXP__("
+                f"exp("
                 f"{f'{f(-E0 + E_inf)}*rcpT+' if (E0 - E_inf) != 0 else ''}"
                 f"{f'{f(beta0 - beta_inf)}*lnT+' if (beta0 - beta_inf) != 0 else ''}{f(ln(A0) - ln(A_inf))})"
                 if (A0 - A_inf) != 0 and ((beta0 - beta_inf) != 0 or (E0 - E_inf) != 0) else f'{f(A0 / A_inf)}'
@@ -729,7 +729,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             cg.add_line(f"troe_c = -.4 - .67 * logFcent;", 1)
             cg.add_line(f"troe_n = .75 - 1.27 * logFcent;", 1)
             cg.add_line(f"troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));", 1)
-            cg.add_line(f"F = __NEKRK_POW__(10, logFcent/(1.0 + troe*troe));", 1)
+            cg.add_line(f"F = pow(10, logFcent/(1.0 + troe*troe));", 1)
             cg.add_line(f"k_corr = k * Pr/(1 + Pr) * F;", 1)
         elif r.type == 'SRI':
             if idx == first_idx:
@@ -964,7 +964,7 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunrol
 
     cg = CodeGenerator()
     cg.add_line(f"#include <math.h>")
-    cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, __NEKRK_EXP__(x))")
+    cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, exp(x))")
     cg.add_line(f"__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates"
                  f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
                  f"const cfloat rcpT, const cfloat Ci[], cfloat* rates) ")
@@ -978,7 +978,7 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunrol
         # cg.add_line(f"cfloat rcp_gibbs0_RT[{active_len}];", 1)
         cg.add_line(f"for(unsigned int i=0; i<{active_len}; ++i)", 1)
         cg.add_line(f"{{", 1)
-        cg.add_line(f"gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);", 2)
+        cg.add_line(f"gibbs0_RT[i] = exp(gibbs0_RT[i]);", 2)
         # cg.add_line(f"rcp_gibbs0_RT[i] = 1./gibbs0_RT[i];", 2)
         cg.add_line(f"}}", 1)
     cg.add_line("")
@@ -1548,7 +1548,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg_troe.add_line(
                 f"cfloat troe = (troe_c + logPr)/(troe_n - {f(0.14)}*(troe_c + logPr)+CFLOAT_MIN);", 2)
             cg_troe.add_line(
-                f"cfloat F = __NEKRK_POW__(10, logFcent[i]/({f(1.0)} + troe*troe));", 2)
+                f"cfloat F = pow(10, logFcent[i]/({f(1.0)} + troe*troe));", 2)
             cg_troe.add_line(f"k[ids_troe[i]] /= ({f(1.)}+k[ids_troe[i]]);", 2)
             cg_troe.add_line(f"k[ids_troe[i]] *= F;", 2)
             cg_troe.add_line(f"}}", 1)
@@ -1705,7 +1705,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
 
     cg = CodeGenerator()
     cg.add_line(f'#include <math.h>')
-    cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, __NEKRK_EXP__(x))")
+    cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, exp(x))")
     cg.add_line(f'__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates'
                  f'(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4,'
                  f' const cfloat rcpT, const cfloat Ci[], cfloat* rates) ')
@@ -1722,7 +1722,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     cg.add_line(f"cfloat blogT = beta[i]*lnT;", 2)
     cg.add_line(f"cfloat E_RT = E_R[i]*rcpT;", 2)
     cg.add_line(f"cfloat diff = blogT - E_RT;", 2)
-    cg.add_line(f"k[i] = __NEKRK_EXP__(A[i] + diff);", 2)
+    cg.add_line(f"k[i] = exp(A[i] + diff);", 2)
     cg.add_line(f"}}", 1)
     cg.add_line(f"{set_k()}")
     cg.add_line("")
@@ -1744,7 +1744,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     cg.add_line(f"{get_thermo_prop('g_RT', unique_temp_split, len_unique_temp_splits)}")
     cg.add_line(f"// Group the gibbs exponentials", 1)
     cg.add_line(f"for(unsigned int i=0; i<{sp_len}; ++i)", 1)
-    cg.add_line(f"gibbs0_RT[i] = __NEKRK_EXP__(gibbs0_RT[i]);", 2)
+    cg.add_line(f"gibbs0_RT[i] = exp(gibbs0_RT[i]);", 2)
     cg.add_line("")
     cg.add_line(f"// Compute the reciprocal of the gibbs exponential", 1)
     cg.add_line(f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
