@@ -16,7 +16,7 @@ class CodeGenerator:
     """
     A utility class for generating and writing structured code to files.
     """
-    def __init__(self, indent='    '):
+    def __init__(self, indent='  '):
         self.lines = []
         self.si = indent  # single indent
         self.di = 2 * indent  # double indent
