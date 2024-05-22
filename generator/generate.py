@@ -2035,12 +2035,18 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
     return 0
 
 
-def generate_files(mech_file=None, output_dir=None,
-                   header_only=False, unroll_loops=False,
-                   align_width=64, target=None,
-                   loop_gibbsexp=False, group_rxnunroll=False,
-                   transport=True, group_vis=False,
-                   nonsymDij=False, rcp_diffcoeffs=False
+def generate_files(mech_file=None,
+                   output_dir=None,
+                   header_only=False,
+                   unroll_loops=False,
+                   align_width=64,
+                   target=None,
+                   loop_gibbsexp=False,
+                   group_rxnunroll=False,
+                   transport=True,
+                   group_vis=False,
+                   nonsymDij=False,
+                   rcp_diffcoeffs=False
                    ):
     """
     Generate the production rates, thermodynamic and transport properties
