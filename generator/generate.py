@@ -498,19 +498,19 @@ def compute_k_rev_unroll(r):
     pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
     gibbs_terms = []
     gibbs_terms_div = []
-    inv_gibbs_terms = []
+    rcp_gibbs_terms = []
     for j, net in enumerate(r.net):
         if net > 0:
             for o in range(net):
                 gibbs_terms.append(f"gibbs0_RT[{j}]")
-    inv_gibbs_terms.append(f"1./(")
+    rcp_gibbs_terms.append(f"1./(")
     for k, net in enumerate(r.net):
         if net < 0:
             for n in range(abs(net)):
                 gibbs_terms_div.append(f"gibbs0_RT[{k}]")
-    inv_gibbs_terms.append(f"{'*'.join(gibbs_terms_div)}")
-    inv_gibbs_terms.append(f")")
-    gibbs_terms.append(''.join(inv_gibbs_terms))
+    rcp_gibbs_terms.append(f"{'*'.join(gibbs_terms_div)}")
+    rcp_gibbs_terms.append(f")")
+    gibbs_terms.append(''.join(rcp_gibbs_terms))
     k_rev = f"{'*'.join(gibbs_terms)}{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};"
     return k_rev
 
