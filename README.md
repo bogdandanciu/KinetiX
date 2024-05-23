@@ -18,6 +18,11 @@ mkdir build; cd build
 cmake [-DCMAKE_INSTALL_PREFIX=$NEKRK_PATH] [-DAMReX_GPU_BACKEND=CUDA] ..
 make -j4 install
 ```
+## Generator standalone usage 
+
+```sh
+python3 generator/generate.py --mechanism mechanisms/gri30.yaml --output out/mechanisms/gri
+```
 
 ## Benchmark Kernels
 
