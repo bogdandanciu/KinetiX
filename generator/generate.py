@@ -9,7 +9,6 @@ thermodynamic properties, and transport coefficients.
 import re
 import math
 import argparse
-from numpy import zeros
 from numpy import dot
 from numpy import pi
 from numpy import sqrt
