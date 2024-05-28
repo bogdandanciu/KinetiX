@@ -45,10 +45,6 @@ def get_parser():
                         required=True,
                         default="share/mechanisms",
                         help='Output directory.')
-    parser.add_argument('--temperatureRef',
-                        required=False,
-                        default=1000.0,
-                        help='Reference temperature.')
     parser.add_argument('--header-only',
                         required=False,
                         action='store_true',
