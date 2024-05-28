@@ -337,7 +337,7 @@ def get_reaction_from_model(sp_names, units, r):
 
     reaction = Reaction()
     reaction.description = r['equation']
-    # Regular expression to match third body reactions
+    # Regular expression to match third body and fall-off reactions
     third_body_pattern = re.compile(r'(\s*\(\+[^\)]+\))|(\s*\+\s*M\s*)')
     if version_info.minor >= 9:
         # print(r['equation'])
@@ -349,7 +349,7 @@ def get_reaction_from_model(sp_names, units, r):
              ]
         ]
     else:
-        # Regular expression to match third body reactions
+        # Regular expression to match third body and fall-off reactions
         third_body_pattern = re.compile(r'(\s*\(\+[^)]+\)$)|(\s*\+\s*M\s*$)')
         [reaction.reactants, reaction.products] = [
             [sum([c for (s, c) in side if s == specie]) for specie in sp_names] for side in
