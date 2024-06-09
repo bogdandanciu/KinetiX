@@ -181,8 +181,7 @@ class Species:
             return dot(P, [pow(x, k) for k in range(len(P))])
 
         def _quadratic_interpolation(x, y, x0):
-            return (
-                    ((x[1] - x[0]) * (y[2] - y[1]) - (y[1] - y[0]) * (x[2] - x[1])) /
+            return (((x[1] - x[0]) * (y[2] - y[1]) - (y[1] - y[0]) * (x[2] - x[1])) /
                     ((x[1] - x[0]) * (x[2] - x[0]) * (x[2] - x[1])) *
                     (x0 - x[0]) * (x0 - x[1]) + ((y[1] - y[0]) / (x[1] - x[0])) * (x0 - x[1]) + y[1])
 
