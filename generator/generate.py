@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Generate source code files for calculating chemical production rates,
+Generate source code files for computing chemical production rates,
 thermodynamic properties, and transport coefficients.
 """
 
