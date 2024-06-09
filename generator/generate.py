@@ -151,6 +151,8 @@ class Species:
         self._degrees_of_freedom = degrees_of_freedom
         self._polarizability = polarizability
         self._sp_len = sp_len
+        # Precompute log values for header_T_star
+        self._header_lnT_star = ln(const.header_T_star)
 
     def _interaction_well_depth(self, a, b):
         well_depth = self._well_depth
@@ -168,10 +170,9 @@ class Species:
 
     def _collision_integral(self, I0, table, fit, a, b, T):
         lnT_star = ln(self._T_star(a, b, T))
-        header_lnT_star = list(map(ln, const.header_T_star))
-        interp_start_index = min(
-            (1 + next(i for i, header_lnT_star in enumerate(header_lnT_star[1:])
-                      if lnT_star < header_lnT_star)) - 1, I0 + len(table) - 3)
+        header_lnT_star = self._header_lnT_star
+        interp_start_index = min((1 + next(i for i, header_lnT_star in enumerate(header_lnT_star[1:])
+                                           if lnT_star < header_lnT_star)) - 1, I0 + len(table) - 3)
         header_lnT_star_slice = header_lnT_star[interp_start_index:][:3]
         assert (len(header_lnT_star_slice) == 3)
         polynomials = fit[interp_start_index - I0:][:3]
