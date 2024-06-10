@@ -210,30 +210,6 @@ class Species:
         return (5. / 16. * sqrt(pi * molar_masses[a] / const.NA * const.kB * T) /
                 (self._omega_star_22(a, a, T) * pi * sq(diameter[a])))
 
-    def _conductivity(self, a, T):
-        (molar_masses, thermodynamics, well_depth,
-         rotational_relaxation, degrees_of_freedom) = (
-            self.molar_masses, self.thermodynamics, self._well_depth,
-            self._rotational_relaxation, self._degrees_of_freedom)
-        f_internal = (molar_masses[a] / const.NA / (const.kB * T) * self._diffusivity(a, a, T) /
-                      self._viscosity(a, T))
-        T_star = self._T_star(a, a, T)
-
-        def _fz(T_star):
-            return (1. + pow(pi, 3. / 2.) / sqrt(T_star) *
-                    (1. / 2. + 1. / T_star) + (1. / 4. * sq(pi) + 2.) / T_star)
-
-        # Scaling factor for temperature dependence of rotational relaxation:
-        # Kee, Coltrin [2003:12.112, 2017:11.115]
-        c1 = (2. / pi * (5. / 2. - f_internal) /
-              (rotational_relaxation[a] * _fz(298. * const.kB / well_depth[a]) /
-               _fz(T_star) + 2. / pi * (5. / 3. * degrees_of_freedom[a] + f_internal)))
-        f_trans = 5. / 2. * (1. - c1 * degrees_of_freedom[a] / (3. / 2.))
-        f_rot = f_internal * (1. + c1)
-        Cv = (thermodynamics[a].molar_heat_capacity_R(T) - 5. / 2. - degrees_of_freedom[a])
-        return ((self._viscosity(a, T) / (molar_masses[a] / const.NA)) * const.kB *
-                (f_trans * 3. / 2. + f_rot * degrees_of_freedom[a] + f_internal * Cv))
-
     def _reduced_mass(self, a, b):
         molar_masses = self.molar_masses
         return (molar_masses[a] / const.NA * molar_masses[b] / const.NA /
@@ -258,6 +234,30 @@ class Species:
     def _diffusivity(self, a, b, T):
         return (3. / 16. * sqrt(2. * pi / self._reduced_mass(a, b)) * pow(const.kB * T, 3. / 2.) /
                 (pi * sq(self._reduced_diameter(a, b)) * self._omega_star_11(a, b, T)))
+
+    def _conductivity(self, a, T):
+        (molar_masses, thermodynamics, well_depth,
+         rotational_relaxation, degrees_of_freedom) = (
+            self.molar_masses, self.thermodynamics, self._well_depth,
+            self._rotational_relaxation, self._degrees_of_freedom)
+        f_internal = (molar_masses[a] / const.NA / (const.kB * T) * self._diffusivity(a, a, T) /
+                      self._viscosity(a, T))
+        T_star = self._T_star(a, a, T)
+
+        def _fz(T_star):
+            return (1. + pow(pi, 3. / 2.) / sqrt(T_star) *
+                    (1. / 2. + 1. / T_star) + (1. / 4. * sq(pi) + 2.) / T_star)
+
+        # Scaling factor for temperature dependence of rotational relaxation:
+        # Kee, Coltrin [2003:12.112, 2017:11.115]
+        c1 = (2. / pi * (5. / 2. - f_internal) /
+              (rotational_relaxation[a] * _fz(298. * const.kB / well_depth[a]) /
+               _fz(T_star) + 2. / pi * (5. / 3. * degrees_of_freedom[a] + f_internal)))
+        f_trans = 5. / 2. * (1. - c1 * degrees_of_freedom[a] / (3. / 2.))
+        f_rot = f_internal * (1. + c1)
+        Cv = (thermodynamics[a].molar_heat_capacity_R(T) - 5. / 2. - degrees_of_freedom[a])
+        return ((self._viscosity(a, T) / (molar_masses[a] / const.NA)) * const.kB *
+                (f_trans * 3. / 2. + f_rot * degrees_of_freedom[a] + f_internal * Cv))
 
     def transport_polynomials(self):
         T_rng = linspace(300., 3000., 50)
