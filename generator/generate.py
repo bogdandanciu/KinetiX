@@ -2071,6 +2071,7 @@ def generate_files(mech_file=None,
     # Load transport polynomials
     if transport and not header_only:
         transport_polynomials = species.transport_polynomials()
+        # Includes division by 2
         transport_polynomials.conductivity = [[1/2 * p for p in P] for P in
                                                  transport_polynomials.conductivity]
         transport_polynomials.viscosity = [[p for p in P] for P in
