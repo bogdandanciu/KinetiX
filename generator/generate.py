@@ -239,24 +239,22 @@ class Species:
          rotational_relaxation, degrees_of_freedom) = (
             self.molar_masses, self.thermodynamics, self._well_depth,
             self._rotational_relaxation, self._degrees_of_freedom)
-        f_internal = (molar_masses[a] / const.NA / (const.kB * T) * self._diffusivity(a, a, T) /
+        f_vib = (molar_masses[a] / const.NA / (const.kB * T) * self._diffusivity(a, a, T) /
                       self._viscosity(a, T))
         T_star = self._T_star(a, a, T)
 
-        def _fz(T_star):
+        def _F(T_star):
             return (1. + pow(pi, 3. / 2.) / sqrt(T_star) *
                     (1. / 2. + 1. / T_star) + (1. / 4. * sq(pi) + 2.) / T_star)
 
-        # Scaling factor for temperature dependence of rotational relaxation:
-        # Kee, Coltrin [2003:12.112, 2017:11.115]
-        c1 = (2. / pi * (5. / 2. - f_internal) /
-              (rotational_relaxation[a] * _fz(298. * const.kB / well_depth[a]) /
-               _fz(T_star) + 2. / pi * (5. / 3. * degrees_of_freedom[a] + f_internal)))
-        f_trans = 5. / 2. * (1. - c1 * degrees_of_freedom[a] / (3. / 2.))
-        f_rot = f_internal * (1. + c1)
+        A = 5. / 2. - f_vib
+        B = (rotational_relaxation[a] * _F(298. * const.kB / well_depth[a]) /
+             _F(T_star) + 2. / pi * (5. / 3. * degrees_of_freedom[a] + f_vib))
+        f_rot = f_vib * (1. + 2. / pi * A / B)
+        f_trans = 5. / 2. * (1. - 2. / pi * A / B * degrees_of_freedom[a] / (3. / 2.))
         Cv = (thermodynamics[a].molar_heat_capacity_R(T) - 5. / 2. - degrees_of_freedom[a])
         return ((self._viscosity(a, T) / (molar_masses[a] / const.NA)) * const.kB *
-                (f_trans * 3. / 2. + f_rot * degrees_of_freedom[a] + f_internal * Cv))
+                (f_trans * 3. / 2. + f_rot * degrees_of_freedom[a] + f_vib * Cv))
 
     def transport_polynomials(self):
         T_rng = linspace(300., 3000., 50)
