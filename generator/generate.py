@@ -153,12 +153,32 @@ class Species:
         self._sp_len = sp_len
         self._header_lnT_star = ln(const.header_T_star)
 
+    def _T_star(self, a, b, T):
+        return T * const.kB / self._interaction_well_depth(a, b)
+
     def _interaction_well_depth(self, a, b):
         well_depth = self._well_depth
         return sqrt(well_depth[a] * well_depth[b]) * sq(self._xi(a, b))
 
-    def _T_star(self, a, b, T):
-        return T * const.kB / self._interaction_well_depth(a, b)
+    def _xi(self, a, b):
+        (dipole_moment, polarizability, diameter, well_depth) = (
+            self._dipole_moment, self._polarizability, self._diameter, self._well_depth)
+        if (dipole_moment[a] > 0.) == (dipole_moment[b] > 0.):
+            return 1.
+        (polar, non_polar) = (a, b) if dipole_moment[a] != 0. else (b, a)
+        return (1. + 1. / 4. * polarizability[non_polar] / cube(diameter[non_polar]) *
+                sq(dipole_moment[polar] /
+                   sqrt(4. * pi * const.epsilon0 * well_depth[polar] * cube(diameter[polar]))) *
+                sqrt(well_depth[polar] / well_depth[non_polar]))
+
+    def _reduced_mass(self, a, b):
+        molar_masses = self.molar_masses
+        return (molar_masses[a] / const.NA * molar_masses[b] / const.NA /
+                (molar_masses[a] / const.NA + molar_masses[b] / const.NA))
+
+    def _reduced_diameter(self, a, b):
+        diameter = self._diameter
+        return (diameter[a] + diameter[b]) / 2. * pow(self._xi(a, b), -1. / 6.)
 
     def _reduced_dipole_moment(self, a, b):
         (well_depth, dipole_moment, diameter) = (
@@ -208,26 +228,6 @@ class Species:
         (molar_masses, diameter) = (self.molar_masses, self._diameter)
         return (5. / 16. * sqrt(pi * molar_masses[a] / const.NA * const.kB * T) /
                 (self._omega_star_22(a, a, T) * pi * sq(diameter[a])))
-
-    def _reduced_mass(self, a, b):
-        molar_masses = self.molar_masses
-        return (molar_masses[a] / const.NA * molar_masses[b] / const.NA /
-                (molar_masses[a] / const.NA + molar_masses[b] / const.NA))
-
-    def _xi(self, a, b):
-        (dipole_moment, polarizability, diameter, well_depth) = (
-            self._dipole_moment, self._polarizability, self._diameter, self._well_depth)
-        if (dipole_moment[a] > 0.) == (dipole_moment[b] > 0.):
-            return 1.
-        (polar, non_polar) = (a, b) if dipole_moment[a] != 0. else (b, a)
-        return (1. + 1. / 4. * polarizability[non_polar] / cube(diameter[non_polar]) *
-                sq(dipole_moment[polar] /
-                   sqrt(4. * pi * const.epsilon0 * well_depth[polar] * cube(diameter[polar]))) *
-                sqrt(well_depth[polar] / well_depth[non_polar]))
-
-    def _reduced_diameter(self, a, b):
-        diameter = self._diameter
-        return (diameter[a] + diameter[b]) / 2. * pow(self._xi(a, b), -1. / 6.)
 
     # p*Djk
     def _diffusivity(self, a, b, T):
