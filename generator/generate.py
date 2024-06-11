@@ -151,7 +151,6 @@ class Species:
         self._degrees_of_freedom = degrees_of_freedom
         self._polarizability = polarizability
         self._sp_len = sp_len
-        # Precompute log values for header_T_star
         self._header_lnT_star = ln(const.header_T_star)
 
     def _interaction_well_depth(self, a, b):
