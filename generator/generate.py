@@ -153,42 +153,42 @@ class Species:
         self._sp_len = sp_len
         self._header_lnT_star = ln(const.header_T_star)
 
-    def _T_star(self, a, b, T):
-        return T * const.kB / self._interaction_well_depth(a, b)
+    def _T_star(self, j, k, T):
+        return T * const.kB / self._interaction_well_depth(j, k)
 
-    def _interaction_well_depth(self, a, b):
+    def _interaction_well_depth(self, j, k):
         well_depth = self._well_depth
-        return sqrt(well_depth[a] * well_depth[b]) * sq(self._xi(a, b))
+        return sqrt(well_depth[j] * well_depth[k]) * sq(self._xi(j, k))
 
-    def _xi(self, a, b):
+    def _xi(self, j, k):
         (dipole_moment, polarizability, diameter, well_depth) = (
             self._dipole_moment, self._polarizability, self._diameter, self._well_depth)
-        if (dipole_moment[a] > 0.) == (dipole_moment[b] > 0.):
+        if (dipole_moment[j] > 0.) == (dipole_moment[k] > 0.):
             return 1.
-        (polar, non_polar) = (a, b) if dipole_moment[a] != 0. else (b, a)
+        (polar, non_polar) = (j, k) if dipole_moment[j] != 0. else (k, j)
         return (1. + 1. / 4. * polarizability[non_polar] / cube(diameter[non_polar]) *
                 sq(dipole_moment[polar] /
                    sqrt(4. * pi * const.epsilon0 * well_depth[polar] * cube(diameter[polar]))) *
                 sqrt(well_depth[polar] / well_depth[non_polar]))
 
-    def _reduced_mass(self, a, b):
+    def _reduced_mass(self, j, k):
         molar_masses = self.molar_masses
-        return (molar_masses[a] / const.NA * molar_masses[b] / const.NA /
-                (molar_masses[a] / const.NA + molar_masses[b] / const.NA))
+        return (molar_masses[j] / const.NA * molar_masses[k] / const.NA /
+                (molar_masses[j] / const.NA + molar_masses[k] / const.NA))
 
-    def _reduced_diameter(self, a, b):
+    def _reduced_diameter(self, j, k):
         diameter = self._diameter
-        return (diameter[a] + diameter[b]) / 2. * pow(self._xi(a, b), -1. / 6.)
+        return (diameter[j] + diameter[k]) / 2. * pow(self._xi(j, k), -1. / 6.)
 
-    def _reduced_dipole_moment(self, a, b):
+    def _reduced_dipole_moment(self, j, k):
         (well_depth, dipole_moment, diameter) = (
             self._well_depth, self._dipole_moment, self._diameter)
-        return (dipole_moment[a] * dipole_moment[b] /
-                (8. * pi * const.epsilon0 * sqrt(well_depth[a] * well_depth[b]) *
-                 cube((diameter[a] + diameter[b]) / 2.)))
+        return (dipole_moment[j] * dipole_moment[k] /
+                (8. * pi * const.epsilon0 * sqrt(well_depth[j] * well_depth[k]) *
+                 cube((diameter[j] + diameter[k]) / 2.)))
 
-    def _collision_integral(self, I0, table, fit, a, b, T):
-        lnT_star = ln(self._T_star(a, b, T))
+    def _collision_integral(self, I0, table, fit, j, k, T):
+        lnT_star = ln(self._T_star(j, k, T))
         header_lnT_star = self._header_lnT_star
         interp_start_index = min((1 + next(i for i, header_lnT_star in enumerate(header_lnT_star[1:])
                                            if lnT_star < header_lnT_star)) - 1, I0 + len(table) - 3)
@@ -205,7 +205,7 @@ class Species:
                     ((x[1] - x[0]) * (x[2] - x[0]) * (x[2] - x[1])) *
                     (x0 - x[0]) * (x0 - x[1]) + ((y[1] - y[0]) / (x[1] - x[0])) * (x0 - x[1]) + y[1])
 
-        delta_star = self._reduced_dipole_moment(a, b)
+        delta_star = self._reduced_dipole_moment(j, k)
         for P in polynomials:
             assert len(P) == 7, len(P)
         table = table[interp_start_index - I0:][:3]
@@ -217,44 +217,44 @@ class Species:
             y = [row[0] for row in table]
         return _quadratic_interpolation(header_lnT_star_slice, y, lnT_star)
 
-    def _omega_star_22(self, a, b, T):
-        return self._collision_integral(1, const.collision_integrals_Omega_star_22, const.Omega_star_22, a, b, T)
+    def _omega_star_22(self, j, k, T):
+        return self._collision_integral(1, const.collision_integrals_Omega_star_22, const.Omega_star_22, j, k, T)
 
-    def _omega_star_11(self, a, b, T):
-        return (self._omega_star_22(a, b, T) /
-                self._collision_integral(0, const.collision_integrals_A_star, const.A_star, a, b, T))
+    def _omega_star_11(self, j, k, T):
+        return (self._omega_star_22(j, k, T) /
+                self._collision_integral(0, const.collision_integrals_A_star, const.A_star, j, k, T))
 
-    def _viscosity(self, a, T):
+    def _viscosity(self, k, T):
         (molar_masses, diameter) = (self.molar_masses, self._diameter)
-        return (5. / 16. * sqrt(pi * molar_masses[a] / const.NA * const.kB * T) /
-                (self._omega_star_22(a, a, T) * pi * sq(diameter[a])))
+        return (5. / 16. * sqrt(pi * molar_masses[k] / const.NA * const.kB * T) /
+                (self._omega_star_22(k, k, T) * pi * sq(diameter[k])))
 
     # p*Djk
-    def _diffusivity(self, a, b, T):
-        return (3. / 16. * sqrt(2. * pi / self._reduced_mass(a, b)) * pow(const.kB * T, 3. / 2.) /
-                (pi * sq(self._reduced_diameter(a, b)) * self._omega_star_11(a, b, T)))
+    def _diffusivity(self, j, k, T):
+        return (3. / 16. * sqrt(2. * pi / self._reduced_mass(j, k)) * pow(const.kB * T, 3. / 2.) /
+                (pi * sq(self._reduced_diameter(j, k)) * self._omega_star_11(j, k, T)))
 
-    def _conductivity(self, a, T):
+    def _conductivity(self, k, T):
         (molar_masses, thermodynamics, well_depth,
          rotational_relaxation, degrees_of_freedom) = (
             self.molar_masses, self.thermodynamics, self._well_depth,
             self._rotational_relaxation, self._degrees_of_freedom)
-        f_vib = (molar_masses[a] / const.NA / (const.kB * T) * self._diffusivity(a, a, T) /
-                      self._viscosity(a, T))
-        T_star = self._T_star(a, a, T)
+        f_vib = (molar_masses[k] / const.NA / (const.kB * T) * self._diffusivity(k, k, T) /
+                      self._viscosity(k, T))
+        T_star = self._T_star(k, k, T)
 
         def _F(T_star):
             return (1. + pow(pi, 3. / 2.) / sqrt(T_star) *
                     (1. / 2. + 1. / T_star) + (1. / 4. * sq(pi) + 2.) / T_star)
 
         A = 5. / 2. - f_vib
-        B = (rotational_relaxation[a] * _F(298. * const.kB / well_depth[a]) /
-             _F(T_star) + 2. / pi * (5. / 3. * degrees_of_freedom[a] + f_vib))
+        B = (rotational_relaxation[k] * _F(298. * const.kB / well_depth[k]) /
+             _F(T_star) + 2. / pi * (5. / 3. * degrees_of_freedom[k] + f_vib))
         f_rot = f_vib * (1. + 2. / pi * A / B)
-        f_trans = 5. / 2. * (1. - 2. / pi * A / B * degrees_of_freedom[a] / (3. / 2.))
-        Cv = (thermodynamics[a].molar_heat_capacity_R(T) - 5. / 2. - degrees_of_freedom[a])
-        return ((self._viscosity(a, T) / (molar_masses[a] / const.NA)) * const.kB *
-                (f_trans * 3. / 2. + f_rot * degrees_of_freedom[a] + f_vib * Cv))
+        f_trans = 5. / 2. * (1. - 2. / pi * A / B * degrees_of_freedom[k] / (3. / 2.))
+        Cv = (thermodynamics[k].molar_heat_capacity_R(T) - 5. / 2. - degrees_of_freedom[k])
+        return ((self._viscosity(k, T) / (molar_masses[k] / const.NA)) * const.kB *
+                (f_trans * 3. / 2. + f_rot * degrees_of_freedom[k] + f_vib * Cv))
 
     def transport_polynomials(self):
         T_rng = linspace(300., 3000., 50)
@@ -264,20 +264,20 @@ class Species:
 
         transport_polynomials = TransportPolynomials()
         transport_polynomials.conductivity = [
-            polynomial_regression(ln(T_rng), [self._conductivity(a, T) / sqrt(T) for T in T_rng])
-            for a in range(self._sp_len)]
+            polynomial_regression(ln(T_rng), [self._conductivity(k, T) / sqrt(T) for T in T_rng])
+            for k in range(self._sp_len)]
         transport_polynomials.viscosity = [
-            polynomial_regression(ln(T_rng), [sqrt(self._viscosity(a, T) / sqrt(T)) for T in T_rng])
-            for a in range(self._sp_len)]
+            polynomial_regression(ln(T_rng), [sqrt(self._viscosity(k, T) / sqrt(T)) for T in T_rng])
+            for k in range(self._sp_len)]
         if self.rcp_diffcoeffs:
             # Evaluate the reciprocal polynomial to avoid expensive divisions during runtime evaluation
             transport_polynomials.diffusivity = [
-                [polynomial_regression(ln(T_rng), [((T * sqrt(T)) / self._diffusivity(a, b, T)) for T in T_rng])
-                 for b in range(self._sp_len)] for a in range(self._sp_len)]
+                [polynomial_regression(ln(T_rng), [((T * sqrt(T)) / self._diffusivity(j, k, T)) for T in T_rng])
+                 for k in range(self._sp_len)] for j in range(self._sp_len)]
         else:
             transport_polynomials.diffusivity = [
-                [polynomial_regression(ln(T_rng), [(self._diffusivity(a, b, T)) / (T * sqrt(T)) for T in T_rng])
-                 for b in range(self._sp_len)] for a in range(self._sp_len)]
+                [polynomial_regression(ln(T_rng), [(self._diffusivity(j, k, T)) / (T * sqrt(T)) for T in T_rng])
+                 for k in range(self._sp_len)] for j in range(self._sp_len)]
         return transport_polynomials
 
 
