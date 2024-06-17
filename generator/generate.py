@@ -45,6 +45,10 @@ def get_parser():
                         required=True,
                         default="share/mechanisms",
                         help='Output directory.')
+    parser.add_argument('--single-precision',
+                        required=False,
+                        action='store_true',
+                        help='Generate single precision source code.')
     parser.add_argument('--header-only',
                         required=False,
                         action='store_true',
@@ -2029,6 +2033,7 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
 
 def generate_files(mech_file=None,
                    output_dir=None,
+                   single_precision=None,
                    header_only=False,
                    unroll_loops=False,
                    align_width=64,
@@ -2089,28 +2094,30 @@ def generate_files(mech_file=None,
 
     # File names
     mech_file = 'mech.h'
-    rates_file = 'rates.inc'
-    enthalpy_file = 'fenthalpy_RT.inc'
-    heat_capacity_file = 'fheat_capacity_R.inc'
-    conductivity_file = 'fconductivity.inc'
-    viscosity_file = 'fviscosity.inc'
-    diffusivity_file = 'fdiffusivity.inc'
+    if single_precision:
+        set_precision('FP32')
+        rates_file = 'frates.inc'
+        enthalpy_file = 'fenthalpy_RT.inc'
+        heat_capacity_file = 'fheat_capacity_R.inc'
+        conductivity_file = 'fconductivity.inc'
+        viscosity_file = 'fviscosity.inc'
+        diffusivity_file = 'fdiffusivity.inc'
+    else:
+        set_precision('FP64')
+        rates_file = 'rates.inc'
+        enthalpy_file = 'enthalpy_RT.inc'
+        heat_capacity_file = 'heat_capacity_R.inc'
+        conductivity_file = 'conductivity.inc'
+        viscosity_file = 'viscosity.inc'
+        diffusivity_file = 'diffusivity.inc'
 
     if header_only:
         write_file_mech(mech_file, output_dir, species_names, species_len, active_sp_len, reactions_len, Mi)
     else:
         write_file_mech(mech_file, output_dir, species_names, species_len, active_sp_len, reactions_len, Mi)
         if unroll_loops:  # Unrolled code
-            precisions = ['FP32', 'FP64']
-            for p in precisions:
-                set_precision(p)
-                if p == 'FP32':
-                    new_rates_file = 'f' + rates_file
-                else:
-                    new_rates_file = rates_file
-                write_file_rates_unroll(new_rates_file, output_dir, loop_gibbsexp, group_rxnunroll,
-                                        reactions, active_sp_len, species_len, species.thermodynamics)
-            set_precision('FP32')
+            write_file_rates_unroll(rates_file, output_dir, loop_gibbsexp, group_rxnunroll,
+                                    reactions, active_sp_len, species_len, species.thermodynamics)
             write_file_enthalpy_unroll(enthalpy_file, output_dir,
                                        species_len, species.thermodynamics)
             write_file_heat_capacity_unroll(heat_capacity_file, output_dir,
@@ -2127,16 +2134,8 @@ def generate_files(mech_file=None,
                     write_file_diffusivity_unroll(diffusivity_file, output_dir, rcp_diffcoeffs,
                                                   transport_polynomials, species_len, Mi)
         else:  # Rolled code
-            precisions = ['FP32', 'FP64']
-            for p in precisions:
-                set_precision(p)
-                if p == 'FP32':
-                    new_rates_file = 'f' + rates_file
-                else:
-                    new_rates_file = rates_file
-                write_file_rates_roll(new_rates_file, output_dir, align_width, target,
-                                      species.thermodynamics, species_len, reactions, reactions_len)
-            set_precision('FP32')
+            write_file_rates_roll(rates_file, output_dir, align_width, target,
+                                  species.thermodynamics, species_len, reactions, reactions_len)
             write_file_enthalpy_roll(enthalpy_file, output_dir, align_width, target,
                                      species.thermodynamics, species_len)
             write_file_heat_capacity_roll(heat_capacity_file, output_dir, align_width, target,
@@ -2163,6 +2162,7 @@ if __name__ == "__main__":
 
     generate_files(mech_file=args.mechanism,
                    output_dir=args.output,
+                   single_precision=args.single_precision,
                    header_only=args.header_only,
                    unroll_loops=args.unroll_loops,
                    align_width=args.align_width,
