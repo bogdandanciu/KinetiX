@@ -9,7 +9,7 @@ Requirements:
 * MPI-3.1 or later
 * CMake version 3.21 or later
 * Python v3.8 and later
-* (CUDA, HIP, DPCPP)
+* (CUDA, HIP, DPCPP, Cantera)
 
 Installation:
 
