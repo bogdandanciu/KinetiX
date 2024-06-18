@@ -158,7 +158,7 @@ bool checkThermo(occa::memory& o_rho,
 }
 
 bool checkRates(occa::memory& o_rates,
-                bool fp32Rates)
+                bool single_precision)
 {
   std::vector<dfloat> rates(n_states * (n_species + 1));
   o_rates.copyTo(rates.data());
@@ -195,8 +195,8 @@ bool checkRates(occa::memory& o_rates,
     }
 
     const auto errInf = *(std::max_element(errors.begin(), errors.end()));
-    auto rtol = (fp32Rates) ? 0.02 : 2e-08;
-    if(id == 2 || id == 3) rtol = (fp32Rates) ? 0.02 : 5e-5;
+    auto rtol = (single_precision) ? 0.02 : 2e-08;
+    if(id == 2 || id == 3) rtol = (single_precision) ? 0.02 : 5e-5;
     const auto passed = (errInf < rtol);
     allPassed &= passed;
     printf("rates error_inf: %e < %e (%s)\n",
@@ -275,102 +275,102 @@ void loadCiStateFromFile(const std::string& ciState,
                          std::vector<double>& mole_fractions,
                          std::vector<double>& molar_masses) 
 {
-    const auto data = std::string(
-                        std::string(getenv("NEKRK_PATH")) +
-                        "/ciData/" + mech + "." + ciState + ".cantera");
+  const auto data = std::string(
+                      std::string(getenv("NEKRK_PATH")) +
+                      "/ciData/" + mech + "." + ciState + ".cantera");
 
-    std::cout << "Reading ci data from " << data;
-    std::vector<std::string> lines = split(read(data),"\n");
-    if (lines.size() < 13) {
-      std::cout << "\ndata file does not exist or is corrupt!" << std::endl;
-      exit(EXIT_FAILURE);
-    }
+  std::cout << "Reading ci data from " << data;
+  std::vector<std::string> lines = split(read(data),"\n");
+  if (lines.size() < 13) {
+    std::cout << "\ndata file does not exist or is corrupt!" << std::endl;
+    exit(EXIT_FAILURE);
+  }
 
-    molar_masses.clear();
+  molar_masses.clear();
 
-    // checks if species ordering matches 
-    {
-      auto value = split(lines[1]," ");
-      for(int k = 0; k < n_species; k++) {
-        molar_masses.push_back(std::stod(value[k]));
-        const auto w = molar_masses[k];
-        const auto wC = nekRK::molecularWeights()[k] * nekRK::refMeanMolecularWeight();
-        auto e = abs(w - wC)/wC ;
-        if(e > 1e-7) {
-          printf("\nmolar mass mismatch [%d]: w %e cantera %e relative error %e\n", 
-                 k, w, wC, e);    
-          exit(EXIT_FAILURE);
-        }
+  // checks if species ordering matches 
+  {
+    auto value = split(lines[1]," ");
+    for(int k = 0; k < n_species; k++) {
+      molar_masses.push_back(std::stod(value[k]));
+      const auto w = molar_masses[k];
+      const auto wC = nekRK::molecularWeights()[k] * nekRK::refMeanMolecularWeight();
+      auto e = abs(w - wC)/wC ;
+      if(e > 1e-7) {
+        printf("\nmolar mass mismatch [%d]: w %e cantera %e relative error %e\n", 
+               k, w, wC, e);    
+        exit(EXIT_FAILURE);
       }
     }
+  }
 
-    // check if number of species match
-    if(molar_masses.size() != n_species) { 
-      std::cerr << "\nNumber of species does not match!\n"; 
-      exit(EXIT_FAILURE);
-    }
+  // check if number of species match
+  if(molar_masses.size() != n_species) { 
+    std::cerr << "\nNumber of species does not match!\n"; 
+    exit(EXIT_FAILURE);
+  }
 
-    temperature_K = std::stod(lines[2]);
-    pressure_Pa = std::stod(lines[3]);
+  temperature_K = std::stod(lines[2]);
+  pressure_Pa = std::stod(lines[3]);
 
-    mole_fractions.clear();
-    {
-      const auto Xi = split(lines[4]," ");
-      for(int k = 0; k < n_species; k++)
-        mole_fractions.push_back(std::stod(Xi[k]));
-      double sum = 0.;
-      for(int k = 0; k < n_species; k++)
-        sum += mole_fractions[k]; 
-      for (int k = 0; k < n_species; k++) 
-        mole_fractions[k] /= sum;
-    }
-
-    ci_rho.push_back(std::stod(lines[5]));
-
-    double mean_molar_mass = 0;
+  mole_fractions.clear();
+  {
+    const auto Xi = split(lines[4]," ");
+    for(int k = 0; k < n_species; k++)
+      mole_fractions.push_back(std::stod(Xi[k]));
+    double sum = 0.;
+    for(int k = 0; k < n_species; k++)
+      sum += mole_fractions[k]; 
     for (int k = 0; k < n_species; k++) 
-      mean_molar_mass += mole_fractions[k] * molar_masses[k];
+      mole_fractions[k] /= sum;
+  }
 
-    ci_cp_mean.push_back(std::stod(lines[6]) / mean_molar_mass);
-    ci_cp_i.push_back((
+  ci_rho.push_back(std::stod(lines[5]));
+
+  double mean_molar_mass = 0;
+  for (int k = 0; k < n_species; k++) 
+    mean_molar_mass += mole_fractions[k] * molar_masses[k];
+
+  ci_cp_mean.push_back(std::stod(lines[6]) / mean_molar_mass);
+  ci_cp_i.push_back((
+    {
+      std::vector<double> ci_cp_i;
+      const auto value = split(lines[7]," ");
+      for(int k = 0; k < n_species; k++)
+        ci_cp_i.push_back(std::stod(value[k]) / molar_masses[k]);
+      ci_cp_i;
+    }
+  ));
+
+  ci_rates.push_back((
+    {
+      std::vector<double> ci_rates;
       {
-        std::vector<double> ci_cp_i;
-        const auto value = split(lines[7]," ");
+        const auto value = split(lines[8]," ");
         for(int k = 0; k < n_species; k++)
-          ci_cp_i.push_back(std::stod(value[k]) / molar_masses[k]);
-        ci_cp_i;
+          ci_rates.push_back(std::stod(value[k]));
       }
-    ));
+      ci_rates;
+    }
+  ));
 
-    ci_rates.push_back((
-     {
-       std::vector<double> ci_rates;
-       {
-         const auto value = split(lines[8]," ");
-         for(int k = 0; k < n_species; k++)
-           ci_rates.push_back(std::stod(value[k]));
-       }
-       ci_rates;
-      }
-    ));
+  ci_hrr.push_back(std::stod(lines[9]));
+  ci_conductivity.push_back(std::stod(lines[10]));
+  ci_viscosity.push_back(std::stod(lines[11]));
 
-    ci_hrr.push_back(std::stod(lines[9]));
-    ci_conductivity.push_back(std::stod(lines[10]));
-    ci_viscosity.push_back(std::stod(lines[11]));
-
-    ci_rhoD.push_back((
+  ci_rhoD.push_back((
+    {
+      std::vector<double> ci_rhoD;
       {
-        std::vector<double> ci_rhoD;
-        {
-          const auto value = split(lines[12]," ");
-          for(int k = 0; k < n_species; k++)
-            ci_rhoD.push_back(std::stod(value[k]));
-        }
-      ci_rhoD;
+        const auto value = split(lines[12]," ");
+        for(int k = 0; k < n_species; k++)
+          ci_rhoD.push_back(std::stod(value[k]));
       }
-    ));
+    ci_rhoD;
+    }
+  ));
 
-    std::cout << " ... done" << std::endl;
+  std::cout << " ... done" << std::endl;
 }
 
 int main(int argc, char** argv)
@@ -386,7 +386,7 @@ int main(int argc, char** argv)
   std::string tool = "nekRK";
   int blockSize = 512;
   int nRep = 1000;   // repetitions
-  bool fp32Rates = false;
+  bool single_precision = false;
   int ci = 0;
   int deviceId = 0;
   int deviceIdFlag = 0;
@@ -409,7 +409,7 @@ int main(int argc, char** argv)
       {"n-states", required_argument, 0, 'n'},
       {"block-size", required_argument, 0, 'b'},
       {"repetitions", required_argument, 0, 'r'},
-      {"rates-fp32Rates", no_argument, 0, 'p'},
+      {"single-precision", no_argument, 0, 'p'},
       {"debug", no_argument, 0, 'g'},
       {"cimode", required_argument, 0, 'c'},
       {"yaml-file", required_argument, 0, 'f'},
@@ -449,7 +449,7 @@ int main(int argc, char** argv)
       nRep = std::stoi(optarg);
       break;
     case 'p':
-      fp32Rates = true;
+      single_precision = true;
       break;
     case 'c':
       ci = std::stoi(optarg);
@@ -495,7 +495,7 @@ int main(int argc, char** argv)
   if(err > 0) {
     if(rank == 0)
       printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n --yaml-file s"
-              "[--mode 1|2] [--tool s] [--repetitions n] [--rates-fp32] [--cimode n] [--debug] "
+              "[--mode 1|2] [--tool s] [--repetitions n] [--single-precision] [--cimode n] [--debug] "
 	      "[--block-size  n] [--device-id  n] [--unroll-loops n] [-loop-gibbsexp] "
 	      "[--group-rxnUnroll] [--group-vis] [--nonsymDij] [--fit-rcpDiffCoeffs] \n");
     exit(EXIT_FAILURE);
@@ -570,6 +570,8 @@ int main(int argc, char** argv)
   if(unroll_loops < 0) 
     unroll_loops = (device.mode() == "Serial") ? 0 : 1;
   const int align_width = (device.mode() == "Serial") ? 64 : 0;
+  if (single_precision)
+    using dfloat = float;
 
   occa::properties kernel_properties;
   nekRK::init(mech, 
@@ -577,6 +579,7 @@ int main(int argc, char** argv)
               kernel_properties, 
 	      tool,
               blockSize,
+	      single_precision,
 	      (bool) unroll_loops,
               loop_gibbsexp,
               group_rxnUnroll,
@@ -700,8 +703,7 @@ int main(int argc, char** argv)
                    n_states /* offset */,
                    pressure,
                    o_states,
-                   o_rates,
-                   fp32Rates);
+                   o_rates);
 
     device.finish();
     MPI_Barrier(MPI_COMM_WORLD);
@@ -713,8 +715,7 @@ int main(int argc, char** argv)
                      n_states /* offset */, 
                      pressure, 
                      o_states,
-                     o_rates,
-                     fp32Rates);
+                     o_rates);
     }
     device.finish();
     MPI_Barrier(MPI_COMM_WORLD);
@@ -722,7 +723,7 @@ int main(int argc, char** argv)
 
     if(ci && rank == 0)
       pass &= checkRates(o_rates,
-                         fp32Rates);
+                         single_precision);
 
     if(!ci && rank == 0) {
       printf("BK1 (reaction rates) results:\n");

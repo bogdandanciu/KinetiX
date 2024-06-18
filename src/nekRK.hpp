@@ -20,6 +20,7 @@ void init(
   occa::properties kernel_properties,
   const std::string& tool,
   int blockSize,
+  bool single_precision,
   bool unroll_loops,
   bool loop_gibbsexp,
   bool group_rxnUnroll,
@@ -39,6 +40,7 @@ void init(
   occa::properties kernel_properties,
   const std::string& tool,
   int blockSize,
+  bool single_precision,
   bool unroll_loops,
   bool loop_gibbsexp,
   bool group_rxnUnroll,
@@ -66,8 +68,7 @@ void productionRates(
   int offset,
   double pressure,
   const occa::memory& o_state,
-  occa::memory& o_rates,
-  bool fp32 = false
+  occa::memory& o_rates
 );
 
 void mixtureAvgTransportProps(

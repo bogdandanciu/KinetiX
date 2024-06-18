@@ -21,8 +21,8 @@ namespace fs = std::filesystem;
 namespace {
 
 occa::kernel production_rates_kernel, production_rates_fpmix_kernel, production_rates_fp32_kernel;
-occa::kernel transport_fpmix_kernel, transport_fp32_kernel;
-occa::kernel thermoCoeffs_fpmix_kernel, thermoCoeffs_fp32_kernel;
+occa::kernel transport_kernel, transport_fpmix_kernel, transport_fp32_kernel;
+occa::kernel thermoCoeffs_kernel, thermoCoeffs_fpmix_kernel, thermoCoeffs_fp32_kernel;
 
 nekRK::nekRKBuildKernel_t buildKernel;
 
@@ -46,10 +46,11 @@ std::vector<std::string> species_names;
 
 std::string yamlPath;
 std::string cacheDir;
-occa::properties kernel_properties, kernel_properties_fp32, kernel_properties_mixed;
+occa::properties kernel_properties, kernel_properties_fpmix, kernel_properties_fp32;
 std::string tool;
 int group_size;
 bool verbose;
+bool single_precision;
 bool unroll_loops;
 bool loop_gibbsexp;
 bool group_rxnUnroll;
@@ -184,9 +185,7 @@ static void setupKernelProperties()
     kernel_properties["compiler_flags"] += " -D__NEKRK_DEVICE__=__device__";
     kernel_properties["compiler_flags"] += " -D__NEKRK_CONST__=__constant__";
     kernel_properties["compiler_flags"] += " -D__NEKRK_INLINE__='__forceinline__ static'";
-    //needed for amrex
-    kernel_properties["compiler_flags"] += " --expt-relaxed-constexpr";
-
+    kernel_properties["compiler_flags"] += " --expt-relaxed-constexpr"; //required for amrex
   }
   else if (device.mode() == "HIP") {
     setenv("OCCA_CXXFLAGS", incStatement.c_str(), 1); // required for launcher
@@ -229,12 +228,12 @@ static void setupKernelProperties()
     kernel_properties["defines/cfloat"] = cfloatType;
     kernel_properties["compiler_flags"] += " -Ddfloat=" + dfloatType;
     kernel_properties["compiler_flags"] += " -Dcfloat=" + cfloatType;
+    kernel_properties["compiler_flags"] += " -DCFLOAT_MAX=1e300";
+    kernel_properties["compiler_flags"] += " -DCFLOAT_MIN=1e-300";
     kernel_properties["compiler_flags"] += " -D__NEKRK_EXP__=exp";
     kernel_properties["compiler_flags"] += " -D__NEKRK_LOG10__=log10";
     kernel_properties["compiler_flags"] += " -D__NEKRK_LOG__=log";
     kernel_properties["compiler_flags"] += " -D__NEKRK_POW__=pow";
-    kernel_properties["compiler_flags"] += " -DCFLOAT_MAX=1e300";
-    kernel_properties["compiler_flags"] += " -DCFLOAT_MIN=1e-300";
     kernel_properties["compiler_flags"] += " -D__NEKRK_MIN_CFLOAT=fmin";
     kernel_properties["compiler_flags"] += " -D__NEKRK_MAX=fmax";
   }
@@ -244,21 +243,21 @@ static void setupKernelProperties()
     const auto cfloatType = std::string("float");
     kernel_properties_fp32["compiler_flags"] += " -DCFLOAT_MAX=1e37f";
     kernel_properties_fp32["compiler_flags"] += " -DCFLOAT_MIN=1e-37f";
-    kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_MIN_CFLOAT=fminf";
     kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_EXP__=expf";
     kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_LOG10__=log10f";
     kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_LOG__=logf";
     kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_POW__=powf";
+    kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_MIN_CFLOAT=fminf";
 
     {
       const auto dfloatType = std::string("double");
       const auto cfloatType = std::string("float");
-      kernel_properties_mixed = kernel_properties_fp32;
-      kernel_properties_mixed["defines/dfloat"] = dfloatType;
-      kernel_properties_mixed["defines/cfloat"] = cfloatType;
-      kernel_properties_mixed["compiler_flags"] += " -Ddfloat=" + dfloatType;
-      kernel_properties_mixed["compiler_flags"] += " -Dcfloat=" + cfloatType;
-      kernel_properties_mixed["compiler_flags"] += " -D__NEKRK_MAX=fmax";
+      kernel_properties_fpmix = kernel_properties_fp32;
+      kernel_properties_fpmix["defines/dfloat"] = dfloatType;
+      kernel_properties_fpmix["defines/cfloat"] = cfloatType;
+      kernel_properties_fpmix["compiler_flags"] += " -Ddfloat=" + dfloatType;
+      kernel_properties_fpmix["compiler_flags"] += " -Dcfloat=" + cfloatType;
+      kernel_properties_fpmix["compiler_flags"] += " -D__NEKRK_MAX=fmax";
     }
 
     kernel_properties_fp32["defines/dfloat"] = dfloatType;
@@ -267,6 +266,7 @@ static void setupKernelProperties()
     kernel_properties_fp32["compiler_flags"] += " -Dcfloat=" + cfloatType;
     kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_MAX=fmaxf";
   }
+
 }
 
 static occa::kernel _buildKernel(const std::string &path, const std::string &fileName, occa::properties prop)
@@ -385,68 +385,67 @@ static void setup()
 
 static void buildMechKernels(bool transport)
 {
-  {
+  {// Thermo coeffs kernel
     occa::properties includeProp;
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
-
-    auto prop = kernel_properties_mixed;
-    if (useFP64Transport) prop = kernel_properties;
-
-    thermoCoeffs_fpmix_kernel =
-        buildKernel("thermoCoeffs.okl", "thermoCoeffs", addOccaCompilerFlags(includeProp, prop));
-
-    prop = kernel_properties_fp32;
-    thermoCoeffs_fp32_kernel =
-        buildKernel("thermoCoeffs.okl", "thermoCoeffs", addOccaCompilerFlags(includeProp, prop));
+    if (single_precision) {
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
+      thermoCoeffs_fp32_kernel = buildKernel("thermoCoeffs.okl", 
+          	                             "thermoCoeffs", 
+          			             addOccaCompilerFlags(includeProp, kernel_properties_fp32));
+      thermoCoeffs_fpmix_kernel = buildKernel("thermoCoeffs.okl", 
+          	                              "thermoCoeffs", 
+          			              addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
+    } else {
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/heat_capacity_R.inc";
+      thermoCoeffs_kernel = buildKernel("thermoCoeffs.okl", 
+          	                        "thermoCoeffs", 
+          			        addOccaCompilerFlags(includeProp, kernel_properties));
+    }
   }
 
-  {
-    occa::properties includeProp;
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/rates.inc";
-
-    production_rates_kernel =
-        buildKernel("productionRates.okl", "productionRates", addOccaCompilerFlags(includeProp, kernel_properties));
-  }
-
-  {
+  {// Rates kernel 
     occa::properties includeProp;
     includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/frates.inc";
-
-    production_rates_fpmix_kernel = buildKernel("productionRates.okl",
-                                                "productionRates",
-                                                 addOccaCompilerFlags(includeProp, kernel_properties_mixed));
-
-    production_rates_fp32_kernel = buildKernel("productionRates.okl",
-                                               "productionRates",
-                                               addOccaCompilerFlags(includeProp, kernel_properties_fp32));
+    if (single_precision) {
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/frates.inc";
+      production_rates_fp32_kernel = buildKernel("productionRates.okl", 
+          	    			         "productionRates", 
+          				         addOccaCompilerFlags(includeProp, kernel_properties_fp32));
+      production_rates_fpmix_kernel = buildKernel("productionRates.okl", 
+          	    			          "productionRates", 
+          				          addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
+    } else {
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/enthalpy_RT.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/rates.inc";
+      production_rates_kernel = buildKernel("productionRates.okl",
+                                            "productionRates",
+                                            addOccaCompilerFlags(includeProp, kernel_properties));
+    }
   }
 
+  // Transport props kernel
   if (transport) {
 
     occa::properties includeProp;
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/fconductivity.inc";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/fviscosity.inc";
-    includeProp["compiler_flags"] += " -include " + cacheDir + "/fdiffusivity.inc";
-
-    auto prop = kernel_properties_mixed;
-    if (useFP64Transport) prop = kernel_properties;
-
-    transport_fpmix_kernel =
-        buildKernel("transportProps.okl", "transport", addOccaCompilerFlags(includeProp, prop));
-
-
-    prop = kernel_properties_fp32;
-
-    transport_fp32_kernel =
-        buildKernel("transportProps.okl", "transport", addOccaCompilerFlags(includeProp, prop));
-
+    if (single_precision) {
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/fconductivity.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/fviscosity.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/fdiffusivity.inc";
+      transport_fp32_kernel = buildKernel("transportProps.okl", 
+		                          "transport", 
+		                          addOccaCompilerFlags(includeProp, kernel_properties_fp32));
+      transport_fpmix_kernel = buildKernel("transportProps.okl", 
+		                           "transport", 
+					   addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
+    } else {
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/conductivity.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/viscosity.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/diffusivity.inc";
+      transport_kernel = buildKernel("transportProps.okl", 
+		                     "transport", 
+				     addOccaCompilerFlags(includeProp, kernel_properties));
+    }
   }
 }
 
@@ -459,6 +458,7 @@ void nekRK::init(const std::string &model_path,
                  occa::properties _props,
                  const std::string &_tool,
                  int _group_size,
+                 bool _single_precision,
                  bool _unroll_loops,
                  bool _loop_gibbsexp,
                  bool _group_rxnUnroll,
@@ -480,6 +480,7 @@ void nekRK::init(const std::string &model_path,
               _props,
 	      _tool,
               _group_size,
+	      _single_precision,
               _unroll_loops,
 	      _loop_gibbsexp,
 	      _group_rxnUnroll,
@@ -499,6 +500,7 @@ void nekRK::init(const std::string &model_path,
                  occa::properties _props,
                  const std::string &_tool,
                  int _group_size,
+                 bool _single_precision,
                  bool _unroll_loops,
                  bool _loop_gibbsexp,
                  bool _group_rxnUnroll,
@@ -556,6 +558,7 @@ void nekRK::init(const std::string &model_path,
 
   yamlPath = fs::path(model_path);
   group_size = std::max(_group_size, 32);
+  single_precision = _single_precision;
   unroll_loops = _unroll_loops;
   loop_gibbsexp = _loop_gibbsexp;
   group_rxnUnroll = _group_rxnUnroll;
@@ -631,6 +634,8 @@ void nekRK::build(double _ref_pressure,
         	" --output " + cacheDir + 
         	" --align-width " + std::to_string(align_width) + 
         	" --target " + target;
+    if (single_precision)
+      cmdline.append(" --single-precision");
     if (unroll_loops)
       cmdline.append(" --unroll-loops");
     if (loop_gibbsexp)
@@ -670,13 +675,22 @@ void nekRK::build(double _ref_pressure,
  
       fileSync(std::string(cacheDir + "/mechanism.cpp").c_str());
       fileSync(std::string(cacheDir + "/mechanism.H").c_str());
-      fileSync(std::string(cacheDir + "/fconductivity.inc").c_str());
-      fileSync(std::string(cacheDir + "/fdiffusivity.inc").c_str());
-      fileSync(std::string(cacheDir + "/fenthalpy_RT.inc").c_str());
-      fileSync(std::string(cacheDir + "/fheat_capacity_R.inc").c_str());
-      fileSync(std::string(cacheDir + "/fviscosity.inc").c_str());
-      fileSync(std::string(cacheDir + "/frates.inc").c_str());
-      fileSync(std::string(cacheDir + "/rates.inc").c_str());
+      if (single_precision) {
+        fileSync(std::string(cacheDir + "/fconductivity.inc").c_str());
+        fileSync(std::string(cacheDir + "/fdiffusivity.inc").c_str());
+        fileSync(std::string(cacheDir + "/fenthalpy_RT.inc").c_str());
+        fileSync(std::string(cacheDir + "/fheat_capacity_R.inc").c_str());
+        fileSync(std::string(cacheDir + "/fviscosity.inc").c_str());
+        fileSync(std::string(cacheDir + "/frates.inc").c_str());
+        fileSync(std::string(cacheDir + "/frates.inc").c_str());
+      } else {
+        fileSync(std::string(cacheDir + "/conductivity.inc").c_str());
+        fileSync(std::string(cacheDir + "/diffusivity.inc").c_str());
+        fileSync(std::string(cacheDir + "/enthalpy_RT.inc").c_str());
+        fileSync(std::string(cacheDir + "/heat_capacity_R.inc").c_str());
+        fileSync(std::string(cacheDir + "/viscosity.inc").c_str());
+        fileSync(std::string(cacheDir + "/rates.inc").c_str());
+      }
       // inc files are passed to compiler so occa doesn't know if they have changed
       // force occa to recompile by renaming old cache dir
       // removing might not work as some files are still open
@@ -749,20 +763,16 @@ void nekRK::productionRates(int n_states,
                             int offset,
                             double pressure,
                             const occa::memory &o_state,
-                            occa::memory &o_rates,
-                            bool fp32)
+                            occa::memory &o_rates)
 {
   assert(initialized);
 
-  if (o_state.dtype() == occa::dtype::float_)
-    fp32 = true;
-  const bool fpmix = (o_state.dtype() != occa::dtype::float_ && fp32) ? true : false;
-
   occa::kernel kernel = production_rates_kernel;
-  if (fpmix)
+  if (o_state.dtype() != occa::dtype::float_ && single_precision)
     kernel = production_rates_fpmix_kernel;
-  else if (fp32)
+  else if (single_precision)
     kernel = production_rates_fp32_kernel;
+
 
   const double pressure_R = pressure * ref_pressure / R;
 
@@ -776,22 +786,20 @@ void nekRK::productionRates(int n_states,
 }
 
 void nekRK::mixtureAvgTransportProps(int n_states,
-                                       int offsetT,
-                                       int offset,
-                                       double pressure,
-                                       const occa::memory &o_state,
-                                       occa::memory &o_viscosity,
-                                       occa::memory &o_conductivity,
-                                       occa::memory &o_density_diffusivity)
+                                     int offsetT,
+                                     int offset,
+                                     double pressure,
+                                     const occa::memory &o_state,
+                                     occa::memory &o_viscosity,
+                                     occa::memory &o_conductivity,
+                                     occa::memory &o_density_diffusivity)
 {
   assert(initialized);
 
-  bool fp32 = false;
-  if (o_state.dtype() == occa::dtype::float_)
-    fp32 = true;
-
-  occa::kernel kernel = transport_fpmix_kernel;
-  if (fp32)
+  occa::kernel kernel = transport_kernel;
+  if (o_state.dtype() != occa::dtype::float_ && single_precision)
+    kernel = transport_fpmix_kernel;
+  else if (single_precision)
     kernel = transport_fp32_kernel;
 
   kernel(n_states, 
@@ -806,23 +814,21 @@ void nekRK::mixtureAvgTransportProps(int n_states,
 }
 
 void nekRK::thermodynamicProps(int n_states,
-                                 int offsetT,
-                                 int offset,
-                                 double pressure,
-                                 const occa::memory &o_state,
-                                 occa::memory &o_rho,
-                                 occa::memory &o_cpi,
-                                 occa::memory &o_rhocp,
-                                 occa::memory &o_mmw)
+                               int offsetT,
+                               int offset,
+                               double pressure,
+                               const occa::memory &o_state,
+                               occa::memory &o_rho,
+                               occa::memory &o_cpi,
+                               occa::memory &o_rhocp,
+                               occa::memory &o_mmw)
 {
   assert(initialized);
 
-  bool fp32 = false;
-  if (o_state.dtype() == occa::dtype::float_)
-    fp32 = true;
-
-  occa::kernel kernel = thermoCoeffs_fpmix_kernel;
-  if (fp32)
+  occa::kernel kernel = thermoCoeffs_kernel;
+  if (o_state.dtype() != occa::dtype::float_ && single_precision)
+    kernel = thermoCoeffs_fpmix_kernel;
+  else if (single_precision)
     kernel = thermoCoeffs_fp32_kernel;
 
   const double pressure_R = pressure * ref_pressure / R;

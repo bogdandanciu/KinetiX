@@ -1,16 +1,14 @@
-@kernel void thermoCoeffs(
-  const int n_states,
-  const int offsetT,
-  const int offset,
-  const double pressure_R,
-  @restrict const dfloat* state,
-  @restrict dfloat* rho,
-  @restrict dfloat* cp,
-  @restrict dfloat* rhoCp,
-  @restrict dfloat* rcp_mmw,
-  const double Tref,
-  const double rcpMmwRef
-  )
+@kernel void thermoCoeffs(const int n_states,
+                          const int offsetT,
+                          const int offset,
+                          const double pressure_R,
+                          @restrict const dfloat* state,
+                          @restrict dfloat* rho,
+                          @restrict dfloat* cp,
+                          @restrict dfloat* rhoCp,
+                          @restrict dfloat* rcp_mmw,
+                          const double Tref,
+                          const double rcpMmwRef)
 {
   for(int id = 0; id < n_states; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
     cfloat mole_fractions[__NEKRK_NSPECIES__];     // mass fraction / molar mass
