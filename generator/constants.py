@@ -247,7 +247,8 @@ def polynomial_regression_delta_star(table):
     Perform polynomial regression for each temperature row of collision integrals tables.
     """
 
-    return [polynomial_regression(header_delta_star, T_star_row, degree=6) for T_star_row in table]
+    return [polynomial_regression(header_delta_star, T_star_row, degree=6, weights=[-1.0 for i in T_star_row])
+            for T_star_row in table]
 
 
 Omega_star_22 = polynomial_regression_delta_star(collision_integrals_Omega_star_22)

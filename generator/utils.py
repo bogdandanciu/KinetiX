@@ -194,12 +194,14 @@ def prod_of_exp_rcp(c, v, rcp):
         return f'{num}*{div}'
 
 
-def polynomial_regression(X, Y, degree=4):
+def polynomial_regression(X, Y, degree=4, weights=None):
     """
     Perform polynomial regression to fit a polynomial curve to data points.
     """
 
-    return polynomial.polynomial.polyfit(X, Y, deg=degree, w=[1 / sq(y) for y in Y])
+    if weights is None:
+        weights = [1 / sq(y) for y in Y]
+    return polynomial.polynomial.polyfit(X, Y, deg=degree, w=weights)
 
 
 """ Maximum and minimum floating point values"""
