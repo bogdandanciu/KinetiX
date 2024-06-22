@@ -187,15 +187,21 @@ class Species:
     def _reduced_dipole_moment(self, j, k):
         (well_depth, dipole_moment, diameter) = (
             self._well_depth, self._dipole_moment, self._diameter)
-        return (dipole_moment[j] * dipole_moment[k] /
-                (8. * pi * const.epsilon0 * sqrt(well_depth[j] * well_depth[k]) *
+        return (0.5 * dipole_moment[j] * dipole_moment[k] /
+                (4. * pi * const.epsilon0 * sqrt(well_depth[j] * well_depth[k]) *
                  cube((diameter[j] + diameter[k]) / 2.)))
 
     def _collision_integral(self, I0, table, fit, j, k, T):
         lnT_star = ln(self._T_star(j, k, T))
         header_lnT_star = self._header_lnT_star
-        interp_start_index = min((1 + next(i for i, header_lnT_star in enumerate(header_lnT_star[1:])
-                                           if lnT_star < header_lnT_star)) - 1, I0 + len(table) - 3)
+        # Find the first index where lnT_star is less than the corresponding value in header_lnT_star
+        for i, val in enumerate(header_lnT_star[1:], start=1):
+            if lnT_star < val:
+                interp_start_index = i - 1
+                break
+        else:
+            interp_start_index = len(header_lnT_star) - 2
+        interp_start_index = min(interp_start_index, I0 + len(table) - 3)
         header_lnT_star_slice = header_lnT_star[interp_start_index:][:3]
         assert (len(header_lnT_star_slice) == 3)
         polynomials = fit[interp_start_index - I0:][:3]
@@ -205,9 +211,13 @@ class Species:
             return dot(P, [pow(x, k) for k in range(len(P))])
 
         def _quadratic_interpolation(x, y, x0):
-            return (((x[1] - x[0]) * (y[2] - y[1]) - (y[1] - y[0]) * (x[2] - x[1])) /
-                    ((x[1] - x[0]) * (x[2] - x[0]) * (x[2] - x[1])) *
-                    (x0 - x[0]) * (x0 - x[1]) + ((y[1] - y[0]) / (x[1] - x[0])) * (x0 - x[1]) + y[1])
+            dx21 = x[1] - x[0]
+            dx32 = x[2] - x[1]
+            dx31 = dx21 + dx32
+            dy21 = y[1] - y[0]
+            dy32 = y[2] - y[1]
+            a = (dx21 * dy32 - dy21 * dx32) / (dx21 * dx31 * dx32)
+            return a * (x0 - x[0]) * (x0 - x[1]) + (dy21 / dx21) * (x0 - x[1]) + y[1]
 
         delta_star = self._reduced_dipole_moment(j, k)
         for P in polynomials:
@@ -215,10 +225,10 @@ class Species:
         table = table[interp_start_index - I0:][:3]
         assert (len(table) == 3)
         # P[:6]: Reproduces Cantera truncated polynomial mistake
-        if delta_star > 0.:
-            y = [_evaluate_polynomial(P[:6], delta_star) for P in polynomials]
-        else:
+        if delta_star == 0.0:
             y = [row[0] for row in table]
+        else:
+            y = [_evaluate_polynomial(P[:6], delta_star) for P in polynomials]
         return _quadratic_interpolation(header_lnT_star_slice, y, lnT_star)
 
     def _omega_star_22(self, j, k, T):
@@ -231,7 +241,7 @@ class Species:
     def _viscosity(self, k, T):
         (molar_masses, diameter) = (self.molar_masses, self._diameter)
         return (5. / 16. * sqrt(pi * molar_masses[k] / const.NA * const.kB * T) /
-                (self._omega_star_22(k, k, T) * pi * sq(diameter[k])))
+                (pi * sq(diameter[k]) * self._omega_star_22(k, k, T)))
 
     # p*Djk
     def _diffusivity(self, j, k, T):
