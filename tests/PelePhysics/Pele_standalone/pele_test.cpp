@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
 
 #if 0
   for (int i=0; i< Nstates * offset; i++)
-    printf("rates[%d]: %.8f \n", i, ydot[i]);
+    printf("rates[%d]: %.9e \n", i, ydot[i]);
 #endif
 
   MPI_Finalize();

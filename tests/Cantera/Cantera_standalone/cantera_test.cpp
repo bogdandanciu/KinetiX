@@ -152,7 +152,7 @@ int main(int argc, char **argv) {
 
     if (debug) {
       for (int i = 0; i < nStates * offset; i++)
-        printf("rates[%d]: %.8f \n", i, ydot[i]);
+        printf("rates[%d]: %.9e \n", i, ydot[i]);
     }
   }
 
@@ -194,11 +194,11 @@ int main(int argc, char **argv) {
     
     if (debug){
       for (int i = 0; i < nStates; i++){
-        printf("cond[%d]: %.8f \n", i, cond[i]);
-        printf("visc[%d]: %.8f \n", i, visc[i]);
+        printf("cond[%d]: %.9e \n", i, cond[i]);
+        printf("visc[%d]: %.9e \n", i, visc[i]);
       }
       for (int i = 0; i < nStates * nSpecies; i++)
-        printf("rhoD[%d]: %.8f \n", i, rhoD[i]);
+        printf("rhoD[%d]: %.9e \n", i, rhoD[i]);
     }
   }
 
