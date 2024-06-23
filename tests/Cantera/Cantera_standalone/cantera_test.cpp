@@ -7,7 +7,7 @@
 #include <sstream>
 #include <string>
 
-#include "cantera/base/global.h" // provides Cantera::writelog
+#include "cantera/base/global.h"
 #include "cantera/core.h"
 #include "cantera/kinetics/Reaction.h"
 #include "cantera/thermo/ThermoFactory.h"
@@ -168,7 +168,7 @@ int main(int argc, char **argv) {
       for (int n = 0; n < nStates; n++) {
         gas->setState_TPY(T, p, Y);
 
-        visc[n] = trans->viscosity();;
+        visc[n] = trans->viscosity();
         cond[n] = trans->thermalConductivity();
 
 	double wrk1[nSpecies];
