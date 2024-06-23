@@ -5,7 +5,6 @@ Module containing utility functions and variables.
 # Standard libraries
 import os
 from numpy import polynomial
-from numpy import square as sq
 from numpy import isfinite as is_finite
 from numpy import single
 from pathlib import Path
