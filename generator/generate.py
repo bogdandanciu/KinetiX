@@ -145,51 +145,45 @@ class Species:
                  well_depth, dipole_moment, diameter, rotational_relaxation,
                  degrees_of_freedom, polarizability, sp_len):
         self.rcp_diffcoeffs = rcp_diffcoeffs
-        self.species_names = sp_names
-        self.molar_masses = molar_masses
-        self.thermodynamics = thermodynamics
-        self._well_depth = well_depth
-        self._dipole_moment = dipole_moment
-        self._diameter = diameter
-        self._rotational_relaxation = rotational_relaxation
-        self._degrees_of_freedom = degrees_of_freedom
-        self._polarizability = polarizability
+        self.sp_names = sp_names
+        self.Mi = molar_masses
+        self.thermo = thermodynamics
+        self._eps = well_depth
+        self._mu = dipole_moment
+        self._sigma = diameter
+        self._rot = rotational_relaxation
+        self._dof = degrees_of_freedom
+        self._alpha = polarizability
         self._sp_len = sp_len
         self._header_lnT_star = ln(const.header_T_star)
 
     def _T_star(self, j, k, T):
-        return T * const.kB / self._interaction_well_depth(j, k)
+        return T * const.kB / self._epsilon(j, k)
 
-    def _interaction_well_depth(self, j, k):
-        well_depth = self._well_depth
-        return sqrt(well_depth[j] * well_depth[k]) * sq(self._xi(j, k))
+    def _epsilon(self, j, k):
+        eps = self._eps
+        return sqrt(eps[j] * eps[k]) * sq(self._xi(j, k))
 
     def _xi(self, j, k):
-        (dipole_moment, polarizability, diameter, well_depth) = (
-            self._dipole_moment, self._polarizability, self._diameter, self._well_depth)
-        if (dipole_moment[j] > 0.) == (dipole_moment[k] > 0.):
+        (mu, alpha, sigma, eps) = (self._mu, self._alpha, self._sigma, self._eps)
+        if (mu[j] > 0.) == (mu[k] > 0.):
             return 1.
-        (polar, non_polar) = (j, k) if dipole_moment[j] != 0. else (k, j)
-        return (1. + 1. / 4. * polarizability[non_polar] / cube(diameter[non_polar]) *
-                sq(dipole_moment[polar] /
-                   sqrt(4. * pi * const.epsilon0 * well_depth[polar] * cube(diameter[polar]))) *
-                sqrt(well_depth[polar] / well_depth[non_polar]))
+        (p, np) = (j, k) if mu[j] != 0. else (k, j)
+        return (1. + 1. / 4. * alpha[np] / cube(sigma[np]) *
+                sq(mu[p] / sqrt(4. * pi * const.epsilon0 * eps[p] * cube(sigma[p]))) * sqrt(eps[p] / eps[np]))
 
-    def _reduced_mass(self, j, k):
-        molar_masses = self.molar_masses
-        return (molar_masses[j] / const.NA * molar_masses[k] / const.NA /
-                (molar_masses[j] / const.NA + molar_masses[k] / const.NA))
+    def _rM(self, j, k):
+        Mi = self.Mi
+        return Mi[j] / const.NA * Mi[k] / const.NA / (Mi[j] / const.NA + Mi[k] / const.NA)
 
-    def _reduced_diameter(self, j, k):
-        diameter = self._diameter
-        return (diameter[j] + diameter[k]) / 2. * pow(self._xi(j, k), -1. / 6.)
+    def _sigma_star(self, j, k):
+        sigma = self._sigma
+        return (sigma[j] + sigma[k]) / 2. * pow(self._xi(j, k), -1. / 6.)
 
-    def _reduced_dipole_moment(self, j, k):
-        (well_depth, dipole_moment, diameter) = (
-            self._well_depth, self._dipole_moment, self._diameter)
-        return (0.5 * dipole_moment[j] * dipole_moment[k] /
-                (4. * pi * const.epsilon0 * sqrt(well_depth[j] * well_depth[k]) *
-                 cube((diameter[j] + diameter[k]) / 2.)))
+    def _delta_star(self, j, k):
+        (eps, mu, sigma) = (self._eps, self._mu, self._sigma)
+        return (0.5 * mu[j] * mu[k] / (4. * pi * const.epsilon0 * sqrt(eps[j] * eps[k]) *
+                                       cube((sigma[j] + sigma[k]) / 2.)))
 
     def _collision_integral(self, I0, table, fit, j, k, T):
         lnT_star = ln(self._T_star(j, k, T))
@@ -219,7 +213,7 @@ class Species:
             a = (dx21 * dy32 - dy21 * dx32) / (dx21 * dx31 * dx32)
             return a * (x0 - x[0]) * (x0 - x[1]) + (dy21 / dx21) * (x0 - x[1]) + y[1]
 
-        delta_star = self._reduced_dipole_moment(j, k)
+        delta_star = self._delta_star(j, k)
         for P in polynomials:
             assert len(P) == 7, len(P)
         table = table[interp_start_index - I0:][:3]
@@ -239,22 +233,18 @@ class Species:
                 self._collision_integral(0, const.collision_integrals_A_star, const.A_star, j, k, T))
 
     def _viscosity(self, k, T):
-        (molar_masses, diameter) = (self.molar_masses, self._diameter)
-        return (5. / 16. * sqrt(pi * molar_masses[k] / const.NA * const.kB * T) /
-                (pi * sq(diameter[k]) * self._omega_star_22(k, k, T)))
+        (Mi, sigma) = (self.Mi, self._sigma)
+        return (5. / 16. * sqrt(pi * Mi[k] / const.NA * const.kB * T) /
+                (pi * sq(sigma[k]) * self._omega_star_22(k, k, T)))
 
     # p*Djk
     def _diffusivity(self, j, k, T):
-        return (3. / 16. * sqrt(2. * pi / self._reduced_mass(j, k)) * pow(const.kB * T, 3. / 2.) /
-                (pi * sq(self._reduced_diameter(j, k)) * self._omega_star_11(j, k, T)))
+        return (3. / 16. * sqrt(2. * pi / self._rM(j, k)) * pow(const.kB * T, 3. / 2.) /
+                (pi * sq(self._sigma_star(j, k)) * self._omega_star_11(j, k, T)))
 
     def _conductivity(self, k, T):
-        (molar_masses, thermodynamics, well_depth,
-         rotational_relaxation, degrees_of_freedom) = (
-            self.molar_masses, self.thermodynamics, self._well_depth,
-            self._rotational_relaxation, self._degrees_of_freedom)
-        f_vib = (molar_masses[k] / const.NA / (const.kB * T) * self._diffusivity(k, k, T) /
-                      self._viscosity(k, T))
+        (Mi, thermo, eps, rot, dof) = (self.Mi, self.thermo, self._eps, self._rot, self._dof)
+        f_vib = (Mi[k] / const.NA / (const.kB * T) * self._diffusivity(k, k, T) / self._viscosity(k, T))
         T_star = self._T_star(k, k, T)
 
         def _F(T_star):
@@ -262,13 +252,12 @@ class Species:
                     (1. / 2. + 1. / T_star) + (1. / 4. * sq(pi) + 2.) / T_star)
 
         A = 5. / 2. - f_vib
-        B = (rotational_relaxation[k] * _F(298. * const.kB / well_depth[k]) /
-             _F(T_star) + 2. / pi * (5. / 3. * degrees_of_freedom[k] + f_vib))
+        B = (rot[k] * _F(298. * const.kB / eps[k]) / _F(T_star) + 2. / pi * (5. / 3. * dof[k] + f_vib))
         f_rot = f_vib * (1. + 2. / pi * A / B)
-        f_trans = 5. / 2. * (1. - 2. / pi * A / B * degrees_of_freedom[k] / (3. / 2.))
-        Cv = (thermodynamics[k].molar_heat_capacity_R(T) - 5. / 2. - degrees_of_freedom[k])
-        return ((self._viscosity(k, T) / (molar_masses[k] / const.NA)) * const.kB *
-                (f_trans * 3. / 2. + f_rot * degrees_of_freedom[k] + f_vib * Cv))
+        f_trans = 5. / 2. * (1. - 2. / pi * A / B * dof[k] / (3. / 2.))
+        Cv = (thermo[k].molar_heat_capacity_R(T) - 5. / 2. - dof[k])
+        return ((self._viscosity(k, T) / (Mi[k] / const.NA)) * const.kB *
+                (f_trans * 3. / 2. + f_rot * dof[k] + f_vib * Cv))
 
     def transport_polynomials(self):
         T_rng = linspace(300., 3000., 50)
@@ -2072,13 +2061,13 @@ def generate_files(mech_file=None,
                             for reaction in reactions_init]), model['species'])
     # Load species and reactions with new indexing (inert species at the end)
     species = get_species_from_model(active_sp+inert_sp, rcp_diffcoeffs)
-    species_names = species.species_names
+    species_names = species.sp_names
     reactions = [get_reaction_from_model(species_names, model['units'], reaction)
                  for reaction in model['reactions']]
     species_len = len(species_names)
     active_sp_len = len(active_sp)
     reactions_len = len(reactions)
-    Mi = species.molar_masses
+    Mi = species.Mi
 
     # Load transport polynomials
     if transport and not header_only:
@@ -2127,11 +2116,11 @@ def generate_files(mech_file=None,
         write_file_mech(mech_file, output_dir, species_names, species_len, active_sp_len, reactions_len, Mi)
         if unroll_loops:  # Unrolled code
             write_file_rates_unroll(rates_file, output_dir, loop_gibbsexp, group_rxnunroll,
-                                    reactions, active_sp_len, species_len, species.thermodynamics)
+                                    reactions, active_sp_len, species_len, species.thermo)
             write_file_enthalpy_unroll(enthalpy_file, output_dir,
-                                       species_len, species.thermodynamics)
+                                       species_len, species.thermo)
             write_file_heat_capacity_unroll(heat_capacity_file, output_dir,
-                                            species_len, species.thermodynamics)
+                                            species_len, species.thermo)
             if transport:
                 write_file_conductivity_unroll(conductivity_file, output_dir,
                                                transport_polynomials, species_names)
@@ -2145,11 +2134,11 @@ def generate_files(mech_file=None,
                                                   transport_polynomials, species_len, Mi)
         else:  # Rolled code
             write_file_rates_roll(rates_file, output_dir, align_width, target,
-                                  species.thermodynamics, species_len, reactions, reactions_len)
+                                  species.thermo, species_len, reactions, reactions_len)
             write_file_enthalpy_roll(enthalpy_file, output_dir, align_width, target,
-                                     species.thermodynamics, species_len)
+                                     species.thermo, species_len)
             write_file_heat_capacity_roll(heat_capacity_file, output_dir, align_width, target,
-                                          species.thermodynamics, species_len)
+                                          species.thermo, species_len)
             if transport:
                 write_file_conductivity_roll(conductivity_file, output_dir, align_width, target,
                                              transport_polynomials, species_len)
