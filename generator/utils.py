@@ -200,7 +200,7 @@ def polynomial_regression(X, Y, degree=4, weights=None):
     """
 
     if weights is None:
-        weights = [1 / sq(y) for y in Y]
+        weights = [1 / abs(y) for y in Y]
     return polynomial.polynomial.polyfit(X, Y, deg=degree, w=weights)
 
 
