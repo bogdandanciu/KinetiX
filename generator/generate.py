@@ -205,13 +205,11 @@ class Species:
             return dot(P, [pow(x, k) for k in range(len(P))])
 
         def _quadratic_interpolation(x, y, x0):
-            dx21 = x[1] - x[0]
-            dx32 = x[2] - x[1]
-            dx31 = dx21 + dx32
-            dy21 = y[1] - y[0]
-            dy32 = y[2] - y[1]
-            a = (dx21 * dy32 - dy21 * dx32) / (dx21 * dx31 * dx32)
-            return a * (x0 - x[0]) * (x0 - x[1]) + (dy21 / dx21) * (x0 - x[1]) + y[1]
+            L0 = ((x0 - x[1]) * (x0 - x[2])) / ((x[0] - x[1]) * (x[0] - x[2]))
+            L1 = ((x0 - x[0]) * (x0 - x[2])) / ((x[1] - x[0]) * (x[1] - x[2]))
+            L2 = ((x0 - x[0]) * (x0 - x[1])) / ((x[2] - x[0]) * (x[2] - x[1]))
+
+            return L0 * y[0] + L1 * y[1] + L2 * y[2]
 
         delta_star = self._delta_star(j, k)
         for P in polynomials:
