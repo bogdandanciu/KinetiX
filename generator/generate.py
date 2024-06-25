@@ -359,6 +359,17 @@ def get_reaction_from_model(sp_names, units, r):
     reaction.net = [-reactant + product for reactant, product in zip(reaction.reactants, reaction.products)]
     reaction.sum_net = sum(reaction.net)
 
+    match = third_body_pattern.search(r['equation'])
+    if match:
+        third_body = match.group(1) or match.group(2)
+        third_body = third_body.replace('+', '').replace('(', '').replace(')', '').replace(' ', '')
+        if third_body != 'M' and third_body in sp_names:
+            reaction.third_body_index =  sp_names.index(third_body)
+        else:
+            reaction.third_body_index = -1
+    else:
+        reaction.third_body_index = -1
+
     def rate_constant(self, concentration_cm3_unit_conversion_factor_exponent):
 
         class RateConstant:
@@ -557,16 +568,29 @@ def write_reaction(idx, r, loop_gibbsexp):
     if r.type == 'elementary' or r.type == 'irreversible':
         cg.add_line(f'k = {arrhenius(r.rate_constant)};', 1)
     elif r.type == 'three-body':
-        cg.add_line(f"k = {arrhenius(r.rate_constant)}{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+        if hasattr(r, 'efficiencies'):
+            cg.add_line(f"k = {arrhenius(r.rate_constant)} * eff;", 1)
+        elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
+            cg.add_line(f"k = {arrhenius(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+        else:
+            cg.add_line(f"k = {arrhenius(r.rate_constant)} * Cm;", 1)
     elif r.type == 'pressure-modification':
         cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
-        cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
-                    f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+        if hasattr(r, 'efficiencies'):
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+        elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+        else:
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
         cg.add_line(f"k = k_inf * Pr/(1 + Pr);", 1)
     elif r.type == 'Troe':
         cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
-        cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
-                    f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+        if hasattr(r, 'efficiencies'):
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+        elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+        else:
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
         cg.add_line(f"logPr = log10(Pr + CFLOAT_MIN);", 1)
         # Add checks for troe coefficients
         if r.troe.A == 0:
@@ -586,8 +610,12 @@ def write_reaction(idx, r, loop_gibbsexp):
         cg.add_line(f"k = k_inf * Pr/(1 + Pr) * F;", 1)
     elif r.type == 'SRI':
         cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
-        cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
-                    f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+        if hasattr(r, 'efficiencies'):
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+        elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+        else:
+            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
         cg.add_line(f"logPr = log10(Pr);", 1)
         cg.add_line(f"F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
                     f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});", 1)
@@ -687,7 +715,12 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                 cg.add_line(f"k *= "
                             f"{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};",
                             1)
-            cg.add_line(f"k_corr = k {f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+            if hasattr(r, 'efficiencies'):
+                cg.add_line(f"k_corr = k * eff;", 1)
+            elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
+                cg.add_line(f"k_corr = k * Ci[{r.third_body_index}];", 1)
+            else:
+                cg.add_line(f"k_corr = k * Cm;", 1)
         elif r.type == 'pressure-modification':
             if idx == first_idx:
                 cg.add_line(f"k = {arrhenius(r.rate_constant)};", 1)
@@ -695,8 +728,12 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                 cg.add_line(f'k *= '
                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
                             1)
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
-                        f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+            if hasattr(r, 'efficiencies'):
+                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+            elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
+                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+            else:
+                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
             cg.add_line(f"k_corr = k * Pr/(1 + Pr);", 1)
         elif r.type == 'Troe':
             if idx == first_idx:
@@ -705,8 +742,12 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                 cg.add_line(f'k *= '
                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
                             1)
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
-                        f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+            if hasattr(r, 'efficiencies'):
+                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+            elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
+                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+            else:
+                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
             cg.add_line(f"logPr = log10(Pr + CFLOAT_MIN);", 1)
             # Add checks for troe coefficients
             if r.troe.A == 0:
@@ -731,8 +772,12 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                 cg.add_line(f'k *= '
                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
                             1)
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)}"
-                        f"{f'* eff' if hasattr(r, 'efficiencies') else '* Cm'};", 1)
+            if hasattr(r, 'efficiencies'):
+                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+            elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
+                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+            else:
+                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
             cg.add_line(f"logPr = log10(Pr);", 1)
             cg.add_line(f"F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
                         f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});", 1)
@@ -1459,6 +1504,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 if hasattr(r[i], 'efficiencies'):
                     cg_tb.add_line(
                         f"k[{ids_new.index(i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
+                elif not hasattr(r[i], 'efficiencies') and r[i].third_body_index >= 0:
+                    cg_tb.add_line(
+                        f"k[{ids_new.index(i)}] *= Ci[{r[i].third_body_index}];", 1)
                 else:
                     cg_tb.add_line(
                         f"k[{ids_new.index(i)}] *= Cm;", 1)
@@ -1472,6 +1520,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 if hasattr(r[i], 'efficiencies'):
                     cg_pd.add_line(
                         f"k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
+                elif not hasattr(r[i], 'efficiencies') and r[i].third_body_index >= 0:
+                    cg_pd.add_line(
+                        f"k[{ids_new.index(i)}] *= Ci[{r[i].third_body_index}];", 1)
                 else:
                     cg_pd.add_line(
                         f"k[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
@@ -1488,6 +1539,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 if hasattr(r[i], 'efficiencies'):
                     cg_troe.add_line(
                         f"k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
+                elif not hasattr(r[i], 'efficiencies') and r[i].third_body_index >= 0:
+                    cg_troe.add_line(
+                        f"k[{ids_new.index(rxn_len + i)}] *= Ci[{r[i].third_body_index}];", 1)
                 else:
                     cg_troe.add_line(
                         f"k[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
@@ -1558,6 +1612,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 if hasattr(r[i], 'efficiencies'):
                     cg_sri.add_line(
                         f"k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
+                elif not hasattr(r[i], 'efficiencies') and r[i].third_body_index >= 0:
+                    cg_sri.add_line(
+                        f"k[{ids_new.index(rxn_len + i)}] *= Ci[{r[i].third_body_index}];", 1)
                 else:
                     cg_sri.add_line(
                         f"k[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
