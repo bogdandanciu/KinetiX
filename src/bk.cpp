@@ -288,7 +288,7 @@ void loadCiStateFromFile(const std::string& ciState,
 
   molar_masses.clear();
 
-  // checks if species ordering matches 
+  // check if species ordering matches 
   {
     auto value = split(lines[1]," ");
     for(int k = 0; k < n_species; k++) {
@@ -385,12 +385,12 @@ int main(int argc, char** argv)
   int mode = 0;
   std::string tool = "nekRK";
   int blockSize = 512;
-  int nRep = 1000;   // repetitions
+  int nRep = 1000; 
   bool single_precision = false;
   int ci = 0;
   int deviceId = 0;
   int deviceIdFlag = 0;
-  int unroll_loops = -1;
+  int unroll_loops = false;
   bool loop_gibbsexp = false;
   bool group_rxnUnroll = false;
   bool group_vis = false;
@@ -408,13 +408,13 @@ int main(int argc, char** argv)
       {"tool", required_argument, 0, 't'},
       {"n-states", required_argument, 0, 'n'},
       {"block-size", required_argument, 0, 'b'},
-      {"repetitions", required_argument, 0, 'r'},
+      {"n-repetitions", required_argument, 0, 'r'},
       {"single-precision", no_argument, 0, 'p'},
       {"debug", no_argument, 0, 'g'},
       {"cimode", required_argument, 0, 'c'},
       {"yaml-file", required_argument, 0, 'f'},
       {"device-id", required_argument, 0, 'i'},
-      {"unroll-loops", required_argument, 0, 'u'},
+      {"unroll-loops", no_argument, 0, 'u'},
       {"group-rxnUnroll", no_argument, 0, 'a'},
       {"loop-gibbsexp", no_argument, 0, 'x'},
       {"group-vis", no_argument, 0, 'v'},
@@ -465,7 +465,7 @@ int main(int argc, char** argv)
       deviceIdFlag = 1;
       break;
     case 'u':
-      unroll_loops = std::stoi(optarg);
+      unroll_loops = true;
       break;
     case 'x':
       loop_gibbsexp = true;
@@ -483,7 +483,6 @@ int main(int argc, char** argv)
       fit_rcpDiffCoeffs = true;
       break;
 
-
     default:
       err++;
     }
@@ -495,8 +494,8 @@ int main(int argc, char** argv)
   if(err > 0) {
     if(rank == 0)
       printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n --yaml-file s"
-              "[--mode 1|2] [--tool s] [--repetitions n] [--single-precision] [--cimode n] [--debug] "
-	      "[--block-size  n] [--device-id  n] [--unroll-loops n] [-loop-gibbsexp] "
+              "[--mode 1|2] [--tool s] [--n-repetitions n] [--single-precision] [--cimode n] [--debug] "
+	      "[--block-size  n] [--device-id  n] [--unroll-loops] [-loop-gibbsexp] "
 	      "[--group-rxnUnroll] [--group-vis] [--nonsymDij] [--fit-rcpDiffCoeffs] \n");
     exit(EXIT_FAILURE);
   }
@@ -567,8 +566,8 @@ int main(int argc, char** argv)
   }
 
   const std::string target = (device.mode() == "Serial") ? "c++17" : device.mode();
-  if(unroll_loops < 0) 
-    unroll_loops = (device.mode() == "Serial") ? 0 : 1;
+  if(!unroll_loops) 
+    unroll_loops = (device.mode() == "Serial") ? false : true;
   const int align_width = (device.mode() == "Serial") ? 64 : 0;
   if (single_precision)
     using dfloat = float;
@@ -580,7 +579,7 @@ int main(int argc, char** argv)
 	      tool,
               blockSize,
 	      single_precision,
-	      (bool) unroll_loops,
+	      unroll_loops,
               loop_gibbsexp,
               group_rxnUnroll,
               group_vis,
