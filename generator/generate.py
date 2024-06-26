@@ -1721,6 +1721,12 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     ids_rcp_gibbs = [i for i, x in enumerate(repeated_rcp_gibbs) if x > 2]
     ids_rcp_gibbs_reordered = [ids_gibbs_new.index(i) for i in ids_rcp_gibbs]
 
+    # Compute k_rev only for reversible reactions
+    ids_krev_nz = []
+    for i in range(rxn_len):
+        if rxn[i].direction != 'irreversible':
+            ids_krev_nz.append(i)
+
     # Compute reverse rates
     def compute_k_rev(r):
         cg = CodeGenerator()
@@ -1737,8 +1743,10 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 if net > 0:
                     for o in range(net):
                         gibbs_terms.append(f"gibbs0_RT[{ids_gibbs_new.index(j)}]")
-            cg.add_line(
-                f"k_rev[{i}] = {'*'.join(gibbs_terms)}{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
+            if r[i].direction != 'irreversible':
+                cg.add_line(
+                    f"k_rev[{ids_krev_nz.index(i)}] = "
+                    f"{'*'.join(gibbs_terms)}{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
         return cg.get_code()
 
     # Compute reaction rates
@@ -1759,11 +1767,11 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 if hasattr(r[i], 'k0'):
                     cg.add_line(
                         f"cR = k[{ids_new.index(rxn_len + i)}]*({phaseSpace(r[i].reactants)}-"
-                        f"k_rev[{i}]*{phaseSpace(r[i].products)});", 1)
+                        f"k_rev[{ids_krev_nz.index(i)}]*{phaseSpace(r[i].products)});", 1)
                 else:
                     cg.add_line(
                         f"cR = k[{ids_new.index(i)}]*({phaseSpace(r[i].reactants)}-"
-                        f"k_rev[{i}]*{phaseSpace(r[i].products)});", 1)
+                        f"k_rev[{ids_krev_nz.index(i)}]*{phaseSpace(r[i].products)});", 1)
             cg.add_line(f"#ifdef DEBUG")
             cg.add_line(f"printf(\"{i + 1}: %+.15e\\n\", cR);", 1)
             cg.add_line(f"#endif")
@@ -1831,7 +1839,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     cg.add_line("")
     cg.add_line(f"// Compute reverse rates", 1)
     cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
-                 f"k_rev[{rxn_len}]; ", 1)
+                 f"k_rev[{len(ids_krev_nz)}]; ", 1)
     cg.add_line(f"cfloat C0 = {f(const.one_atm / const.R)} * rcpT;", 1)
     cg.add_line(f"cfloat rcpC0 = {f(const.R / const.one_atm)} * T;", 1)
     cg.add_line(f"{compute_k_rev(rxn)}")
