@@ -1582,8 +1582,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 f"cfloat rcp_troe_T1[{len(ids_troe_rxn)}] = {{{f_sci_not(rcp_troe_T1)}}};", 1)
             cg_troe.add_line(
                 f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
-                f"cfloat troe_T2[{len(ids_troe_rxn)}] = {{{f_sci_not(troe_T2)}}};" if not (
-                    any([i == float('inf') for i in troe_T2])) else '', 1)
+                f"cfloat troe_T2[{len(ids_troe_rxn)}] = "
+                f"{{{f_sci_not([i if i < float('inf') else -1 for i in troe_T2])}}};"
+                if not (all([i == float('inf') for i in troe_T2])) else '', 1)
             cg_troe.add_line(
                 f"{f'alignas({align_width}) static constexpr' if target=='c++17' else 'const'} "
                 f"cfloat rcp_troe_T3[{len(ids_troe_rxn)}] = {{{f_sci_not(rcp_troe_T3)}}};", 1)
@@ -1596,10 +1597,22 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 f"logFcent[{len(ids_troe_rxn)}];", 1)
             cg_troe.add_line(f"for(unsigned int i = 0; i<{len(ids_troe_rxn)}; ++i)", 1)
             cg_troe.add_line(f"{{", 1)
-            cg_troe.add_line(
-                f"logFcent[i] = log10(({f(1.)} - troe_A[i])*exp(-T*rcp_troe_T3[i]) + "
-                f"troe_A[i]*exp(-T*rcp_troe_T1[i]){f' + exp(-troe_T2[i]*rcpT)' if troe_T2[0] < float('inf') else ''});",
-                2)
+            if all([i == float('inf') for i in troe_T2]):
+                cg_troe.add_line(
+                    f"logFcent[i] = log10(({f(1.)} - troe_A[i])*exp(-T*rcp_troe_T3[i]) + "
+                    f"troe_A[i]*exp(-T*rcp_troe_T1[i]));",
+                    2)
+            elif all([i < float('inf') for i in troe_T2]):
+                cg_troe.add_line(
+                    f"logFcent[i] = log10(({f(1.)} - troe_A[i])*exp(-T*rcp_troe_T3[i]) + "
+                    f"troe_A[i]*exp(-T*rcp_troe_T1[i]) + exp(-troe_T2[i]*rcpT));",
+                    2)
+            else:
+                cg_troe.add_line(f"cfloat term3 = (troe_T2[i] != -1) ? exp(-troe_T2[i] * rcpT) : {f(0.)};", 2)
+                cg_troe.add_line(
+                    f"logFcent[i] = log10(({f(1.)} - troe_A[i])*exp(-T*rcp_troe_T3[i]) + "
+                    f"troe_A[i]*exp(-T*rcp_troe_T1[i]) + term3);",
+                    2)
             cg_troe.add_line(f"}}", 1)
             cg_troe.add_line(f"for(unsigned int i = 0; i<{len(ids_troe_rxn)}; ++i)", 1)
             cg_troe.add_line(f"{{", 1)
@@ -1618,7 +1631,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg_troe.add_line(f"}}", 1)
             for i in ids_troe_rxn:
                 cg_troe.add_line(
-                    f"k[{ids_new.index(rxn_len + i)}]*= k[{ids_new.index(i)}];", 1)
+                    f"k[{ids_new.index(rxn_len + i)}] *= k[{ids_new.index(i)}];", 1)
 
         # SRI reaction
         cg_sri = CodeGenerator()
