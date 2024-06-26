@@ -1,0 +1,34 @@
+name: CI test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4 
+        with:
+          python-version: '3.10'
+
+      - name: Generate and Build
+        run: |
+          sudo apt -y update
+          sudo apt install -y mpich libmpich-dev
+          mkdir build
+          cd build
+          export NEKRK_PATH=$HOME/.local/nekRK
+          cmake -DCMAKE_INSTALL_PREFIX=$NEKRK_PATH -DAMReX_GPU_BACKEND=NONE ..
+          make VERBOSE=1 install
+          cd $NEKRK_PATH
+          bin/nekrk_bk --backend SERIAL --yaml-file mechanisms/gri30.yaml --cimode 1
+          rm -rf .cache/
+          bin/nekrk_bk --backend SERIAL --yaml-file mechanisms/gri30.yaml --cimode 1 --unroll-loops
+
