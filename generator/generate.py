@@ -1294,105 +1294,89 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
         elif beta[-1] == 2 and E_R[-1] == 0:
             ids_E0B2.append(i)
         else:
-            if len(ids_EB) > 0:
-                for j in range(len(ids_EB)):
-                    if beta[-1] == beta[ids_old.index(ids_EB[j])] and \
-                            E_R[-1] == E_R[ids_old.index(ids_EB[j])]:
-                        ids_ErBr.append(i)
-                        pos_ids_ErBr.append(j)
-                        break
-                else:
-                    ids_EB.append(i)
-            else:
+            match_found = False
+            for j in range(len(ids_EB)):
+                if beta[-1] == beta[ids_old.index(ids_EB[j])] and E_R[-1] == E_R[ids_old.index(ids_EB[j])]:
+                    ids_ErBr.append(i)
+                    pos_ids_ErBr.append(j)
+                    match_found = True
+                    break
+            if not match_found:
                 ids_EB.append(i)
-        # Rate constants for k0
+        # Process k0 if available
         # Indices for k0 are number of reactions + reaction index
         if hasattr(rxn[i], 'k0'):
-            ids_old.append(rxn_len + i)
+            k0_ids = rxn_len + i
+            ids_old.append(k0_ids)
             A.append(rxn[i].k0.preexponential_factor)
             beta.append(rxn[i].k0.temperature_exponent)
             E_R.append(rxn[i].k0.activation_temperature)
+
             if beta[-1] == 0 and E_R[-1] == 0:
-                ids_E0B0.append(rxn_len + i)
+                ids_E0B0.append(k0_ids)
             elif beta[-1] == -1 and E_R[-1] == 0:
-                ids_E0Bneg1.append(rxn_len + i)
+                ids_E0Bneg1.append(k0_ids)
             elif beta[-1] == -2 and E_R[-1] == 0:
-                ids_E0Bneg2.append(rxn_len + i)
+                ids_E0Bneg2.append(k0_ids)
             elif beta[-1] == 1 and E_R[-1] == 0:
-                ids_E0B1.append(rxn_len + i)
+                ids_E0B1.append(k0_ids)
             elif beta[-1] == 2 and E_R[-1] == 0:
-                ids_E0B2.append(rxn_len + i)
+                ids_E0B2.append(k0_ids)
             else:
-                if len(ids_EB) > 0:
-                    for j in range(len(ids_EB)):
-                        if beta[-1] == beta[ids_old.index(ids_EB[j])] and \
-                                E_R[-1] == E_R[ids_old.index(ids_EB[j])]:
-                            ids_ErBr.append(rxn_len + i)
-                            pos_ids_ErBr.append(j)
-                            break
-                    else:
-                        ids_EB.append(rxn_len + i)
-                else:
-                    ids_EB.append(rxn_len + i)
+                match_found = False
+                for j in range(len(ids_EB)):
+                    if beta[-1] == beta[ids_old.index(ids_EB[j])] and E_R[-1] == E_R[ids_old.index(ids_EB[j])]:
+                        ids_ErBr.append(k0_ids)
+                        pos_ids_ErBr.append(j)
+                        match_found = True
+                        break
+                if not match_found:
+                    ids_EB.append(k0_ids)
+
     # Group repeated constants for better vectorization
-    unique_pos_ids_ErBr = []
-    for i in range(len(pos_ids_ErBr)):
-        if pos_ids_ErBr[i] not in pos_ids_ErBr[:i]:
-            unique_pos_ids_ErBr.append(pos_ids_ErBr[i])
+    unique_pos_ids_ErBr = list(dict.fromkeys(pos_ids_ErBr))
+
     # Move repeated constants that need to be calculated at the end
     ids_ErBr_values = [ids_EB[i] for i in pos_ids_ErBr]
-    new_ids_EB_s, new_ids_EB_e = [], []
-    for u in range(len(unique_pos_ids_ErBr)):
-        for i in range(len(ids_EB)):
-            if i == unique_pos_ids_ErBr[u]:
-                new_ids_EB_e.append(ids_EB[i])
-                break
-    for i in range(len(ids_EB)):
-        if i not in unique_pos_ids_ErBr:
-            new_ids_EB_s.append(ids_EB[i])
-    assert len(ids_EB) == (len(new_ids_EB_s) + len(new_ids_EB_e))
+    new_ids_EB_s = [ids_EB[i] for i in range(len(ids_EB)) if i not in unique_pos_ids_ErBr]
+    new_ids_EB_e = [ids_EB[i] for i in unique_pos_ids_ErBr]
     ids_EB = new_ids_EB_s + new_ids_EB_e
-    ids_rep = []
-    new_pos_ids_ErBr_s, new_pos_ids_ErBr_e = [], []
-    new_ids_ErBr_values_s, new_ids_ErBr_values_e = [], []
-    for i in range(len(pos_ids_ErBr)):
-        if pos_ids_ErBr[i] in pos_ids_ErBr[:i]:
-            ids_rep.append(i)
-            new_pos_ids_ErBr_e.append(pos_ids_ErBr[i])
-            new_ids_ErBr_values_e.append(ids_ErBr_values[i])
-        else:
-            new_pos_ids_ErBr_s.append(pos_ids_ErBr[i])
-            new_ids_ErBr_values_s.append(ids_ErBr_values[i])
+
+    ids_rep = [i for i in range(len(pos_ids_ErBr)) if pos_ids_ErBr[i] in pos_ids_ErBr[:i]]
+    new_pos_ids_ErBr_s = [pos_ids_ErBr[i] for i in range(len(pos_ids_ErBr)) if i not in ids_rep]
+    new_pos_ids_ErBr_e = [pos_ids_ErBr[i] for i in ids_rep]
+    new_ids_ErBr_values_s = [ids_ErBr_values[i] for i in range(len(ids_ErBr_values)) if i not in ids_rep]
+    new_ids_ErBr_values_e = [ids_ErBr_values[i] for i in ids_rep]
+
     pos_ids_ErBr = new_pos_ids_ErBr_s + new_pos_ids_ErBr_e
     ids_ErBr_values = new_ids_ErBr_values_s + new_ids_ErBr_values_e
-    new_ids_ErBr_s, new_ids_ErBr_e = [], []
-    for i in range(len(ids_ErBr)):
-        if i in ids_rep:
-            new_ids_ErBr_e.append(ids_ErBr[i])
-        else:
-            new_ids_ErBr_s.append(ids_ErBr[i])
+    new_ids_ErBr_s = [ids_ErBr[i] for i in range(len(ids_ErBr)) if i not in ids_rep]
+    new_ids_ErBr_e = [ids_ErBr[i] for i in ids_rep]
     ids_ErBr = new_ids_ErBr_s + new_ids_ErBr_e
 
     # Group indices
     ids_E0Bsmall = ids_E0Bneg2 + ids_E0Bneg1 + ids_E0B1 + ids_E0B2
     ids_new = ids_EB + ids_E0B0 + ids_E0Bsmall + ids_ErBr
     assert len(ids_old) == len(ids_new)
+
     # Rearrange constants
-    A_new, beta_new, E_R_new = [], [], []
-    for i in range(len(ids_new)):
-        A_new.append(A[ids_old.index(ids_new[i])])
-        beta_new.append(beta[ids_old.index(ids_new[i])])
-        E_R_new.append(E_R[ids_old.index(ids_new[i])])
+    A_new = [A[ids_old.index(i)] for i in ids_new]
+    beta_new = [beta[ids_old.index(i)] for i in ids_new]
+    E_R_new = [E_R[ids_old.index(i)] for i in ids_new]
+
     beta_new_reduced = beta_new[:len(ids_EB)]
     E_R_new_reduced = E_R_new[:len(ids_EB)]
+
     # Precompute log(A) for constants that need to be computed
     for i in range(len(ids_EB)):
         A_new[i] = math.log(A_new[i])
+
     # Correct log(A) for repeated constants
     for i in range(len(unique_pos_ids_ErBr)):
         idx_re = len(ids_new) - len(pos_ids_ErBr) + i
         idx_a_re = len(ids_EB) - len(unique_pos_ids_ErBr) + i
         A_new[idx_re] = A_new[idx_re] / math.exp(A_new[idx_a_re])
+
     if (len(pos_ids_ErBr) - len(unique_pos_ids_ErBr)) > 0:
         for i in range(len(pos_ids_ErBr) - len(unique_pos_ids_ErBr)):
             idx_unique_re = len(ids_new) - (len(pos_ids_ErBr) - len(unique_pos_ids_ErBr)) + i
@@ -1456,22 +1440,25 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     ids_eff = []
     dic_unique_eff = {}
 
-    def reodrder_eff(r):
+    def reorder_eff(r):
         cg = CodeGenerator()
         dic_eff = {}
         count = 0
-        for i in range(len(r)):
-            if hasattr(r[i], 'efficiencies'):
+
+        for i, ri in enumerate(r):
+            if hasattr(ri, 'efficiencies'):
                 ids_eff.append(i)
-                dic_eff[count] = r[i].efficiencies
+                dic_eff[count] = ri.efficiencies
                 count += 1
+
         if count > 0:
             unique_ids_eff = []
             unique_count = 0
+
             for i in range(len(ids_eff)):
                 test = True
-                for j in range(0, i):
-                    if dic_eff[j] == dic_eff[i] and i != 0:
+                for j in range(i):
+                    if dic_eff[j] == dic_eff[i]:
                         dic_unique_eff[i] = dic_unique_eff[j]
                         test = False
                         break
@@ -1479,22 +1466,21 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                     dic_unique_eff[i] = unique_count
                     unique_ids_eff.append(ids_eff[i])
                     unique_count += 1
+
             for i in range(unique_count):
                 ci = []
-                for specie, efficiency in enumerate(r[unique_ids_eff[i]].efficiencies):
-                    if efficiency != 1.:
+                efficiencies = r[unique_ids_eff[i]].efficiencies
+                for specie, efficiency in enumerate(efficiencies):
+                    if efficiency != 1.0:
                         if efficiency == 2:
                             ci.append(f"Ci[{specie}]")
                         elif efficiency == 0:
                             ci.append(f"-Ci[{specie}]")
                         else:
-                            ci.append(f"{f(efficiency - 1.)}*Ci[{specie}]")
-                cg.add_line(f"cfloat eff{i} = Cm + {'+'.join(ci)};", 1)
+                            ci.append(f"{efficiency - 1.0}*Ci[{specie}]")
+                cg.add_line(f"cfloat eff{i} = Cm + {' + '.join(ci)};", 1)
 
-            return cg.get_code()
-        else:
-            cg.add_line("")
-            return cg.get_code()
+        return cg.get_code()
 
     # Correct k based on reaction type
     ids_er_rxn, ids_3b_rxn, ids_pd_rxn, ids_troe_rxn, ids_sri_rxn = [], [], [], [], []
@@ -1813,7 +1799,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     cg.add_line(f"for(unsigned int i=0; i<{sp_len}; ++i)", 1)
     cg.add_line(f"Cm += Ci[i];", 2)
     cg.add_line("")
-    cg.add_line(f"{reodrder_eff(rxn)}")
+    cg.add_line(f"{reorder_eff(rxn)}")
     cg.add_line("")
     cg.add_line(f"{corr_k(rxn)}")
     cg.add_line("")
