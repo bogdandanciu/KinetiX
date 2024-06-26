@@ -403,19 +403,33 @@ def get_reaction_from_model(sp_names, units, r):
     if r.get('type') is None or r.get('type') == 'elementary':
         if re.search('[^<]=>', r['equation']):
             reaction.type = 'irreversible'
+            reaction.direction = 'irreversible'
         elif '<=>' in r['equation'] or '= ' in r['equation']:
             # Keep the space after = ('= ') here. or let '[^<]=>' match first
             assert (r.get('reversible', True))
             reaction.type = 'elementary'
+            reaction.direction = 'reversible'
         else:
             exit(r)
     elif r.get('type') == 'three-body':
         reaction.type = 'three-body'
+        if re.search('[^<]=>', r['equation']):
+            reaction.direction = 'irreversible'
+        else:
+            reaction.direction = 'reversible'
     elif r.get('type') == 'falloff' and not r.get('Troe') and not r.get('SRI'):
         reaction.type = 'pressure-modification'
+        if re.search('[^<]=>', r['equation']):
+            reaction.direction = 'irreversible'
+        else:
+            reaction.direction = 'reversible'
         reaction.k0 = rate_constant(r['low-P-rate-constant'], reactants)
     elif r.get('type') == 'falloff' and r.get('Troe'):
         reaction.type = 'Troe'
+        if re.search('[^<]=>', r['equation']):
+            reaction.direction = 'irreversible'
+        else:
+            reaction.direction = 'reversible'
         reaction.k0 = rate_constant(r['low-P-rate-constant'], reactants)
 
         class Troe:
@@ -428,6 +442,10 @@ def get_reaction_from_model(sp_names, units, r):
         reaction.troe.T2 = r['Troe'].get('T2', float('inf'))
     elif r.get('type') == 'falloff' and r.get('SRI'):
         reaction.type = 'SRI'
+        if re.search('[^<]=>', r['equation']):
+            reaction.direction = 'irreversible'
+        else:
+            reaction.direction = 'reversible'
         reaction.k0 = rate_constant(r['low-P-rate-constant'], reactants)
 
         class SRI:
@@ -628,7 +646,7 @@ def write_reaction(idx, r, loop_gibbsexp):
         coefficient != 0.)
     Rf = phase_space(r.reactants)
     cg.add_line(f"Rf= {Rf};", 1)
-    if r.type == 'irreversible':
+    if r.type == 'irreversible' or r.direction == 'irreversible':
         cg.add_line(f"cR = k * Rf;", 1)
     else:
         pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
@@ -790,7 +808,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             coefficient != 0.)
         Rf = phase_space(r.reactants)
         cg.add_line(f"Rf= {Rf};", 1)
-        if r.type == 'irreversible':
+        if r.type == 'irreversible' or r.direction == 'irreversible':
             cg.add_line(f"cR = k * Rf;", 1)
         else:
             pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
@@ -1414,10 +1432,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
         if len(ids_E0B2) > 0:
             start_ids_E0B2 = len(ids_EB) + len(ids_E0B0) + len(ids_E0Bneg2) + len(ids_E0Bneg1) + len(ids_E0B1)
             cg.add_line(f'// {len(ids_E0B2)} rate constants with E_R = 0 and beta = 2 ', 1)
-            cg.add_line(f'cfloat T_2 = T*T;', 1)
-            cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0B1)}; ++i)', 1)
+            cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0B2)}; ++i)', 1)
             cg.add_line(f'{{', 1)
-            cg.add_line(f'k[i+{start_ids_E0B2}] = A[i+{start_ids_E0B2}]*T_2;', 2)
+            cg.add_line(f'k[i+{start_ids_E0B2}] = A[i+{start_ids_E0B2}]*T2;', 2)
             cg.add_line(f'}}', 1)
         if len(ids_ErBr) > 0:
             start_ids_ErBr = len(ids_new) - len(ids_ErBr)
@@ -1522,7 +1539,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                         f"k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
                 elif not hasattr(r[i], 'efficiencies') and r[i].third_body_index >= 0:
                     cg_pd.add_line(
-                        f"k[{ids_new.index(i)}] *= Ci[{r[i].third_body_index}];", 1)
+                        f"k[{ids_new.index(rxn_len + i)}] *= Ci[{r[i].third_body_index}];", 1)
                 else:
                     cg_pd.add_line(
                         f"k[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
@@ -1581,7 +1598,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg_troe.add_line(f"{{", 1)
             cg_troe.add_line(
                 f"logFcent[i] = log10(({f(1.)} - troe_A[i])*exp(-T*rcp_troe_T3[i]) + "
-                f"troe_A[i]*exp(-T*rcp_troe_T1[i]){f'+ exp(-troe_T2[i]*rcpT)' if troe_T2[0] < float('inf') else ''});",
+                f"troe_A[i]*exp(-T*rcp_troe_T1[i]){f' + exp(-troe_T2[i]*rcpT)' if troe_T2[0] < float('inf') else ''});",
                 2)
             cg_troe.add_line(f"}}", 1)
             cg_troe.add_line(f"for(unsigned int i = 0; i<{len(ids_troe_rxn)}; ++i)", 1)
@@ -1720,7 +1737,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
         cg = CodeGenerator()
         for i in range(len(r)):
             cg.add_line(f"//{i + 1}: {r[i].description}", 1)
-            if r[i].type == 'irreversible':
+            if r[i].type == 'irreversible' or r[i].direction == 'irreversible':
                 if hasattr(r[i], 'k0'):
                     cg.add_line(f"cR = k[{ids_new.index(rxn_len + i)}]*({phaseSpace(r[i].reactants)});", 1)
                 else:
@@ -1736,12 +1753,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                         f"k_rev[{i}]*{phaseSpace(r[i].products)});", 1)
             cg.add_line(f"#ifdef DEBUG")
             cg.add_line(f"printf(\"{i + 1}: %+.15e\\n\", cR);", 1)
-            if hasattr(r[i], 'k0'):
-                cg.add_line(
-                    f"printf(\"{i + 1}: %+.15e, %+.15e\\n\", k[{ids_new.index(rxn_len + i)}], k_rev[{i}]);", 1)
-            else:
-                cg.add_line(
-                    f"printf(\"{i + 1}: %+.15e, %+.15e\\n\", k[{ids_new.index(i)}], k_rev[{i}]);", 1)
             cg.add_line(f"#endif")
             for specie, net in enumerate(r[i].net):
                 if net != 0:  # Only generate code for non-zero net changes
