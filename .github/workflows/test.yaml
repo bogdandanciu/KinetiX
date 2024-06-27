@@ -14,21 +14,31 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4 
+        with:
+          submodules: true  # Ensure submodules are checked out
+          fetch-depth: 0    # Fetch all history for all branches and tags
+
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Generate and Build
+      - name: Install dependencies
         run: |
           sudo apt -y update
           sudo apt install -y mpich libmpich-dev
+
+      - name: List files for debugging
+        run: ls -R 3rd_party/occa
+
+      - name: Generate and Build
+        run: |
           mkdir build
           cd build
           export NEKRK_PATH=$HOME/.local/nekRK
           cmake -DCMAKE_INSTALL_PREFIX=$NEKRK_PATH -DAMReX_GPU_BACKEND=NONE ..
           make VERBOSE=1 install
           cd $NEKRK_PATH
+          export OCCA_CXX=mpic++
           bin/nekrk_bk --backend SERIAL --yaml-file mechanisms/gri30.yaml --cimode 1
           rm -rf .cache/
           bin/nekrk_bk --backend SERIAL --yaml-file mechanisms/gri30.yaml --cimode 1 --unroll-loops
-
