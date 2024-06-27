@@ -8,6 +8,15 @@
   }
 }
 
+@kernel void nReactions(@restrict int* n)
+{
+  for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
+    if(id == 0) {
+      n[0] = n_reactions;
+    }
+  }
+}
+
 @kernel void mMolar(@restrict dfloat* n)
 {
   for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {

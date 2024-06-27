@@ -120,6 +120,8 @@ int nSpecies();
 
 int nActiveSpecies();
 
+int nReactions();
+
 const std::vector<std::string> speciesNames();
 
 int speciesIndex(const std::string& name);

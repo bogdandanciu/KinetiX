@@ -29,6 +29,7 @@ occa::device device;
 bool debug = false;
 int n_states;
 int n_species;
+int n_reactions;
 int n_active_species;
 int n_inert_species;
 
@@ -592,6 +593,7 @@ int main(int argc, char** argv)
               debug); 
 
   n_species = nekRK::nSpecies();
+  n_reactions = nekRK::nReactions();
   n_active_species = nekRK::nActiveSpecies();
   n_inert_species = n_species - n_active_species;
 
@@ -729,6 +731,8 @@ int main(int argc, char** argv)
       printf("avg elapsed time: %.5f s\n", elapsedTime);
       printf("avg aggregated throughput: %.2f GDOF/s\n",
               (size * (double)(n_states * (n_species + 1)) * nRep) / elapsedTime / 1e9);
+      printf("avg aggregated throughput: %.2f GRXN/s\n",
+              (size * (double)(n_states * n_reactions) * nRep) / elapsedTime / 1e9);
     }
   }
 

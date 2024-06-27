@@ -36,6 +36,7 @@ double ref_meanMolarMass;
 
 const double R = 1.380649e-23 * 6.02214076e23;
 int n_species = -1;
+int n_reactions = -1;
 int n_active_species = -1;
 std::vector<double> m_molar;
 
@@ -339,6 +340,7 @@ static void setup()
   {
     const auto oklpath = std::string(getenv("NEKRK_PATH")) + "/okl/";
     occa::kernel nSpeciesKernel = buildKernel("mech.okl", "nSpecies", kernel_properties);
+    occa::kernel nReactionsKernel = buildKernel("mech.okl", "nReactions", kernel_properties);
     occa::kernel mMolarKernel = buildKernel("mech.okl", "mMolar", kernel_properties);
     occa::kernel speciesNamesLengthKernel = buildKernel("mech.okl", "speciesNamesLength", kernel_properties);
     occa::kernel speciesStringKernel = buildKernel("mech.okl", "speciesString", kernel_properties);
@@ -350,6 +352,15 @@ static void setup()
       o_nSpecies.copyTo(tmp);
       n_species = tmp[0];
       n_active_species = tmp[1];
+      free(tmp);
+    }
+
+    {
+      auto tmp = (int *)calloc(1, sizeof(int));
+      auto o_nReactions = device.malloc(1 * sizeof(int));
+      nReactionsKernel(o_nReactions);
+      o_nReactions.copyTo(tmp);
+      n_reactions = tmp[0];
       free(tmp);
     }
  
@@ -849,6 +860,11 @@ void nekRK::thermodynamicProps(int n_states,
 int nekRK::nSpecies() 
 { 
   return n_species; 
+}
+
+int nekRK::nReactions() 
+{ 
+  return n_reactions; 
 }
 
 int nekRK::nActiveSpecies() 
