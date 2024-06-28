@@ -109,6 +109,7 @@ int main(int argc, char **argv) {
 
   // Initialize reaction kinetics
   auto kin = sol->kinetics();
+  int nReactions = kin->nReactions();
 
   // Initialize states vector
   int offset = nSpecies + 1;
@@ -145,8 +146,8 @@ int main(int argc, char **argv) {
     if (rank == 0){
       printf("--- Chemistry ---\n");
       printf("avg elapsed time: %.5f s\n", elapsedTime);
-      printf("avg aggregated throughput: %.3f GDOF/s (nStates = %d)\n",
-             (size * (double)(nStates * offset) * nRep) / elapsedTime / 1e9,
+      printf("avg aggregated throughput: %.3f GRXN/s (nStates = %d)\n",
+             (size * (double)(nStates * nReactions) * nRep) / elapsedTime / 1e9,
              size * nStates);
     }
 
@@ -188,7 +189,7 @@ int main(int argc, char **argv) {
     if (rank == 0){
       printf("--- Transport properties ---\n");
       printf("avg elapsed time: %.5f s\n", elapsedTime); printf("avg aggregated throughput: %.3f GDOF/s (nStates = %d)\n",
-             (size * (double)(nStates * offset) * nRep) / elapsedTime / 1e9,
+             (size * (double)(nStates * (nSpecies + 2)) * nRep) / elapsedTime / 1e9,
              size * nStates);
     }
     

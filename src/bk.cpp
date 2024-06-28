@@ -729,8 +729,6 @@ int main(int argc, char** argv)
     if(!ci && rank == 0) {
       printf("BK1 (reaction rates) results:\n");
       printf("avg elapsed time: %.5f s\n", elapsedTime);
-      printf("avg aggregated throughput: %.2f GDOF/s\n",
-              (size * (double)(n_states * (n_species + 1)) * nRep) / elapsedTime / 1e9);
       printf("avg aggregated throughput: %.2f GRXN/s\n",
               (size * (double)(n_states * n_reactions) * nRep) / elapsedTime / 1e9);
     }
@@ -778,7 +776,7 @@ int main(int argc, char** argv)
       printf("BK2 (transport) results:\n");
       printf("avg elapsed time: %.5f s\n", elapsedTime);
       printf("avg aggregated throughput: %.2f GDOF/s\n",
-              (size * (double)(n_states * (n_species + 1)) * nRep) / elapsedTime / 1e9);
+              (size * (double)(n_states * (n_species + 2)) * nRep) / elapsedTime / 1e9);
     }
   }
 
