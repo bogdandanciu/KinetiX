@@ -567,8 +567,6 @@ int main(int argc, char** argv)
   }
 
   const std::string target = (device.mode() == "Serial") ? "c++17" : device.mode();
-  if(!unroll_loops) 
-    unroll_loops = (device.mode() == "Serial") ? false : true;
   const int align_width = (device.mode() == "Serial") ? 64 : 0;
   if (single_precision)
     using dfloat = float;
