@@ -15,7 +15,7 @@ Installation:
 
 ```sh
 mkdir build; cd build
-cmake [-DCMAKE_INSTALL_PREFIX=$NEKRK_PATH] [-DAMReX_GPU_BACKEND=CUDA] ..
+cmake [-DCMAKE_INSTALL_PREFIX=$NEKRK_PATH] [-DAMReX_GPU_BACKEND=CUDA] [-DAMReX_PRECISION=SINGLE] ..
 make -j4 install
 ```
 ## Generator standalone usage 
