@@ -21,67 +21,43 @@ ulimit -s unlimited
 
 #LiDryer
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --fit-rcpDiffCoeffs
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --loop-gibbsexp
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --fit-rcpDiffCoeffs --nonsymDij
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops --fit-rcpDiffCoeffs
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --group-vis
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops --loop-gibbsexp --fit-rcpDiffCoeffs --nonsymDij
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --fit-rcpDiffCoeffs
-rm -rf .cache
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 1 --fit-rcpDiffCoeffs --nonsymDij 
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops --loop-gibbsexp --group-rxnUnroll --fit-rcpDiffCoeffs --nonsymDij --group-vis
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 0
-rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 0 --fit-rcpDiffCoeffs
-rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --unroll-loops 0 --fit-rcpDiffCoeffs --nonsymDij 
-rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --tool Pele
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/LiDryer.yaml --tool Pele
 
 #gri30 
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --fit-rcpDiffCoeffs
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --fit-rcpDiffCoeffs --nonsymDij
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops --fit-rcpDiffCoeffs
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --group-vis
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops --loop-gibbsexp --fit-rcpDiffCoeffs --nonsymDij
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --fit-rcpDiffCoeffs
-rm -rf .cache
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 1 --fit-rcpDiffCoeffs --nonsymDij 
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops --loop-gibbsexp --group-rxnUnroll --fit-rcpDiffCoeffs --nonsymDij --group-vis
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 0
-rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 0 --fit-rcpDiffCoeffs
-rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --unroll-loops 0 --fit-rcpDiffCoeffs --nonsymDij 
-rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --tool Pele
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 100 --mode 0 --yaml-file ../mechanisms/gri30.yaml --tool Pele
 
-#Konnov 
+#Konnov
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 40 --mode 0 --yaml-file ../mechanisms/EtOHKonnov.yaml --fit-rcpDiffCoeffs
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 40 --mode 0 --yaml-file ../mechanisms/EtOHKonnov.yaml --fit-rcpDiffCoeffs --nonsymDij
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --loop-gibbsexp --group-rxnUnroll
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 40 --mode 0 --yaml-file ../mechanisms/EtOHKonnov.yaml --unroll-loops --fit-rcpDiffCoeffs
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --group-vis
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 40 --mode 0 --yaml-file ../mechanisms/EtOHKonnov.yaml --unroll-loops --loop-gibbsexp --fit-rcpDiffCoeffs --nonsymDij
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --fit-rcpDiffCoeffs
-rm -rf .cache
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 1 --fit-rcpDiffCoeffs --nonsymDij 
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 40 --mode 0 --yaml-file ../mechanisms/EtOHKonnov.yaml --unroll-loops --loop-gibbsexp --group-rxnUnroll --fit-rcpDiffCoeffs --nonsymDij --group-vis
 rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 0
-rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 0 --fit-rcpDiffCoeffs
-rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --unroll-loops 0 --fit-rcpDiffCoeffs --nonsymDij 
-rm -rf .cache/
-srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --repetitions 100 --mode 0 --yaml-file ../mechanisms/Konnov.yaml --tool Pele
+srun ../bin/nekrk_bk --backend CUDA --n-states 1000000 --n-repetitions 40 --mode 0 --yaml-file ../mechanisms/EtOHKonnov.yaml --tool Pele
 
