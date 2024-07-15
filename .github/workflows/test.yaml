@@ -39,7 +39,6 @@ jobs:
           make VERBOSE=1 install
           cd $NEKRK_PATH
           export OCCA_CXX=mpic++
-          ls -l include/occa/scripts/
           bin/nekrk_bk --backend SERIAL --yaml-file mechanisms/gri30.yaml --cimode 1
           rm -rf .cache/
           bin/nekrk_bk --backend SERIAL --yaml-file mechanisms/gri30.yaml --cimode 1 --unroll-loops
