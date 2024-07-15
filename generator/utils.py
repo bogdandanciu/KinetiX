@@ -107,7 +107,7 @@ def f(c):
             return '0.'
         if c == 1.:
             return '1.'
-        return repr(c)
+        return f'{c}'
     elif precision == 'FP32':
         if not is_finite(single(c)):
             print(f'/!\\ WARNING: {c} constant already overflows single precision')
