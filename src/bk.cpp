@@ -496,7 +496,7 @@ int main(int argc, char** argv)
     if(rank == 0)
       printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n --yaml-file s"
               "[--mode 1|2] [--tool s] [--n-repetitions n] [--single-precision] [--cimode n] [--debug] "
-	      "[--block-size  n] [--device-id  n] [--unroll-loops] [-loop-gibbsexp] "
+	      "[--block-size  n] [--device-id  n] [--unroll-loops] [--loop-gibbsexp] "
 	      "[--group-rxnUnroll] [--group-vis] [--nonsymDij] [--fit-rcpDiffCoeffs] \n");
     exit(EXIT_FAILURE);
   }
