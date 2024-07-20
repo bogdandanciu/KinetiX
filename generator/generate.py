@@ -645,7 +645,7 @@ def write_reaction(idx, r, loop_gibbsexp):
         '*'.join([f'Ci[{specie}]'] * coefficient) for specie, coefficient in enumerate(reagents) if
         coefficient != 0.)
     Rf = phase_space(r.reactants)
-    cg.add_line(f"Rf= {Rf};", 1)
+    cg.add_line(f"Rf = {Rf};", 1)
     if r.type == 'irreversible' or r.direction == 'irreversible':
         cg.add_line(f"cR = k * Rf;", 1)
     else:
@@ -807,7 +807,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             '*'.join([f'Ci[{specie}]'] * coefficient) for specie, coefficient in enumerate(reagents) if
             coefficient != 0.)
         Rf = phase_space(r.reactants)
-        cg.add_line(f"Rf= {Rf};", 1)
+        cg.add_line(f"Rf = {Rf};", 1)
         if r.type == 'irreversible' or r.direction == 'irreversible':
             cg.add_line(f"cR = k * Rf;", 1)
         else:
