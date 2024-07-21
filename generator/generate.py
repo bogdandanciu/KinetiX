@@ -1210,7 +1210,7 @@ def write_file_diffusivity_nonsym_unroll(file_name, output_dir, rcp_diffcoeffs,
     cg.add_line(f"{{")
     for k in range(sp_len):
         cg.add_line(f"//{sp_names[k]}", 1)
-        cg.add_line(f"out[{k}*stride+id] = scale * (1.0f - nekrk_molar_mass[{k}] * nXi[{k}]) / (", 1)
+        cg.add_line(f"out[{k}*stride+id] = scale * ({f(1.)} - nekrk_molar_mass[{k}] * nXi[{k}]) / (", 1)
         if rcp_diffcoeffs:
             cg.add_line(
                 f"""{('+' + cg.new_line).join(
@@ -1258,7 +1258,7 @@ def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transpo
             cg.add_line(f"cfloat S{k}_{j} = {mut(f'{S[k]}+' if S[k] else '', k, f'S{k}_{j}')}nXi[{j}]*R{k}_{j};", 1)
             cg.add_line(f"cfloat S{j}_{k} = {mut(f'{S[j]}+' if S[j] else '', j, f'S{j}_{k}')}nXi[{k}]*R{k}_{j};", 1)
     for k in range(sp_len):
-        cg.add_line(f"out[{k}*stride+id] = scale * (1.0f - {Mi[k]}f*nXi[{k}])/{S[k]};", 1)
+        cg.add_line(f"out[{k}*stride+id] = scale * ({f(1.)} - {Mi[k]}f*nXi[{k}])/{S[k]};", 1)
     cg.add_line(f"}}")
 
     cg.write_to_file(output_dir, file_name)
@@ -2033,7 +2033,7 @@ def write_file_diffusivity_nonsym_roll(file_name, output_dir, align_width, targe
     cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
     cg.add_line(f"unsigned int idx = k*stride+id;", 2)
-    cg.add_line(f"out[idx] = scale * (1.0f - Wi[k]*nXi[k])/sums[k];", 2)
+    cg.add_line(f"out[idx] = scale * ({f(1.)} - Wi[k]*nXi[k])/sums[k];", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
     cg.add_line(f"}}")
@@ -2094,7 +2094,7 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
     cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
     cg.add_line(f"unsigned int idx = k*stride+id;", 2)
-    cg.add_line(f"out[idx] = scale * (1.0f - Wi[k]*nXi[k])/sums[k];", 2)
+    cg.add_line(f"out[idx] = scale * ({f(1.)} - Wi[k]*nXi[k])/sums[k];", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
     cg.add_line(f"}}")
