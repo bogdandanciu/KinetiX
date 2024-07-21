@@ -26,7 +26,7 @@ python3 generator/generate.py --mechanism mechanisms/gri30.yaml --output out/mec
 
 ## Benchmark Kernels
 
-### BK1: Production Rates
+### BK1: Species Production Rates
 
 ```sh
 > mpirun -np 1 bin/nekrk_bk --backend CUDA --n-states 1000000 --mode 1 --yaml-file mechanisms/gri30.yaml
