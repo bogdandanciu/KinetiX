@@ -1022,8 +1022,8 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunrol
     cg.add_line(f"#include <math.h>")
     cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, exp(x))")
     cg.add_line(f"__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates"
-                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
-                 f"const cfloat rcpT, const cfloat Ci[], cfloat* rates) ")
+                f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
+                f"const cfloat rcpT, const cfloat Ci[], cfloat* rates) ")
     cg.add_line(f"{{")
     cg.add_line(f"cfloat gibbs0_RT[{active_len}];", 1)
     expression = lambda a: (f"{f(a[5])} * rcpT + {f(a[0] - a[6])} + {f(-a[0])} * lnT + "
@@ -1258,7 +1258,7 @@ def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transpo
             cg.add_line(f"cfloat S{k}_{j} = {mut(f'{S[k]}+' if S[k] else '', k, f'S{k}_{j}')}nXi[{j}]*R{k}_{j};", 1)
             cg.add_line(f"cfloat S{j}_{k} = {mut(f'{S[j]}+' if S[j] else '', j, f'S{j}_{k}')}nXi[{k}]*R{k}_{j};", 1)
     for k in range(sp_len):
-        cg.add_line(f"out[{k}*stride+id] = scale * ({f(1.)} - {Mi[k]}f*nXi[{k}])/{S[k]};", 1)
+        cg.add_line(f"out[{k}*stride+id] = scale * ({f(1.)} - {f(Mi[k])}*nXi[{k}])/{S[k]};", 1)
     cg.add_line(f"}}")
 
     cg.write_to_file(output_dir, file_name)
