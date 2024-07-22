@@ -645,9 +645,9 @@ def write_reaction(idx, r, loop_gibbsexp):
         '*'.join([f'Ci[{specie}]'] * coefficient) for specie, coefficient in enumerate(reagents) if
         coefficient != 0.)
     Rf = phase_space(r.reactants)
-    cg.add_line(f"Rf = {Rf};", 1)
+    Rr = phase_space(r.products)
     if r.type == 'irreversible' or r.direction == 'irreversible':
-        cg.add_line(f"cR = kf * Rf;", 1)
+        cg.add_line(f"cR = kf * {Rf};", 1)
     else:
         pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
         if loop_gibbsexp:
@@ -656,8 +656,7 @@ def write_reaction(idx, r, loop_gibbsexp):
             cg.add_line(f"kr = __NEKRK_EXP_OVERFLOW__("
                         f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
                         f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
-        cg.add_line(f"Rr = kr * {phase_space(r.products)};", 1)
-        cg.add_line(f"cR = kf * (Rf - Rr);", 1)
+        cg.add_line(f"cR = kf * ({Rf} - kr * {Rr});", 1)
     cg.add_line(f"#ifdef DEBUG")
     cg.add_line(f'printf("{idx + 1}: %+.15e\\n", cR);', 1)
     cg.add_line(f"#endif")
@@ -807,7 +806,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             '*'.join([f'Ci[{specie}]'] * coefficient) for specie, coefficient in enumerate(reagents) if
             coefficient != 0.)
         Rf = phase_space(r.reactants)
-        cg.add_line(f"Rf = {Rf};", 1)
+        Rr = phase_space(r.products)
         if r.type == 'irreversible' or r.direction == 'irreversible':
             cg.add_line(f"cR = kf * Rf;", 1)
         else:
@@ -818,11 +817,10 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                 cg.add_line(f"kr = __NEKRK_EXP_OVERFLOW__("
                             f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
                             f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
-            cg.add_line(f"Rr = kr * {phase_space(r.products)};", 1)
             if r.type == 'elementary' or r.type == 'irreversible':
-                cg.add_line(f"cR = kf * (Rf - Rr);", 1)
+                cg.add_line(f"cR = kf * ({Rf} - kr * {Rr});", 1)
             else:
-                cg.add_line(f"cR = k_corr * (Rf - Rr);", 1)
+                cg.add_line(f"cR = k_corr * ({Rf} - kr * {Rr});", 1)
         cg.add_line(f"#ifdef DEBUG")
         cg.add_line(f'printf("{idx + 1}: %+.15e\\n", cR);', 1)
         cg.add_line(f"#endif")
@@ -1042,9 +1040,9 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunrol
     cg.add_line(f"cfloat C0 = {f(const.one_atm / const.R)} * rcpT;", 1)
     cg.add_line(f"cfloat rcpC0 = {f(const.R / const.one_atm)} * T;", 1)
     if group_rxnunroll:
-        cg.add_line(f"cfloat kf, Rf, k_corr, kr, Rr, cR;", 1)
+        cg.add_line(f"cfloat kf, k_corr, kr, cR;", 1)
     else:
-        cg.add_line(f"cfloat kf, Rf, kr, Rr, cR;", 1)
+        cg.add_line(f"cfloat kf, kr, cR;", 1)
     cg.add_line(f"cfloat eff, Pr, logPr, F, logFcent, troe, troe_c, troe_n;", 1)
     cg.add_line("")
 
