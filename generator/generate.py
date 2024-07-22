@@ -512,7 +512,7 @@ def write_energy(out, length, expression, sp_thermo):
     return cg.get_code()
 
 
-def compute_k_rev_unroll(r):
+def compute_kr_unroll(r):
     """
     Calculate the reverse rate constant for a given reaction for the unrolled code.
     """
@@ -533,8 +533,8 @@ def compute_k_rev_unroll(r):
     rcp_gibbs_terms.append(f"{'*'.join(gibbs_terms_div)}")
     rcp_gibbs_terms.append(f")")
     gibbs_terms.append(''.join(rcp_gibbs_terms))
-    k_rev = f"{'*'.join(gibbs_terms)}{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};"
-    return k_rev
+    kr = f"{'*'.join(gibbs_terms)}{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};"
+    return kr
 
 
 def write_reaction(idx, r, loop_gibbsexp):
@@ -584,14 +584,14 @@ def write_reaction(idx, r, loop_gibbsexp):
         return expression
 
     if r.type == 'elementary' or r.type == 'irreversible':
-        cg.add_line(f'k = {arrhenius(r.rate_constant)};', 1)
+        cg.add_line(f'kf = {arrhenius(r.rate_constant)};', 1)
     elif r.type == 'three-body':
         if hasattr(r, 'efficiencies'):
-            cg.add_line(f"k = {arrhenius(r.rate_constant)} * eff;", 1)
+            cg.add_line(f"kf = {arrhenius(r.rate_constant)} * eff;", 1)
         elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
-            cg.add_line(f"k = {arrhenius(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+            cg.add_line(f"kf = {arrhenius(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
         else:
-            cg.add_line(f"k = {arrhenius(r.rate_constant)} * Cm;", 1)
+            cg.add_line(f"kf = {arrhenius(r.rate_constant)} * Cm;", 1)
     elif r.type == 'pressure-modification':
         cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
         if hasattr(r, 'efficiencies'):
@@ -600,7 +600,7 @@ def write_reaction(idx, r, loop_gibbsexp):
             cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
         else:
             cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
-        cg.add_line(f"k = k_inf * Pr/(1 + Pr);", 1)
+        cg.add_line(f"kf = k_inf * Pr/(1 + Pr);", 1)
     elif r.type == 'Troe':
         cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
         if hasattr(r, 'efficiencies'):
@@ -625,7 +625,7 @@ def write_reaction(idx, r, loop_gibbsexp):
         cg.add_line(f"troe_n = .75 - 1.27 * logFcent;", 1)
         cg.add_line(f"troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));", 1)
         cg.add_line(f"F = pow(10, logFcent/(1.0 + troe*troe));", 1)
-        cg.add_line(f"k = k_inf * Pr/(1 + Pr) * F;", 1)
+        cg.add_line(f"kf = k_inf * Pr/(1 + Pr) * F;", 1)
     elif r.type == 'SRI':
         cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
         if hasattr(r, 'efficiencies'):
@@ -637,7 +637,7 @@ def write_reaction(idx, r, loop_gibbsexp):
         cg.add_line(f"logPr = log10(Pr);", 1)
         cg.add_line(f"F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
                     f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});", 1)
-        cg.add_line(f"k = k_inf * Pr/(1 + Pr) * F;", 1)
+        cg.add_line(f"kf = k_inf * Pr/(1 + Pr) * F;", 1)
     else:
         exit(r.type)
 
@@ -647,17 +647,17 @@ def write_reaction(idx, r, loop_gibbsexp):
     Rf = phase_space(r.reactants)
     cg.add_line(f"Rf = {Rf};", 1)
     if r.type == 'irreversible' or r.direction == 'irreversible':
-        cg.add_line(f"cR = k * Rf;", 1)
+        cg.add_line(f"cR = kf * Rf;", 1)
     else:
         pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
         if loop_gibbsexp:
-            cg.add_line(f"k_rev = {compute_k_rev_unroll(r)}", 1)
+            cg.add_line(f"kr = {compute_kr_unroll(r)}", 1)
         else:
-            cg.add_line(f"k_rev = __NEKRK_EXP_OVERFLOW__("
+            cg.add_line(f"kr = __NEKRK_EXP_OVERFLOW__("
                         f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
                         f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
-        cg.add_line(f"Rr = k_rev * {phase_space(r.products)};", 1)
-        cg.add_line(f"cR = k * (Rf - Rr);", 1)
+        cg.add_line(f"Rr = kr * {phase_space(r.products)};", 1)
+        cg.add_line(f"cR = kf * (Rf - Rr);", 1)
     cg.add_line(f"#ifdef DEBUG")
     cg.add_line(f'printf("{idx + 1}: %+.15e\\n", cR);', 1)
     cg.add_line(f"#endif")
@@ -721,29 +721,29 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
 
         if r.type == 'elementary' or r.type == 'irreversible':
             if idx == first_idx:
-                cg.add_line(f'k = {arrhenius(r.rate_constant)};', 1)
+                cg.add_line(f'kf = {arrhenius(r.rate_constant)};', 1)
             else:
-                cg.add_line(f'k *= '
+                cg.add_line(f'kf *= '
                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
                             1)
         elif r.type == 'three-body':
             if idx == first_idx:
-                cg.add_line(f"k = {arrhenius(r.rate_constant)};", 1)
+                cg.add_line(f"kf = {arrhenius(r.rate_constant)};", 1)
             else:
-                cg.add_line(f"k *= "
+                cg.add_line(f"kf *= "
                             f"{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};",
                             1)
             if hasattr(r, 'efficiencies'):
-                cg.add_line(f"k_corr = k * eff;", 1)
+                cg.add_line(f"k_corr = kf * eff;", 1)
             elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
-                cg.add_line(f"k_corr = k * Ci[{r.third_body_index}];", 1)
+                cg.add_line(f"k_corr = kf * Ci[{r.third_body_index}];", 1)
             else:
-                cg.add_line(f"k_corr = k * Cm;", 1)
+                cg.add_line(f"k_corr = kf * Cm;", 1)
         elif r.type == 'pressure-modification':
             if idx == first_idx:
-                cg.add_line(f"k = {arrhenius(r.rate_constant)};", 1)
+                cg.add_line(f"kf = {arrhenius(r.rate_constant)};", 1)
             else:
-                cg.add_line(f'k *= '
+                cg.add_line(f'kf *= '
                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
                             1)
             if hasattr(r, 'efficiencies'):
@@ -752,12 +752,12 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                 cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
             else:
                 cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
-            cg.add_line(f"k_corr = k * Pr/(1 + Pr);", 1)
+            cg.add_line(f"k_corr = kf * Pr/(1 + Pr);", 1)
         elif r.type == 'Troe':
             if idx == first_idx:
-                cg.add_line(f"k = {arrhenius(r.rate_constant)};", 1)
+                cg.add_line(f"kf = {arrhenius(r.rate_constant)};", 1)
             else:
-                cg.add_line(f'k *= '
+                cg.add_line(f'kf *= '
                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
                             1)
             if hasattr(r, 'efficiencies'):
@@ -782,12 +782,12 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             cg.add_line(f"troe_n = .75 - 1.27 * logFcent;", 1)
             cg.add_line(f"troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));", 1)
             cg.add_line(f"F = pow(10, logFcent/(1.0 + troe*troe));", 1)
-            cg.add_line(f"k_corr = k * Pr/(1 + Pr) * F;", 1)
+            cg.add_line(f"k_corr = kf * Pr/(1 + Pr) * F;", 1)
         elif r.type == 'SRI':
             if idx == first_idx:
-                cg.add_line(f"k = {arrhenius(r.rate_constant)};", 1)
+                cg.add_line(f"kf = {arrhenius(r.rate_constant)};", 1)
             else:
-                cg.add_line(f'k *= '
+                cg.add_line(f'kf *= '
                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
                             1)
             if hasattr(r, 'efficiencies'):
@@ -799,7 +799,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             cg.add_line(f"logPr = log10(Pr);", 1)
             cg.add_line(f"F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
                         f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});", 1)
-            cg.add_line(f"k_corr = k * Pr/(1 + Pr) * F;", 1)
+            cg.add_line(f"k_corr = kf * Pr/(1 + Pr) * F;", 1)
         else:
             exit(r.type)
 
@@ -809,18 +809,18 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
         Rf = phase_space(r.reactants)
         cg.add_line(f"Rf = {Rf};", 1)
         if r.type == 'irreversible' or r.direction == 'irreversible':
-            cg.add_line(f"cR = k * Rf;", 1)
+            cg.add_line(f"cR = kf * Rf;", 1)
         else:
             pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
             if loop_gibbsexp:
-                cg.add_line(f"k_rev = {compute_k_rev_unroll(r)}", 1)
+                cg.add_line(f"kr = {compute_kr_unroll(r)}", 1)
             else:
-                cg.add_line(f"k_rev = __NEKRK_EXP_OVERFLOW__("
+                cg.add_line(f"kr = __NEKRK_EXP_OVERFLOW__("
                             f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
                             f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
-            cg.add_line(f"Rr = k_rev * {phase_space(r.products)};", 1)
+            cg.add_line(f"Rr = kr * {phase_space(r.products)};", 1)
             if r.type == 'elementary' or r.type == 'irreversible':
-                cg.add_line(f"cR = k * (Rf - Rr);", 1)
+                cg.add_line(f"cR = kf * (Rf - Rr);", 1)
             else:
                 cg.add_line(f"cR = k_corr * (Rf - Rr);", 1)
         cg.add_line(f"#ifdef DEBUG")
@@ -1042,9 +1042,9 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunrol
     cg.add_line(f"cfloat C0 = {f(const.one_atm / const.R)} * rcpT;", 1)
     cg.add_line(f"cfloat rcpC0 = {f(const.R / const.one_atm)} * T;", 1)
     if group_rxnunroll:
-        cg.add_line(f"cfloat k, Rf, k_corr, Pr, logFcent, k_rev, Rr, cR;", 1)
+        cg.add_line(f"cfloat kf, Rf, k_corr, Pr, logFcent, kr, Rr, cR;", 1)
     else:
-        cg.add_line(f"cfloat k, Rf, k_inf, Pr, logFcent, k_rev, Rr, cR;", 1)
+        cg.add_line(f"cfloat kf, Rf, k_inf, Pr, logFcent, kr, Rr, cR;", 1)
     cg.add_line(f"cfloat eff;", 1)
     cg.add_line(f"cfloat logPr, F, troe, troe_c, troe_n;", 1)
     cg.add_line("")
@@ -1389,7 +1389,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg.add_line(f'// {len(ids_E0B0)} rate constants with E_R = 0 and beta = 0 ', 1)
             cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0B0)}; ++i)', 1)
             cg.add_line(f'{{', 1)
-            cg.add_line(f'k[i+{len(ids_EB)}] = A[i+{len(ids_EB)}];', 2)
+            cg.add_line(f'kf[i+{len(ids_EB)}] = A[i+{len(ids_EB)}];', 2)
             cg.add_line(f'}}', 1)
         if len(ids_E0Bneg2) > 0:
             start_ids_E0Bneg2 = len(ids_EB) + len(ids_E0B0)
@@ -1397,28 +1397,28 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg.add_line(f'cfloat rcpT_2 = rcpT*rcpT;', 1)
             cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0Bneg2)}; ++i)', 1)
             cg.add_line(f'{{', 1)
-            cg.add_line(f'k[i+{start_ids_E0Bneg2}] = A[i+{start_ids_E0Bneg2}]*rcpT_2;', 2)
+            cg.add_line(f'kf[i+{start_ids_E0Bneg2}] = A[i+{start_ids_E0Bneg2}]*rcpT_2;', 2)
             cg.add_line(f'}}', 1)
         if len(ids_E0Bneg1) > 0:
             start_ids_E0Bneg1 = len(ids_EB) + len(ids_E0B0) + len(ids_E0Bneg2)
             cg.add_line(f'// {len(ids_E0Bneg1)} rate constants with E_R = 0 and beta = -1 ', 1)
             cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0Bneg1)}; ++i)', 1)
             cg.add_line(f'{{', 1)
-            cg.add_line(f'k[i+{start_ids_E0Bneg1}] = A[i+{start_ids_E0Bneg1}]*rcpT;', 2)
+            cg.add_line(f'kf[i+{start_ids_E0Bneg1}] = A[i+{start_ids_E0Bneg1}]*rcpT;', 2)
             cg.add_line(f'}}', 1)
         if len(ids_E0B1) > 0:
             start_ids_E0B1 = len(ids_EB) + len(ids_E0B0) + len(ids_E0Bneg2) + len(ids_E0Bneg1)
             cg.add_line(f'// {len(ids_E0B1)} rate constants with E_R = 0 and beta = 1 ', 1)
             cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0B1)}; ++i)', 1)
             cg.add_line(f'{{', 1)
-            cg.add_line(f'k[i+{start_ids_E0B1}] = A[i+{start_ids_E0B1}]*T;', 2)
+            cg.add_line(f'kf[i+{start_ids_E0B1}] = A[i+{start_ids_E0B1}]*T;', 2)
             cg.add_line(f'}}', 1)
         if len(ids_E0B2) > 0:
             start_ids_E0B2 = len(ids_EB) + len(ids_E0B0) + len(ids_E0Bneg2) + len(ids_E0Bneg1) + len(ids_E0B1)
             cg.add_line(f'// {len(ids_E0B2)} rate constants with E_R = 0 and beta = 2 ', 1)
             cg.add_line(f'for(unsigned int i=0; i<{len(ids_E0B2)}; ++i)', 1)
             cg.add_line(f'{{', 1)
-            cg.add_line(f'k[i+{start_ids_E0B2}] = A[i+{start_ids_E0B2}]*T2;', 2)
+            cg.add_line(f'kf[i+{start_ids_E0B2}] = A[i+{start_ids_E0B2}]*T2;', 2)
             cg.add_line(f'}}', 1)
         if len(ids_ErBr) > 0:
             start_ids_ErBr = len(ids_new) - len(ids_ErBr)
@@ -1428,13 +1428,13 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg.add_line(f'for(unsigned int i=0; i<{len(unique_pos_ids_ErBr)}; ++i)', 1)
             cg.add_line(f'{{', 1)
             cg.add_line(
-                f'k[i+{start_ids_ErBr}] = A[i+{start_ids_ErBr}]*k[i+{len(ids_EB) - len(unique_pos_ids_ErBr)}];', 2)
+                f'kf[i+{start_ids_ErBr}] = A[i+{start_ids_ErBr}]*kf[i+{len(ids_EB) - len(unique_pos_ids_ErBr)}];', 2)
             cg.add_line(f'}}', 1)
             if (len(pos_ids_ErBr) - len(unique_pos_ids_ErBr)) > 0:
                 for i in range(len(pos_ids_ErBr) - len(unique_pos_ids_ErBr)):
                     start_ids_ErBr_rep = len(ids_new) - (len(pos_ids_ErBr) - len(unique_pos_ids_ErBr)) + i
                     ids_k_rep = ids_EB.index(ids_ErBr_values[len(unique_pos_ids_ErBr) + i])
-                    cg.add_line(f'k[{start_ids_ErBr_rep}]=A[{start_ids_ErBr_rep}]*k[{ids_k_rep}];', 1)
+                    cg.add_line(f'kf[{start_ids_ErBr_rep}]=A[{start_ids_ErBr_rep}]*kf[{ids_k_rep}];', 1)
         return cg.get_code()
 
     ids_eff = []
@@ -1506,13 +1506,13 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             for i in ids_3b_rxn:
                 if hasattr(r[i], 'efficiencies'):
                     cg_tb.add_line(
-                        f"k[{ids_new.index(i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
+                        f"kf[{ids_new.index(i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
                 elif not hasattr(r[i], 'efficiencies') and r[i].third_body_index >= 0:
                     cg_tb.add_line(
-                        f"k[{ids_new.index(i)}] *= Ci[{r[i].third_body_index}];", 1)
+                        f"kf[{ids_new.index(i)}] *= Ci[{r[i].third_body_index}];", 1)
                 else:
                     cg_tb.add_line(
-                        f"k[{ids_new.index(i)}] *= Cm;", 1)
+                        f"kf[{ids_new.index(i)}] *= Cm;", 1)
 
         # Pressure-dependent reactions
         cg_pd = CodeGenerator()
@@ -1522,16 +1522,16 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             for i in ids_pd_rxn:
                 if hasattr(r[i], 'efficiencies'):
                     cg_pd.add_line(
-                        f"k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
+                        f"kf[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
                 elif not hasattr(r[i], 'efficiencies') and r[i].third_body_index >= 0:
                     cg_pd.add_line(
-                        f"k[{ids_new.index(rxn_len + i)}] *= Ci[{r[i].third_body_index}];", 1)
+                        f"kf[{ids_new.index(rxn_len + i)}] *= Ci[{r[i].third_body_index}];", 1)
                 else:
                     cg_pd.add_line(
-                        f"k[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
+                        f"kf[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
                 cg_pd.add_line(
-                    f"k[{ids_new.index(rxn_len + i)}] /= "
-                    f"(1+ k[{ids_new.index(rxn_len + i)}]/(k[{ids_new.index(i)}]+ CFLOAT_MIN));", 1)
+                    f"kf[{ids_new.index(rxn_len + i)}] /= "
+                    f"(1+ kf[{ids_new.index(rxn_len + i)}]/(kf[{ids_new.index(i)}]+ CFLOAT_MIN));", 1)
 
         # Troe reactions
         cg_troe = CodeGenerator()
@@ -1541,15 +1541,15 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             for i in ids_troe_rxn:
                 if hasattr(r[i], 'efficiencies'):
                     cg_troe.add_line(
-                        f"k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
+                        f"kf[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
                 elif not hasattr(r[i], 'efficiencies') and r[i].third_body_index >= 0:
                     cg_troe.add_line(
-                        f"k[{ids_new.index(rxn_len + i)}] *= Ci[{r[i].third_body_index}];", 1)
+                        f"kf[{ids_new.index(rxn_len + i)}] *= Ci[{r[i].third_body_index}];", 1)
                 else:
                     cg_troe.add_line(
-                        f"k[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
+                        f"kf[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
                 cg_troe.add_line(
-                    f"k[{ids_new.index(rxn_len + i)}] /= (k[{ids_new.index(i)}] + CFLOAT_MIN);", 1)
+                    f"kf[{ids_new.index(rxn_len + i)}] /= (kf[{ids_new.index(i)}] + CFLOAT_MIN);", 1)
             troe_A, rcp_troe_T1, troe_T2, rcp_troe_T3 = [], [], [], []
             for i in ids_troe_rxn:
                 troe_A.append(r[i].troe.A)
@@ -1607,17 +1607,17 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg_troe.add_line(
                 f"cfloat troe_n = {f(0.75)} - {f(1.27)} * logFcent[i];", 2)
             cg_troe.add_line(
-                f"cfloat logPr = log10(k[ids_troe[i]] + CFLOAT_MIN);", 2)
+                f"cfloat logPr = log10(kf[ids_troe[i]] + CFLOAT_MIN);", 2)
             cg_troe.add_line(
                 f"cfloat troe = (troe_c + logPr)/(troe_n - {f(0.14)}*(troe_c + logPr)+CFLOAT_MIN);", 2)
             cg_troe.add_line(
                 f"cfloat F = pow(10, logFcent[i]/({f(1.0)} + troe*troe));", 2)
-            cg_troe.add_line(f"k[ids_troe[i]] /= ({f(1.)}+k[ids_troe[i]]);", 2)
-            cg_troe.add_line(f"k[ids_troe[i]] *= F;", 2)
+            cg_troe.add_line(f"kf[ids_troe[i]] /= ({f(1.)}+kf[ids_troe[i]]);", 2)
+            cg_troe.add_line(f"kf[ids_troe[i]] *= F;", 2)
             cg_troe.add_line(f"}}", 1)
             for i in ids_troe_rxn:
                 cg_troe.add_line(
-                    f"k[{ids_new.index(rxn_len + i)}] *= k[{ids_new.index(i)}];", 1)
+                    f"kf[{ids_new.index(rxn_len + i)}] *= kf[{ids_new.index(i)}];", 1)
 
         # SRI reaction
         cg_sri = CodeGenerator()
@@ -1627,15 +1627,15 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             for i in ids_sri_rxn:
                 if hasattr(r[i], 'efficiencies'):
                     cg_sri.add_line(
-                        f"k[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
+                        f"kf[{ids_new.index(rxn_len + i)}] *= eff{dic_unique_eff[ids_eff.index(i)]};", 1)
                 elif not hasattr(r[i], 'efficiencies') and r[i].third_body_index >= 0:
                     cg_sri.add_line(
-                        f"k[{ids_new.index(rxn_len + i)}] *= Ci[{r[i].third_body_index}];", 1)
+                        f"kf[{ids_new.index(rxn_len + i)}] *= Ci[{r[i].third_body_index}];", 1)
                 else:
                     cg_sri.add_line(
-                        f"k[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
+                        f"kf[{ids_new.index(rxn_len + i)}] *= Cm;", 1)
                 cg_sri.add_line(
-                    f"k[{ids_new.index(rxn_len + i)}] /= (k[{ids_new.index(i)}] + CFLOAT_MIN);", 1)
+                    f"kf[{ids_new.index(rxn_len + i)}] /= (kf[{ids_new.index(i)}] + CFLOAT_MIN);", 1)
             sri_A, sri_B, rcp_sri_C, sri_D, sri_E = [], [], [], [], []
             for i in ids_sri_rxn:
                 sri_A.append(r[i].sri.A)
@@ -1670,15 +1670,15 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg_sri.add_line(f"for(unsigned int i = 0; i<{len(ids_sri_rxn)}; ++i)", 1)
             cg_sri.add_line(f"{{", 1)
             cg_sri.add_line(
-                f"cfloat logPr = log10(k[ids_sri[i]] + CFLOAT_MIN);", 2)
+                f"cfloat logPr = log10(kf[ids_sri[i]] + CFLOAT_MIN);", 2)
             cg_sri.add_line(f"cfloat F = sri_D[i]*pow(T, sri_E[i])*"
                                   f"pow(sri_A[i]*exp(-sri_B[i]*rcpT)+exp(-rcp_sri_C[i]*T), 1./(1.+logPr*logPr));", 2)
-            cg_sri.add_line(f"k[ids_sri[i]] /= (1.+k[ids_sri[i]]);", 2)
-            cg_sri.add_line(f"k[ids_sri[i]] *= F;", 2)
+            cg_sri.add_line(f"kf[ids_sri[i]] /= (1.+kf[ids_sri[i]]);", 2)
+            cg_sri.add_line(f"kf[ids_sri[i]] *= F;", 2)
             cg_sri.add_line(f"}}", 1)
             for i in ids_sri_rxn:
                 cg_sri.add_line(
-                    f"k[{ids_new.index(rxn_len + i)}]*= k[{ids_new.index(i)}];", 1)
+                    f"kf[{ids_new.index(rxn_len + i)}]*= kf[{ids_new.index(i)}];", 1)
 
         # Combine all reactions
         reaction_corr = cg_tb.get_code()  + cg_pd.get_code() + cg_troe.get_code() + cg_sri.get_code()
@@ -1689,9 +1689,9 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
         cg = CodeGenerator()
         for i in range(len(r)):
             if hasattr(rxn[i], 'k0'):
-                cg.add_line(f"k[{i}] = tmp[{ids_new.index(rxn_len + i)}];", 1)
+                cg.add_line(f"kf[{i}] = tmp[{ids_new.index(rxn_len + i)}];", 1)
             else:
-                cg.add_line(f"k[{i}] = tmp[{ids_new.index(i)}];", 1)
+                cg.add_line(f"kf[{i}] = tmp[{ids_new.index(i)}];", 1)
         return cg.get_code()
 
     # Compute the gibbs energy
@@ -1707,14 +1707,14 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     ids_rcp_gibbs = [i for i, x in enumerate(repeated_rcp_gibbs) if x > 2]
     ids_rcp_gibbs_reordered = [ids_gibbs_new.index(i) for i in ids_rcp_gibbs]
 
-    # Compute k_rev only for reversible reactions
-    ids_krev_nz = []
+    # Compute kr only for reversible reactions
+    ids_kr_nz = []
     for i in range(rxn_len):
         if rxn[i].direction != 'irreversible':
-            ids_krev_nz.append(i)
+            ids_kr_nz.append(i)
 
     # Compute reverse rates
-    def compute_k_rev(r):
+    def compute_kr(r):
         cg = CodeGenerator()
         for i in range(len(r)):
             pow_C0_sum_net = '*'.join(["C0" if r[i].sum_net < 0 else 'rcpC0'] * abs(-r[i].sum_net))
@@ -1731,7 +1731,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                         gibbs_terms.append(f"gibbs0_RT[{ids_gibbs_new.index(j)}]")
             if r[i].direction != 'irreversible':
                 cg.add_line(
-                    f"k_rev[{ids_krev_nz.index(i)}] = "
+                    f"kr[{ids_kr_nz.index(i)}] = "
                     f"{'*'.join(gibbs_terms)}{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
         return cg.get_code()
 
@@ -1746,18 +1746,18 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg.add_line(f"//{i + 1}: {r[i].description}", 1)
             if r[i].type == 'irreversible' or r[i].direction == 'irreversible':
                 if hasattr(r[i], 'k0'):
-                    cg.add_line(f"cR = k[{ids_new.index(rxn_len + i)}]*({phaseSpace(r[i].reactants)});", 1)
+                    cg.add_line(f"cR = kf[{ids_new.index(rxn_len + i)}]*({phaseSpace(r[i].reactants)});", 1)
                 else:
-                    cg.add_line(f"cR = k[{ids_new.index(i)}]*({phaseSpace(r[i].reactants)});", 1)
+                    cg.add_line(f"cR = kf[{ids_new.index(i)}]*({phaseSpace(r[i].reactants)});", 1)
             else:
                 if hasattr(r[i], 'k0'):
                     cg.add_line(
-                        f"cR = k[{ids_new.index(rxn_len + i)}]*({phaseSpace(r[i].reactants)}-"
-                        f"k_rev[{ids_krev_nz.index(i)}]*{phaseSpace(r[i].products)});", 1)
+                        f"cR = kf[{ids_new.index(rxn_len + i)}]*({phaseSpace(r[i].reactants)}-"
+                        f"kr[{ids_kr_nz.index(i)}]*{phaseSpace(r[i].products)});", 1)
                 else:
                     cg.add_line(
-                        f"cR = k[{ids_new.index(i)}]*({phaseSpace(r[i].reactants)}-"
-                        f"k_rev[{ids_krev_nz.index(i)}]*{phaseSpace(r[i].products)});", 1)
+                        f"cR = kf[{ids_new.index(i)}]*({phaseSpace(r[i].reactants)}-"
+                        f"kr[{ids_kr_nz.index(i)}]*{phaseSpace(r[i].products)});", 1)
             cg.add_line(f"#ifdef DEBUG")
             cg.add_line(f"printf(\"{i + 1}: %+.15e\\n\", cR);", 1)
             cg.add_line(f"#endif")
@@ -1783,14 +1783,14 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     var = [A_new, beta_new_reduced, E_R_new_reduced]
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
     cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
-                 f"k[{len(ids_new)}];", 1)
+                 f"kf[{len(ids_new)}];", 1)
     cg.add_line(f"// Compute the {len(ids_EB)} rate constants for which an evaluation is necessary", 1)
     cg.add_line(f"for(unsigned int i=0; i<{len(ids_EB)}; ++i)", 1)
     cg.add_line(f"{{", 1)
     cg.add_line(f"cfloat blogT = beta[i]*lnT;", 2)
     cg.add_line(f"cfloat E_RT = E_R[i]*rcpT;", 2)
     cg.add_line(f"cfloat diff = blogT - E_RT;", 2)
-    cg.add_line(f"k[i] = exp(A[i] + diff);", 2)
+    cg.add_line(f"kf[i] = exp(A[i] + diff);", 2)
     cg.add_line(f"}}", 1)
     cg.add_line(f"{set_k()}")
     cg.add_line("")
@@ -1825,10 +1825,10 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     cg.add_line("")
     cg.add_line(f"// Compute reverse rates", 1)
     cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
-                 f"k_rev[{len(ids_krev_nz)}]; ", 1)
+                 f"kr[{len(ids_kr_nz)}]; ", 1)
     cg.add_line(f"cfloat C0 = {f(const.one_atm / const.R)} * rcpT;", 1)
     cg.add_line(f"cfloat rcpC0 = {f(const.R / const.one_atm)} * T;", 1)
-    cg.add_line(f"{compute_k_rev(rxn)}")
+    cg.add_line(f"{compute_kr(rxn)}")
     cg.add_line("")
     cg.add_line(f"// Compute the reaction rates", 1)
     cg.add_line(f"cfloat cR;", 1)
