@@ -593,16 +593,16 @@ def write_reaction(idx, r, loop_gibbsexp):
         else:
             cg.add_line(f"kf = {arrhenius(r.rate_constant)} * Cm;", 1)
     elif r.type == 'pressure-modification':
-        cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
+        cg.add_line(f"kf = {arrhenius(r.rate_constant)};", 1)
         if hasattr(r, 'efficiencies'):
             cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
         elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
             cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
         else:
             cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
-        cg.add_line(f"kf = k_inf * Pr/(1 + Pr);", 1)
+        cg.add_line(f"kf *= Pr/(1 + Pr);", 1)
     elif r.type == 'Troe':
-        cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
+        cg.add_line(f"kf = {arrhenius(r.rate_constant)};", 1)
         if hasattr(r, 'efficiencies'):
             cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
         elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
@@ -625,9 +625,9 @@ def write_reaction(idx, r, loop_gibbsexp):
         cg.add_line(f"troe_n = .75 - 1.27 * logFcent;", 1)
         cg.add_line(f"troe = (troe_c + logPr)/(troe_n - .14*(troe_c + logPr));", 1)
         cg.add_line(f"F = pow(10, logFcent/(1.0 + troe*troe));", 1)
-        cg.add_line(f"kf = k_inf * Pr/(1 + Pr) * F;", 1)
+        cg.add_line(f"kf *= Pr/(1 + Pr) * F;", 1)
     elif r.type == 'SRI':
-        cg.add_line(f"k_inf = {arrhenius(r.rate_constant)};", 1)
+        cg.add_line(f"kf = {arrhenius(r.rate_constant)};", 1)
         if hasattr(r, 'efficiencies'):
             cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
         elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
@@ -637,7 +637,7 @@ def write_reaction(idx, r, loop_gibbsexp):
         cg.add_line(f"logPr = log10(Pr);", 1)
         cg.add_line(f"F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
                     f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});", 1)
-        cg.add_line(f"kf = k_inf * Pr/(1 + Pr) * F;", 1)
+        cg.add_line(f"kf *= Pr/(1 + Pr) * F;", 1)
     else:
         exit(r.type)
 
@@ -1042,11 +1042,10 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunrol
     cg.add_line(f"cfloat C0 = {f(const.one_atm / const.R)} * rcpT;", 1)
     cg.add_line(f"cfloat rcpC0 = {f(const.R / const.one_atm)} * T;", 1)
     if group_rxnunroll:
-        cg.add_line(f"cfloat kf, Rf, k_corr, Pr, logFcent, kr, Rr, cR;", 1)
+        cg.add_line(f"cfloat kf, Rf, k_corr, kr, Rr, cR;", 1)
     else:
-        cg.add_line(f"cfloat kf, Rf, k_inf, Pr, logFcent, kr, Rr, cR;", 1)
-    cg.add_line(f"cfloat eff;", 1)
-    cg.add_line(f"cfloat logPr, F, troe, troe_c, troe_n;", 1)
+        cg.add_line(f"cfloat kf, Rf, kr, Rr, cR;", 1)
+    cg.add_line(f"cfloat eff, Pr, logPr, F, logFcent, troe, troe_c, troe_n;", 1)
     cg.add_line("")
 
     if group_rxnunroll:
