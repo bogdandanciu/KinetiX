@@ -1021,7 +1021,7 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunrol
     cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, exp(x))")
     cg.add_line(f"__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates"
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
-                f"const cfloat rcpT, const cfloat Ci[], cfloat* wdot) ")
+                f"const cfloat rcpT, const cfloat* Ci, cfloat* wdot) ")
     cg.add_line(f"{{")
     cg.add_line(f"cfloat gibbs0_RT[{active_len}];", 1)
     expression = lambda a: (f"{f(a[5])} * rcpT + {f(a[0] - a[6])} + {f(-a[0])} * lnT + "
@@ -1080,7 +1080,7 @@ def write_file_enthalpy_unroll(file_name, output_dir, sp_len, sp_thermo):
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_enthalpy_RT"
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
-                f"const cfloat rcpT,cfloat* h_RT)")
+                f"const cfloat rcpT, cfloat* h_RT)")
     cg.add_line(f"{{")
     expression = lambda a: (f'{f(a[0])} + {f(a[1] / 2)} * T + {f(a[2] / 3)} * T2 + '
                             f'{f(a[3] / 4)} * T3 + {f(a[4] / 5)} * T4 + {f(a[5])} * rcpT')
@@ -1098,7 +1098,7 @@ def write_file_heat_capacity_unroll(file_name, output_dir, sp_len, sp_thermo):
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_molar_heat_capacity_R"
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
-                f"const cfloat rcpT,cfloat* cp_R)")
+                f"const cfloat rcpT, cfloat* cp_R)")
     cg.add_line(f"{{")
     expression = lambda a: f'{f(a[0])} + {f(a[1])} * T + {f(a[2])} * T2 + {f(a[3])} * T3 + {f(a[4])} * T4'
     cg.add_line(f'{write_energy(f"cp_R[", sp_len, expression, sp_thermo)}')
@@ -1773,7 +1773,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, exp(x))")
     cg.add_line(f'__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates'
                  f'(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4,'
-                 f' const cfloat rcpT, const cfloat Ci[], cfloat* wdot) ')
+                 f' const cfloat rcpT, const cfloat* Ci, cfloat* wdot) ')
     cg.add_line(f'{{')
     cg.add_line(f"// Regrouping of rate constants to eliminate redundant operations", 1)
     var_str = ['A', 'beta', 'E_R']
@@ -1848,7 +1848,7 @@ def write_file_enthalpy_roll(file_name, output_dir, align_width, target, sp_ther
 
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_enthalpy_RT(const cfloat lnT, const cfloat T, "
-                f"const cfloat T2, const cfloat T3, const cfloat T4, const cfloat rcpT,cfloat h_RT[]) ")
+                f"const cfloat T2, const cfloat T3, const cfloat T4, const cfloat rcpT, cfloat* h_RT) ")
     cg.add_line(f"{{")
     cg.add_line(f"//Integration coefficients", 1)
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
@@ -1873,7 +1873,7 @@ def write_file_heat_capacity_roll(file_name, output_dir, align_width, target, sp
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_molar_heat_capacity_R"
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
-                f"const cfloat rcpT,cfloat cp_R[]) ")
+                f"const cfloat rcpT, cfloat* cp_R) ")
     cg.add_line(f"{{")
     cg.add_line(f"//Integration coefficients", 1)
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
