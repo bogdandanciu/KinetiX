@@ -1421,7 +1421,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             start_ids_ErBr = len(ids_new) - len(ids_ErBr)
             cg.add_line(
                 f'// {len(ids_ErBr)} rate constants with E_R and '
-                f'beta the same as for other rate constants which have already been computed ', 1)
+                f'beta the same as for other rate constants already computed ', 1)
             cg.add_line(f'for(unsigned int i=0; i<{len(unique_pos_ids_ErBr)}; ++i)', 1)
             cg.add_line(f'{{', 1)
             cg.add_line(
@@ -1781,7 +1781,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
     cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
                  f"kf[{len(ids_new)}];", 1)
-    cg.add_line(f"// Compute the {len(ids_EB)} rate constants for which an evaluation is necessary", 1)
+    cg.add_line(f"// {len(ids_EB)} rate constants for which an evaluation is necessary", 1)
     cg.add_line(f"for(unsigned int i=0; i<{len(ids_EB)}; ++i)", 1)
     cg.add_line(f"{{", 1)
     cg.add_line(f"cfloat blogT = beta[i]*lnT;", 2)
