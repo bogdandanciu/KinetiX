@@ -674,7 +674,6 @@ int main(int argc, char** argv)
     auto o_rho = device.malloc<dfloat>(n_states);
     auto o_cp_i = device.malloc<dfloat>(n_species * n_states);
     auto o_rhoCp = device.malloc<dfloat>(n_states);
-    auto o_mmw = device.malloc<dfloat>(n_states);
 
     nekRK::thermodynamicProps(n_states,
                           n_states /* offsetT */,
@@ -683,8 +682,7 @@ int main(int argc, char** argv)
                           o_states,
                           o_rho,
                           o_cp_i,
-                          o_rhoCp,
-                          o_mmw);
+                          o_rhoCp);
  
     if(ci && rank == 0 && mode == 0)
       pass &= checkThermo(o_rho,

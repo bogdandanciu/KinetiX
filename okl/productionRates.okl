@@ -30,9 +30,9 @@
 
     {
       cfloat wrk2[__NEKRK_NSPECIES__];
-      const cfloat rhoSI = pressure_R * rcpT * Mbar;
+      const cfloat rho = pressure_R * rcpT * Mbar;
       for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
-        const cfloat Ci = wrk1[k] * rhoSI;
+        const cfloat Ci = wrk1[k] * rho;
         wrk1[k] = Ci; 
         wrk2[k] = 0;
       }

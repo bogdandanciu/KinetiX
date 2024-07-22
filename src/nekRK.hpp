@@ -9,8 +9,8 @@ namespace nekRK
 {
 
 using nekRKBuildKernel_t = std::function<occa::kernel(const std::string &fileName,
-                                   const std::string &kernelName,
-                                   const occa::properties &props)>;
+                                                      const std::string &kernelName,
+                                                      const occa::properties &props)>;
 
 bool isInitialized();
 
@@ -90,8 +90,7 @@ void thermodynamicProps(
   const occa::memory& o_state,
   occa::memory& o_rho,
   occa::memory& o_cpi,
-  occa::memory& o_rhoCp,
-  occa::memory& o_meanMolecularWeight
+  occa::memory& o_rhoCp
 );
 
 const std::vector<double> molecularWeights();
@@ -99,31 +98,12 @@ const std::vector<double> molecularWeights();
 double refPressure();
 double refTemperature();
 const std::vector<double> refMassFractions();
-double refDensity();
-double refTime();
-double refLength();
-double refVelocity();
 double refMeanMolecularWeight();
 
-double refCp();
-double refCv();
-double refViscosity();
-double refThermalConductivity();
-const std::vector<double> refRhoDiffCoeffs();
-const std::vector<double> refDiffCoeffs();
-
-double Re();
-double Pr();
-const std::vector<double> Le();
-
 int nSpecies();
-
 int nActiveSpecies();
-
 int nReactions();
-
 const std::vector<std::string> speciesNames();
-
 int speciesIndex(const std::string& name);
 
 // Only use these functions for debugging and testing purposes

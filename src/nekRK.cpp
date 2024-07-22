@@ -830,9 +830,8 @@ void nekRK::thermodynamicProps(int n_states,
                                double pressure,
                                const occa::memory &o_state,
                                occa::memory &o_rho,
-                               occa::memory &o_cpi,
-                               occa::memory &o_rhocp,
-                               occa::memory &o_mmw)
+                               occa::memory &o_cp,
+                               occa::memory &o_rhocp)
 {
   assert(initialized);
 
@@ -850,11 +849,9 @@ void nekRK::thermodynamicProps(int n_states,
          pressure_R,
          o_state,
          o_rho,
-         o_cpi,
+         o_cp,
          o_rhocp,
-         o_mmw,
-         ref_temperature,
-         1. / ref_meanMolarMass);
+         ref_temperature);
 }
 
 int nekRK::nSpecies() 
