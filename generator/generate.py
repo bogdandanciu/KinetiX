@@ -663,7 +663,7 @@ def write_reaction(idx, r, loop_gibbsexp):
     cg.add_line(f"#endif")
     for specie, net in enumerate(r.net):
         if net != 0:
-            cg.add_line(f"rates[{specie}] += {imul(net, 'cR')};", 1)
+            cg.add_line(f"wdot[{specie}] += {imul(net, 'cR')};", 1)
     cg.add_line(f"")
 
     return cg.get_code()
@@ -828,7 +828,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
         cg.add_line(f"#endif")
         for specie, net in enumerate(r.net):
             if net != 0:
-                cg.add_line(f"rates[{specie}] += {imul(net, 'cR')};", 1)
+                cg.add_line(f"wdot[{specie}] += {imul(net, 'cR')};", 1)
         cg.add_line(f"")
 
     return cg.get_code()
@@ -1023,7 +1023,7 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunrol
     cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, exp(x))")
     cg.add_line(f"__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates"
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
-                f"const cfloat rcpT, const cfloat Ci[], cfloat* rates) ")
+                f"const cfloat rcpT, const cfloat Ci[], cfloat* wdot) ")
     cg.add_line(f"{{")
     cg.add_line(f"cfloat gibbs0_RT[{active_len}];", 1)
     expression = lambda a: (f"{f(a[5])} * rcpT + {f(a[0] - a[6])} + {f(-a[0])} * lnT + "
@@ -1762,7 +1762,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             cg.add_line(f"#endif")
             for specie, net in enumerate(r[i].net):
                 if net != 0:  # Only generate code for non-zero net changes
-                    cg.add_line(f"rates[{specie}] += {imul(net, 'cR')};", 1)
+                    cg.add_line(f"wdot[{specie}] += {imul(net, 'cR')};", 1)
             cg.add_line(f"")
         return cg.get_code()
 
@@ -1775,7 +1775,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, exp(x))")
     cg.add_line(f'__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates'
                  f'(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4,'
-                 f' const cfloat rcpT, const cfloat Ci[], cfloat* rates) ')
+                 f' const cfloat rcpT, const cfloat Ci[], cfloat* wdot) ')
     cg.add_line(f'{{')
     cg.add_line(f"// Regrouping of rate constants to eliminate redundant operations", 1)
     var_str = ['A', 'beta', 'E_R']
