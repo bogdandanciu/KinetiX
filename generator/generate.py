@@ -808,7 +808,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
         Rf = phase_space(r.reactants)
         Rr = phase_space(r.products)
         if r.type == 'irreversible' or r.direction == 'irreversible':
-            cg.add_line(f"cR = kf * Rf;", 1)
+            cg.add_line(f"cR = kf * {Rf};", 1)
         else:
             pow_C0_sum_net = '*'.join(["C0" if r.sum_net < 0 else 'rcpC0'] * abs(-r.sum_net))
             if loop_gibbsexp:
