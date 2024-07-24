@@ -235,7 +235,7 @@ class Species:
         return (5. / 16. * sqrt(pi * Mi[k] / const.NA * const.kB * T) /
                 (pi * sq(sigma[k]) * self._omega_star_22(k, k, T)))
 
-    # p*Djk
+    # p*Dkj
     def _diffusivity(self, j, k, T):
         return (3. / 16. * sqrt(2. * pi / self._rM(j, k)) * pow(const.kB * T, 3. / 2.) /
                 (pi * sq(self._sigma_star(j, k)) * self._omega_star_11(j, k, T)))
@@ -1115,17 +1115,17 @@ def write_file_conductivity_unroll(file_name, output_dir, transport_polynomials,
 
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_conductivity"
-                f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[])")
+                f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat Xi[])")
     cg.add_line(f"{{")
-    cg.add_line(f"cfloat lambda_k, a = 0., b = 0.;", 1)
+    cg.add_line(f"cfloat lambda_k, sum1 = 0., sum2 = 0.;", 1)
     cg.add_line(f"")
     for k, P in enumerate(transport_polynomials.conductivity):
         cg.add_line(f"//{sp_names[k]}", 1)
         cg.add_line(f"lambda_k = {evaluate_polynomial(P)};", 1)
-        cg.add_line(f"a += nXi[{k}]*lambda_k;", 1)
-        cg.add_line(f"b += nXi[{k}]/lambda_k;", 1)
+        cg.add_line(f"sum1 += Xi[{k}]*lambda_k;", 1)
+        cg.add_line(f"sum2 += Xi[{k}]/lambda_k;", 1)
         cg.add_line(f"")
-    cg.add_line(f"return a/rcpMbar + rcpMbar/b;", 1)
+    cg.add_line(f"return 0.5 * (sum1 + {f(1.)}/sum2);", 1)
     cg.add_line(f"}}")
 
     cg.write_to_file(output_dir, file_name)
@@ -1139,7 +1139,7 @@ def write_file_viscosity_unroll(file_name, output_dir, group_vis, transport_poly
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat sq(cfloat x) {{ return x*x; }}")
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_viscosity"
-                f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[]) ")
+                f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat Xi[]) ")
     if group_vis:
         cg.add_line(f"{{")
         for k, P in enumerate(transport_polynomials.viscosity):
@@ -1150,13 +1150,13 @@ def write_file_viscosity_unroll(file_name, output_dir, group_vis, transport_poly
             denominator_parts = []
             for j in range(sp_len):
                 Va = sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j]))
-                part = f"{cg.new_line}{cg.di}nXi[{j}]*sq({f(Va)}+{f(Va * sqrt(sqrt(Mi[j] / Mi[k])))}*r{j}*v)"
+                part = f"{cg.new_line}{cg.di}Xi[{j}]*sq({f(Va)}+{f(Va * sqrt(sqrt(Mi[j] / Mi[k])))}*r{j}*v)"
                 denominator_parts.append(part)
             denominator = " + ".join(denominator_parts)
             cg.add_line("")
             cg.add_line(f"//{sp_names[k]}", 1)
             cg.add_line(f"v = {v_expr};", 1)
-            cg.add_line(f"vis += nXi[{k}]*sq(v)/({denominator}{cg.new_line}{cg.si});", 1)
+            cg.add_line(f"vis += Xi[{k}]*sq(v)/({denominator}{cg.new_line}{cg.si});", 1)
         cg.add_line(f"return vis;", 1)
         cg.add_line(f"}}")
     else:
@@ -1175,17 +1175,17 @@ def write_file_viscosity_unroll(file_name, output_dir, group_vis, transport_poly
             cg.add_line(f"{{", 1)
             cg.add_line(f"cfloat r{j} = {f(1.)}/v{j};", 2)
             for k in range(sp_len):
-                cg.add_line(f"sum_{k} += nXi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))};", 2)
+                cg.add_line(f"sum_{k} += Xi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))};", 2)
             cg.add_line(f"}}", 1)
         for j in [sp_len - 1]:
             cg.add_line(f"{{", 1)
             cg.add_line(f"cfloat r{j} = {f(1.)}/v{j};", 2)
             for k in range(sp_len):
-                cg.add_line(f"sum_{k} += nXi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))}; "
+                cg.add_line(f"sum_{k} += Xi[{j}]*{sq_v(sqrt(1 / sqrt(8) * 1 / sqrt(1. + Mi[k] / Mi[j])))}; "
                             f"/*rcp_*/sum_{k} = {f(1.)}/sum_{k};", 2)
             cg.add_line(f"}}", 1)
         cg.add_line("")
-        cg.add_line(f"""return {('+' + cg.new_line).join(f"{cg.ti if k > 0 else ' '}nXi[{k}]*sq(v{k}) * /*rcp_*/sum_{k}"
+        cg.add_line(f"""return {('+' + cg.new_line).join(f"{cg.ti if k > 0 else ' '}Xi[{k}]*sq(v{k}) * /*rcp_*/sum_{k}"
                                                            for k in range(sp_len))};""", 1)
         cg.add_line(f"}}")
 
@@ -1201,26 +1201,26 @@ def write_file_diffusivity_nonsym_unroll(file_name, output_dir, rcp_diffcoeffs,
     """
 
     cg = CodeGenerator()
-    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
-                f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
-                f"cfloat nXi[], dfloat* out, unsigned int stride) ")
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_diffusivity"
+                f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
+                f"cfloat lnT3, cfloat lnT4, cfloat Xi[], dfloat* Dkm) ")
     cg.add_line(f"{{")
     for k in range(sp_len):
         cg.add_line(f"//{sp_names[k]}", 1)
-        cg.add_line(f"out[{k}*stride+id] = scale * ({f(1.)} - nekrk_molar_mass[{k}] * nXi[{k}]) / (", 1)
+        cg.add_line(f"Dkm[{k}] = TsqrT * (Mbar - nekrk_molar_mass[{k}]*Xi[{k}]) / (p*Mbar*(", 1)
         if rcp_diffcoeffs:
             cg.add_line(
                 f"""{('+' + cg.new_line).join(
-                    f"{cg.di}nXi[{j}] * "
+                    f"{cg.di}Xi[{j}] * "
                     f"({evaluate_polynomial(transport_polynomials.diffusivity[k if k > j else j][j if k > j else k])})"
-                    for j in list(range(k)) + list(range(k + 1, sp_len)))});""")
+                    for j in list(range(k)) + list(range(k + 1, sp_len)))}));""")
         else:
             cg.add_line(
                 f"""{('+' + cg.new_line).join(
-                    f"{cg.di}nXi[{j}] * "
+                    f"{cg.di}Xi[{j}] * "
                     f"(1/"
                     f"({evaluate_polynomial(transport_polynomials.diffusivity[k if k > j else j][j if k > j else k])}))"
-                    for j in list(range(k)) + list(range(k + 1, sp_len)))});""")
+                    for j in list(range(k)) + list(range(k + 1, sp_len)))}));""")
         cg.add_line(f"")
     cg.add_line(f"}}")
 
@@ -1240,22 +1240,22 @@ def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transpo
         S[i] = v
         return y
 
-    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
-                f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
-                f"cfloat nXi[], dfloat* out, unsigned int stride) ")
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_diffusivity"
+                f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
+                f"cfloat lnT3, cfloat lnT4, cfloat Xi[], dfloat* Dkm) ")
     cg.add_line(f"{{")
     for k in range(sp_len):
         for j in range(k):
             if rcp_diffcoeffs:
                 cg.add_line(
-                    f"cfloat R{k}_{j} = {evaluate_polynomial(transport_polynomials.diffusivity[k][j])};", 1)
+                    f"cfloat D{k}_{j} = {evaluate_polynomial(transport_polynomials.diffusivity[k][j])};", 1)
             else:
                 cg.add_line(
-                    f"cfloat R{k}_{j} = 1/({evaluate_polynomial(transport_polynomials.diffusivity[k][j])});", 1)
-            cg.add_line(f"cfloat S{k}_{j} = {mut(f'{S[k]}+' if S[k] else '', k, f'S{k}_{j}')}nXi[{j}]*R{k}_{j};", 1)
-            cg.add_line(f"cfloat S{j}_{k} = {mut(f'{S[j]}+' if S[j] else '', j, f'S{j}_{k}')}nXi[{k}]*R{k}_{j};", 1)
+                    f"cfloat D{k}_{j} = 1/({evaluate_polynomial(transport_polynomials.diffusivity[k][j])});", 1)
+            cg.add_line(f"cfloat S{k}_{j} = {mut(f'{S[k]}+' if S[k] else '', k, f'S{k}_{j}')}Xi[{j}]*D{k}_{j};", 1)
+            cg.add_line(f"cfloat S{j}_{k} = {mut(f'{S[j]}+' if S[j] else '', j, f'S{j}_{k}')}Xi[{k}]*D{k}_{j};", 1)
     for k in range(sp_len):
-        cg.add_line(f"out[{k}*stride+id] = scale * ({f(1.)} - {f(Mi[k])}*nXi[{k}])/{S[k]};", 1)
+        cg.add_line(f"Dkm[{k}] = TsqrT * (Mbar - {f(Mi[k])}*Xi[{k}])/(p*Mbar*{S[k]});", 1)
     cg.add_line(f"}}")
 
     cg.write_to_file(output_dir, file_name)
@@ -1902,18 +1902,18 @@ def write_file_conductivity_roll(file_name, output_dir, align_width, target, tra
 
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_conductivity"
-                f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[])")
+                f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat Xi[])")
     cg.add_line(f"{{")
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
     cg.add_line(f"cfloat lambda_k, sum1=0., sum2=0.;", 1)
     cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
     cg.add_line(f"lambda_k = b0[k] + b1[k]*lnT + b2[k]*lnT2 + b3[k]*lnT3 + b4[k]*lnT4;", 2)
-    cg.add_line(f"sum1 += nXi[k]*lambda_k;", 2)
-    cg.add_line(f"sum2 += nXi[k]/lambda_k;", 2)
+    cg.add_line(f"sum1 += Xi[k]*lambda_k;", 2)
+    cg.add_line(f"sum2 += Xi[k]/lambda_k;", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
-    cg.add_line(f"return sum1/rcpMbar + rcpMbar/sum2;", 1)
+    cg.add_line(f"return 0.5*(sum1 + {f(1.)}/sum2);", 1)
     cg.add_line("")
     cg.add_line(f"}}")
 
@@ -1947,15 +1947,15 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, transp
 
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat nekrk_viscosity"
-                f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat nXi[]) ")
+                f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat Xi[]) ")
     cg.add_line(f"{{")
     cg.add_line(f"{write_const_expression(align_width, target, True, var1_str, var1)}")
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} mue[{sp_len}];", 1)
-    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} rcp_mue[{sp_len}];", 1)
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} eta[{sp_len}];", 1)
+    cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} rcp_eta[{sp_len}];", 1)
     cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
-    cg.add_line(f"mue[k] = a0[k] + a1[k]*lnT + a2[k]*lnT2 + a3[k]*lnT3 + a4[k]*lnT4;", 2)
-    cg.add_line(f"rcp_mue[k] = 1./mue[k];", 2)
+    cg.add_line(f"eta[k] = a0[k] + a1[k]*lnT + a2[k]*lnT2 + a3[k]*lnT3 + a4[k]*lnT4;", 2)
+    cg.add_line(f"rcp_eta[k] = 1./eta[k];", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
     cg.add_line(f"{write_const_expression(align_width, target, True, var2_str, var2)}")
@@ -1966,15 +1966,15 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, transp
     cg.add_line(f"for(unsigned int j=0; j<{sp_len}; j++)", 2)
     cg.add_line(f"{{", 2)
     cg.add_line(f"unsigned int idx = {sp_len}*k+j;", 3)
-    cg.add_line(f"cfloat sqrt_Phi_kj = C1[idx] + C2[idx]*mue[k]*rcp_mue[j];", 3)
-    cg.add_line(f"sums[k] += nXi[j]*sqrt_Phi_kj*sqrt_Phi_kj;", 3)
+    cg.add_line(f"cfloat sqrt_Phi_kj = C1[idx] + C2[idx]*eta[k]*rcp_eta[j];", 3)
+    cg.add_line(f"sums[k] += Xi[j]*sqrt_Phi_kj*sqrt_Phi_kj;", 3)
     cg.add_line(f"}}", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
     cg.add_line(f"cfloat vis = 0.;", 1)
     cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
-    cg.add_line(f"vis += nXi[k]*mue[k]*mue[k]/sums[k];", 2)
+    cg.add_line(f"vis += Xi[k]*eta[k]*eta[k]/sums[k];", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
     cg.add_line(f"return vis;", 1)
@@ -2003,9 +2003,9 @@ def write_file_diffusivity_nonsym_roll(file_name, output_dir, align_width, targe
     var = [d0, d1, d2, d3, d4]
 
     cg = CodeGenerator()
-    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
-                 f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
-                 f"cfloat nXi[], dfloat* out, unsigned int stride) ")
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_diffusivity"
+                 f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
+                 f"cfloat lnT3, cfloat lnT4, cfloat Xi[], dfloat* Dkm) ")
     cg.add_line(f"{{")
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
     cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
@@ -2020,17 +2020,16 @@ def write_file_diffusivity_nonsym_roll(file_name, output_dir, align_width, targe
         cg.add_line(f"cfloat rcp_Dkj = d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4;", 4)
     else:
         cg.add_line(f"cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);", 4)
-    cg.add_line(f"sums[k] += nXi[j]*rcp_Dkj;", 4)
+    cg.add_line(f"sums[k] += Xi[j]*rcp_Dkj;", 4)
     cg.add_line(f"}}", 3)
     cg.add_line(f"}}", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
-    cg.add_line(f"{write_const_expression(align_width, target, True, 'Wi', Mi)}")
+    cg.add_line(f"{write_const_expression(align_width, target, True, 'Mi', Mi)}")
     cg.add_line("")
     cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
-    cg.add_line(f"unsigned int idx = k*stride+id;", 2)
-    cg.add_line(f"out[idx] = scale * ({f(1.)} - Wi[k]*nXi[k])/sums[k];", 2)
+    cg.add_line(f"Dkm[k] = TsqrT * (Mbar - Mi[k]*Xi[k])/(p*Mbar*sums[k]);", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
     cg.add_line(f"}}")
@@ -2057,9 +2056,9 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
     var = [d0, d1, d2, d3, d4]
 
     cg = CodeGenerator()
-    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_density_diffusivity"
-                f"(unsigned int id, cfloat scale, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, "
-                f"cfloat nXi[], dfloat* out, unsigned int stride) ")
+    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_diffusivity"
+                f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
+                f"cfloat lnT3, cfloat lnT4, cfloat Xi[], dfloat* Dkm) ")
     cg.add_line(f"{{")
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
     cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
@@ -2075,8 +2074,8 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
         cg.add_line(f"cfloat rcp_Dkj = d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4;", 3)
     else:
         cg.add_line(f"cfloat rcp_Dkj = 1/(d0[idx] + d1[idx]*lnT + d2[idx]*lnT2 + d3[idx]*lnT3 + d4[idx]*lnT4);", 3)
-    cg.add_line(f"sums1[k] += nXi[j]*rcp_Dkj;", 3)
-    cg.add_line(f"sums2[j] += nXi[k]*rcp_Dkj;", 3)
+    cg.add_line(f"sums1[k] += Xi[j]*rcp_Dkj;", 3)
+    cg.add_line(f"sums2[j] += Xi[k]*rcp_Dkj;", 3)
     cg.add_line(f"}}", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
@@ -2086,12 +2085,11 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
     cg.add_line(f"sums[k] = sums1[k] + sums2[k];", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
-    cg.add_line(f"{write_const_expression(align_width, target, True, 'Wi', Mi)}")
+    cg.add_line(f"{write_const_expression(align_width, target, True, 'Mi', Mi)}")
     cg.add_line(f"")
     cg.add_line(f"for(unsigned int k=0; k<{sp_len}; k++)", 1)
     cg.add_line(f"{{", 1)
-    cg.add_line(f"unsigned int idx = k*stride+id;", 2)
-    cg.add_line(f"out[idx] = scale * ({f(1.)} - Wi[k]*nXi[k])/sums[k];", 2)
+    cg.add_line(f"Dkm[k] = TsqrT * (Mbar - Mi[k]*Xi[k])/(p*Mbar*sums[k]);", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
     cg.add_line(f"}}")
@@ -2142,20 +2140,6 @@ def generate_files(mech_file=None,
     # Load transport polynomials
     if transport and not header_only:
         transport_polynomials = species.transport_polynomials()
-        # Includes division by 2
-        transport_polynomials.conductivity = [[1/2 * p for p in P] for P in
-                                                 transport_polynomials.conductivity]
-        transport_polynomials.viscosity = [[p for p in P] for P in
-                                                transport_polynomials.viscosity]
-        if rcp_diffcoeffs:
-            # The reciprocal polynomial is evaluated
-            transport_polynomials.diffusivity = [
-                [[const.R * p for p in P]
-                 for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
-        else:
-            transport_polynomials.diffusivity = [
-                [[1/const.R * p for p in P]
-                 for k, P in enumerate(row)] for row in transport_polynomials.diffusivity]
 
     #########################
     # Write subroutine files

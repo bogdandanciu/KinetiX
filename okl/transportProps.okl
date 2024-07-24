@@ -5,18 +5,20 @@
                        @restrict const dfloat* state,
                        @restrict dfloat* conductivity,
                        @restrict dfloat* viscosity,
-                       @restrict dfloat* rhoDi,
+                       @restrict dfloat* density_diffusivity,
                        const double Tref)
 {
   for(int id = 0; id < n_states; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
     const cfloat T = Tref * state[id];
     const cfloat lnT = log(T);
+    const cfloat rcpT = 1 / T;
     const cfloat sqrT = sqrt(T);
     const cfloat lnT2 = lnT * lnT;
     const cfloat lnT3 = lnT * lnT * lnT;
     const cfloat lnT4 = lnT * lnT * lnT * lnT;
 
     cfloat wrk1[__NEKRK_NSPECIES__];
+    cfloat wrk2[__NEKRK_NSPECIES__];
 
     cfloat rcpMbar = 0;
     { 
@@ -26,14 +28,23 @@
         rcpMbar += wrk1[k];
       }
     }
+    const cfloat Mbar = 1/rcpMbar;
+    
+    for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+      wrk1[k] *= Mbar;
+    }
 
-    conductivity[id] =  sqrT * nekrk_conductivity(rcpMbar, lnT, lnT2,
-                                                  lnT3, lnT4, wrk1);
+    conductivity[id] =  sqrT * nekrk_conductivity(rcpMbar, lnT, lnT2, lnT3, lnT4, wrk1);
 
     viscosity[id] = sqrT * nekrk_viscosity(lnT, lnT2, lnT3, lnT4, wrk1);
 
-    nekrk_density_diffusivity(id, sqrT, lnT, lnT2, lnT3, lnT4,
-                              wrk1, rhoDi, offset);
-
+    nekrk_diffusivity(Mbar, pressure, T*sqrT, lnT, lnT2, lnT3, lnT4, wrk1, wrk2);
+    
+    const cfloat rho = pressure/p_R * rcpT * Mbar;
+    for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+      unsigned int idx = k*offset+id;
+      density_diffusivity[idx] = rho * wrk2[k];
+    }
+    
   }
-}
+} 
