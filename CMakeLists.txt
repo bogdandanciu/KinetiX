@@ -32,7 +32,9 @@ execute_process(COMMAND ${Python3_EXECUTABLE} -m pip install ${_pip_args} --user
 set(INSTALL_PREFIX "")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/occa")
 
-set(AMReX_GPU_BACKEND "NONE" CACHE STRING "AMReX GPU backend" FORCE)
+if(NOT DEFINED AMReX_GPU_BACKEND)
+  set(AMReX_GPU_BACKEND "NONE" CACHE STRING "AMReX GPU backend" FORCE)
+endif()
 if(AMReX_GPU_BACKEND STREQUAL "CUDA")
     enable_language(CUDA)
 elseif(AMReX_GPU_BACKEND STREQUAL "HIP")
