@@ -653,7 +653,7 @@ def write_reaction(idx, r, loop_gibbsexp):
         if loop_gibbsexp:
             cg.add_line(f"kr = {compute_kr_unroll(r)}", 1)
         else:
-            cg.add_line(f"kr = __NEKRK_EXP_OVERFLOW__("
+            cg.add_line(f"kr = exp("
                         f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
                         f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
         cg.add_line(f"cR = kf * ({Rf} - kr * {Rr});", 1)
@@ -814,7 +814,7 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
             if loop_gibbsexp:
                 cg.add_line(f"kr = {compute_kr_unroll(r)}", 1)
             else:
-                cg.add_line(f"kr = __NEKRK_EXP_OVERFLOW__("
+                cg.add_line(f"kr = exp("
                             f"{'+'.join(imul(net, f'gibbs0_RT[{k}]') for k, net in enumerate(r.net) if net != 0)})"
                             f"{f' * {pow_C0_sum_net}' if pow_C0_sum_net else ''};", 1)
             if r.type == 'elementary' or r.type == 'irreversible':
@@ -1018,7 +1018,6 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunrol
 
     cg = CodeGenerator()
     cg.add_line(f"#include <math.h>")
-    cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, exp(x))")
     cg.add_line(f"__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates"
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
                 f"const cfloat rcpT, const cfloat* Ci, cfloat* wdot) ")
@@ -1770,7 +1769,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
 
     cg = CodeGenerator()
     cg.add_line(f'#include <math.h>')
-    cg.add_line(f"#define __NEKRK_EXP_OVERFLOW__(x) __NEKRK_MIN_CFLOAT(CFLOAT_MAX, exp(x))")
     cg.add_line(f'__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates'
                  f'(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4,'
                  f' const cfloat rcpT, const cfloat* Ci, cfloat* wdot) ')
