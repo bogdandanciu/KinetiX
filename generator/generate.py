@@ -1281,10 +1281,10 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
         E_R.append(rxn[i].rate_constant.activation_temperature)
         if beta[-1] == 0 and E_R[-1] == 0:
             ids_E0B0.append(i)
-        elif beta[-1] == -1 and E_R[-1] == 0:
-            ids_E0Bneg1.append(i)
         elif beta[-1] == -2 and E_R[-1] == 0:
             ids_E0Bneg2.append(i)
+        elif beta[-1] == -1 and E_R[-1] == 0:
+            ids_E0Bneg1.append(i)
         elif beta[-1] == 1 and E_R[-1] == 0:
             ids_E0B1.append(i)
         elif beta[-1] == 2 and E_R[-1] == 0:
@@ -1310,10 +1310,10 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
 
             if beta[-1] == 0 and E_R[-1] == 0:
                 ids_E0B0.append(k0_ids)
-            elif beta[-1] == -1 and E_R[-1] == 0:
-                ids_E0Bneg1.append(k0_ids)
             elif beta[-1] == -2 and E_R[-1] == 0:
                 ids_E0Bneg2.append(k0_ids)
+            elif beta[-1] == -1 and E_R[-1] == 0:
+                ids_E0Bneg1.append(k0_ids)
             elif beta[-1] == 1 and E_R[-1] == 0:
                 ids_E0B1.append(k0_ids)
             elif beta[-1] == 2 and E_R[-1] == 0:
