@@ -1202,7 +1202,7 @@ def write_file_diffusivity_nonsym_unroll(file_name, output_dir, rcp_diffcoeffs,
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_diffusivity"
                 f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
-                f"cfloat lnT3, cfloat lnT4, cfloat Xi[], dfloat* Dkm) ")
+                f"cfloat lnT3, cfloat lnT4, cfloat Xi[], cfloat* Dkm) ")
     cg.add_line(f"{{")
     for k in range(sp_len):
         cg.add_line(f"//{sp_names[k]}", 1)
@@ -1241,7 +1241,7 @@ def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transpo
 
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_diffusivity"
                 f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
-                f"cfloat lnT3, cfloat lnT4, cfloat Xi[], dfloat* Dkm) ")
+                f"cfloat lnT3, cfloat lnT4, cfloat Xi[], cfloat* Dkm) ")
     cg.add_line(f"{{")
     for k in range(sp_len):
         for j in range(k):
@@ -2003,7 +2003,7 @@ def write_file_diffusivity_nonsym_roll(file_name, output_dir, align_width, targe
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_diffusivity"
                  f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
-                 f"cfloat lnT3, cfloat lnT4, cfloat Xi[], dfloat* Dkm) ")
+                 f"cfloat lnT3, cfloat lnT4, cfloat Xi[], cfloat* Dkm) ")
     cg.add_line(f"{{")
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
     cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
@@ -2056,7 +2056,7 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_diffusivity"
                 f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
-                f"cfloat lnT3, cfloat lnT4, cfloat Xi[], dfloat* Dkm) ")
+                f"cfloat lnT3, cfloat lnT4, cfloat Xi[], cfloat* Dkm) ")
     cg.add_line(f"{{")
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
     cg.add_line(f"{f'alignas({align_width}) cfloat' if target=='c++17' else 'cfloat'} "
