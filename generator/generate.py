@@ -142,12 +142,13 @@ class Species:
     """
 
     def __init__(self, rcp_diffcoeffs, sp_names, molar_masses, thermodynamics,
-                 well_depth, dipole_moment, diameter, rotational_relaxation,
-                 degrees_of_freedom, polarizability, sp_len):
+                 temperature_ranges, well_depth, dipole_moment, diameter,
+                 rotational_relaxation, degrees_of_freedom, polarizability, sp_len):
         self.rcp_diffcoeffs = rcp_diffcoeffs
         self.sp_names = sp_names
         self.Mi = molar_masses
         self.thermo = thermodynamics
+        self._temperature_ranges = temperature_ranges
         self._eps = well_depth
         self._mu = dipole_moment
         self._sigma = diameter
@@ -187,18 +188,19 @@ class Species:
 
     def _collision_integral(self, I0, table, fit, j, k, T):
         lnT_star = ln(self._T_star(j, k, T))
-        header_lnT_star = self._header_lnT_star
+        header_lnT_star = self._header_lnT_star[1:-1]
         # Find the first index where lnT_star is less than the corresponding value in header_lnT_star
-        for i, val in enumerate(header_lnT_star[1:], start=1):
+        start = 0
+        for i, val in enumerate(header_lnT_star):
             if lnT_star < val:
-                interp_start_index = i - 1
+                start = i
                 break
-        else:
-            interp_start_index = len(header_lnT_star) - 2
-        interp_start_index = min(interp_start_index, I0 + len(table) - 3)
+        interp_start_index = max(start-1, 0)
+        if interp_start_index + 3 > len(header_lnT_star)-1:
+            interp_start_index = len(header_lnT_star)-4
         header_lnT_star_slice = header_lnT_star[interp_start_index:][:3]
         assert (len(header_lnT_star_slice) == 3)
-        polynomials = fit[interp_start_index - I0:][:3]
+        polynomials = fit[interp_start_index + I0:][:3]
         assert (len(polynomials) == 3)
 
         def _evaluate_polynomial(P, x):
@@ -214,7 +216,7 @@ class Species:
         delta_star = self._delta_star(j, k)
         for P in polynomials:
             assert len(P) == 7, len(P)
-        table = table[interp_start_index - I0:][:3]
+        table = table[interp_start_index + I0:][:3]
         assert (len(table) == 3)
         # P[:6]: Reproduces Cantera truncated polynomial mistake
         if delta_star == 0.0:
@@ -224,11 +226,13 @@ class Species:
         return _quadratic_interpolation(header_lnT_star_slice, y, lnT_star)
 
     def _omega_star_22(self, j, k, T):
-        return self._collision_integral(1, const.collision_integrals_Omega_star_22, const.Omega_star_22, j, k, T)
+        return self._collision_integral(0, const.collision_integrals_Omega_star_22, const.Omega_star_22, j, k, T)
+
+    def _a_star(self, j, k, T):
+        return self._collision_integral(1, const.collision_integrals_A_star, const.A_star, j, k, T)
 
     def _omega_star_11(self, j, k, T):
-        return (self._omega_star_22(j, k, T) /
-                self._collision_integral(0, const.collision_integrals_A_star, const.A_star, j, k, T))
+        return self._omega_star_22(j, k, T) / self._a_star(j, k, T)
 
     def _viscosity(self, k, T):
         (Mi, sigma) = (self.Mi, self._sigma)
@@ -258,7 +262,10 @@ class Species:
                 (f_trans * 3. / 2. + f_rot * dof[k] + f_vib * Cv))
 
     def transport_polynomials(self):
-        T_rng = linspace(300., 3000., 50)
+        T_min = max(sp_temp_rng[0] for sp_temp_rng in self._temperature_ranges)
+        T_max = min(sp_temp_rng[-1] for sp_temp_rng in self._temperature_ranges)
+        nump = 50
+        T_rng = linspace(T_min, T_max, nump)
 
         class TransportPolynomials:
             pass
@@ -312,6 +319,7 @@ def get_species_from_model(species, rcp_diffcoeffs):
             raise SystemExit(
                 f'Specie {sp_names[idx]} has more than 2 sets of thermodynamic coefficients. '
                 f'This is not currently supported!')
+    temperature_ranges = p(lambda s: s['thermo']['temperature-ranges'])
     degrees_of_freedom = p(lambda s: {'atom': 0, 'linear': 1, 'nonlinear': 3 / 2}[s['transport']['geometry']])
     well_depth = p(lambda s: s['transport']['well-depth'] * const.kB)
     diameter = p(lambda s: s['transport']['diameter'] * 1e-10)  # Å
@@ -320,8 +328,8 @@ def get_species_from_model(species, rcp_diffcoeffs):
     rotational_relaxation = p(lambda s: float(s['transport'].get('rotational-relaxation', 0)))
 
     species = Species(rcp_diffcoeffs, sp_names, molar_masses, thermodynamics,
-                      well_depth, dipole_moment, diameter, rotational_relaxation,
-                      degrees_of_freedom, polarizability, sp_len)
+                      temperature_ranges, well_depth, dipole_moment, diameter,
+                      rotational_relaxation, degrees_of_freedom, polarizability, sp_len)
     return species
 
 
