@@ -231,6 +231,12 @@ class Species:
     def _a_star(self, j, k, T):
         return self._collision_integral(1, const.collision_integrals_A_star, const.A_star, j, k, T)
 
+    def _b_star(self, j, k, T):
+        return self._collision_integral(1, const.collision_integrals_B_star, const.B_star, j, k, T)
+
+    def _c_star(self, j, k, T):
+        return self._collision_integral(1, const.collision_integrals_C_star, const.C_star, j, k, T)
+
     def _omega_star_11(self, j, k, T):
         return self._omega_star_22(j, k, T) / self._a_star(j, k, T)
 
