@@ -5,15 +5,20 @@ Generation of reaction kinetics, thermodynamics and transport properties kernels
 
 ## How to build
 
-Requirements:
+### Requirements:
+#### Minimum
 * Linux, Mac OS X (Microsoft Windows is not supported)
 * C++17/C99 compatible compilers + GNU/Intel Fortran
 * MPI-3.1 or later
 * CMake version 3.21 or later
 * Python v3.8 and later
-* (CUDA, HIP, DPCPP, Cantera)
+#### Optional
+* CUDA 9 or later 
+* HIP 4.2 or later
+* SYCL 2020 or later
+* Cantera 2.5 or later
 
-Installation:
+### Installation:
 
 ```sh
 mkdir build; cd build
