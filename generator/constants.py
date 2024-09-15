@@ -3,11 +3,11 @@ Module containing definitions of physical constants that are used
 in internal routines and are unlikely to need modifying.
 """
 
-# Standard libraries
+# Standard library libraries
 from sys import float_info
 
 # Local imports
-from utils import polynomial_regression
+from utils.general_utils import polynomial_regression
 
 
 """ A collection of physical constants as defined in Cantera. """

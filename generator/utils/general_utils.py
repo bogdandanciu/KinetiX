@@ -1,51 +1,16 @@
 """
-Module containing utility functions and variables.
+General utility functions and variables.
 """
 
-# Standard libraries
-import os
-from numpy import polynomial
-from numpy import isfinite as is_finite
-from numpy import single
-from pathlib import Path
+# Standard library imports
 from itertools import tee, filterfalse, repeat
 
-
-class CodeGenerator:
-    """
-    A utility class for generating and writing structured code to files.
-    """
-    def __init__(self, indent='  '):
-        self.lines = []
-        self.si = indent  # single indent
-        self.di = 2 * indent  # double indent
-        self.ti = 3 * indent  # triple indent
-        self.new_line = '\n'  # new line
-
-    def add_line(self, line, level=0):
-        """Add a line of code with optional indentation."""
-        indented_line = f"{self.si * level}{line}"
-        self.lines.append(indented_line)
-
-    def get_code(self):
-        """Return the complete code as a single string."""
-        return '\n'.join(self.lines)
-
-    def write_to_file(self, output_dir, module_name):
-        """Write the generated code to a specified file."""
-        content = self.get_code()
-        # Create the output directory if it doesn't already exist
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-        file_path = os.path.join(output_dir, module_name)
-        with open(file_path, 'w') as file:
-            updated_content = (content.replace('- -', '+ ')
-                                      .replace('+ -', '- ')
-                                      .replace('+-', '-')
-                                      .replace('exp(', '__NEKRK_EXP__(')
-                                      .replace('pow(', '__NEKRK_POW__(')
-                                      .replace('log10(', '__NEKRK_LOG10__('))
-            file.write(updated_content)
+# Third-party imports
+from numpy import (
+    isfinite as is_finite,
+    polynomial,
+    single
+)
 
 
 def cube(x):
@@ -60,17 +25,6 @@ def flatten_list(t):
     Flatten a nested list into a single list.
     """
     return [item for sublist in t for item in sublist]
-
-
-def sum_of_list(lt):
-    """
-    Calculate the sum of all elements in a list.
-    """
-
-    total = 0
-    for val in lt:
-        total = total + val
-    return total
 
 
 def partition(pred, iterable):
@@ -191,8 +145,8 @@ def prod_of_exp_rcp(c, v, rcp):
         return div
     else:
         return f'{num}*{div}'
-
-
+    
+    
 def polynomial_regression(X, Y, degree=4, weights=None):
     """
     Perform polynomial regression to fit a polynomial curve to data points.
@@ -206,3 +160,4 @@ def polynomial_regression(X, Y, degree=4, weights=None):
 """ Maximum and minimum floating point values"""
 FLOAT_MAX = 1e300
 FLOAT_MIN = 1e-300
+
