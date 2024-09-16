@@ -260,7 +260,7 @@ def evaluate_polynomial(P):
 
 def write_file_conductivity_roll(file_name, output_dir, align_width, target, transport_polynomials, sp_len):
     """
-    Write the 'fconductivity.inc' file with rolled loop specification.
+    Write the 'conductivity.inc' file with rolled loop specification.
     """
 
     b0, b1, b2, b3, b4 = [], [], [], [], []
@@ -286,7 +286,7 @@ def write_file_conductivity_roll(file_name, output_dir, align_width, target, tra
     cg.add_line(f"sum2 += Xi[k]/lambda_k;", 2)
     cg.add_line(f"}}", 1)
     cg.add_line("")
-    cg.add_line(f"return 0.5*(sum1 + {f(1.)}/sum2);", 1)
+    cg.add_line(f"return {f(0.5)}*(sum1 + {f(1.)}/sum2);", 1)
     cg.add_line("")
     cg.add_line(f"}}")
 
@@ -296,7 +296,7 @@ def write_file_conductivity_roll(file_name, output_dir, align_width, target, tra
 
 def write_file_viscosity_roll(file_name, output_dir, align_width, target, transport_polynomials, sp_len, Mi):
     """
-    Write the 'fviscosity.inc' file with rolled loop specification.
+    Write the 'viscosity.inc' file with rolled loop specification.
     """
     a0, a1, a2, a3, a4 = [], [], [], [], []
     for vis_coeff in transport_polynomials.viscosity:
@@ -360,7 +360,7 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, transp
 def write_file_diffusivity_nonsym_roll(file_name, output_dir, align_width, target, rcp_diffcoeffs,
                                        transport_polynomials, sp_len, Mi):
     """
-    Write the 'fdiffusivity.inc ' file with rolled loop specification
+    Write the 'diffusivity.inc ' file with rolled loop specification
     and  computation of the full Dij matrix (non-symmetrical matrix assumption).
     """
 
@@ -414,7 +414,7 @@ def write_file_diffusivity_nonsym_roll(file_name, output_dir, align_width, targe
 def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_diffcoeffs,
                                 transport_polynomials, sp_len, Mi):
     """
-    Write the 'fdiffusivity.inc' file with rolled loop specification.
+    Write the 'diffusivity.inc' file with rolled loop specification.
     """
 
     d0, d1, d2, d3, d4 = [], [], [], [], []
@@ -473,7 +473,7 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
 
 def write_file_conductivity_unroll(file_name, output_dir, transport_polynomials, sp_names):
     """
-    Write the 'fconductivity.inc' file with unrolled loop specification.
+    Write the 'conductivity.inc' file with unrolled loop specification.
     """
 
     cg = CodeGenerator()
@@ -488,7 +488,7 @@ def write_file_conductivity_unroll(file_name, output_dir, transport_polynomials,
         cg.add_line(f"sum1 += Xi[{k}]*lambda_k;", 1)
         cg.add_line(f"sum2 += Xi[{k}]/lambda_k;", 1)
         cg.add_line(f"")
-    cg.add_line(f"return 0.5 * (sum1 + {f(1.)}/sum2);", 1)
+    cg.add_line(f"return {f(0.5)} * (sum1 + {f(1.)}/sum2);", 1)
     cg.add_line(f"}}")
 
     cg.write_to_file(output_dir, file_name)
@@ -497,7 +497,7 @@ def write_file_conductivity_unroll(file_name, output_dir, transport_polynomials,
 
 def write_file_viscosity_unroll(file_name, output_dir, group_vis, transport_polynomials, sp_names, sp_len, Mi):
     """
-    Write the 'fviscosity.inc' file with unrolled loop specification.
+    Write the 'viscosity.inc' file with unrolled loop specification.
     """
     cg = CodeGenerator()
     cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ cfloat sq(cfloat x) {{ return x*x; }}")
@@ -559,7 +559,7 @@ def write_file_viscosity_unroll(file_name, output_dir, group_vis, transport_poly
 def write_file_diffusivity_nonsym_unroll(file_name, output_dir, rcp_diffcoeffs,
                                          transport_polynomials, sp_names, sp_len, Mi):
     """
-    Write the 'fdiffusivity.inc' file with unrolled loop specification
+    Write the 'diffusivity.inc' file with unrolled loop specification
     and  computation of the full Dij matrix (non-symmetrical matrix assumption).
     """
 
@@ -593,7 +593,7 @@ def write_file_diffusivity_nonsym_unroll(file_name, output_dir, rcp_diffcoeffs,
 
 def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transport_polynomials, sp_len, Mi):
     """
-    Write the 'fdiffusivity.inc' file with unrolled loop specification.
+    Write the 'diffusivity.inc' file with unrolled loop specification.
     """
     cg = CodeGenerator()
 
