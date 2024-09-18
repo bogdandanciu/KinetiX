@@ -14,24 +14,24 @@
     const cfloat T3 = T * T * T;
     const cfloat T4 = T * T * T * T;
 
-    cfloat wrk1[__NEKRK_NSPECIES__];
+    cfloat wrk1[__KINETIX_NSPECIES__];
 
     cfloat Mbar;
     {
       cfloat rcpMbar = 0;
 
-      for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
-        const cfloat Yi = __NEKRK_MAX((cfloat) 0, (cfloat) state[id + offsetT + k*offset]);
-        wrk1[k] = Yi * nekrk_rcp_molar_mass[k];
+      for(int k = 0; k < __KINETIX_NSPECIES__; k++) {
+        const cfloat Yi = __KINETIX_MAX((cfloat) 0, (cfloat) state[id + offsetT + k*offset]);
+        wrk1[k] = Yi * kinetix_rcp_molar_mass[k];
         rcpMbar += wrk1[k];
       }
       Mbar = 1/rcpMbar; 
     }
 
     {
-      cfloat wrk2[__NEKRK_NSPECIES__];
+      cfloat wrk2[__KINETIX_NSPECIES__];
       const cfloat rho = pressure_R * rcpT * Mbar;
-      for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+      for(int k = 0; k < __KINETIX_NSPECIES__; k++) {
         const cfloat Ci = wrk1[k] * rho;
         wrk1[k] = Ci; 
         wrk2[k] = 0;
@@ -39,20 +39,20 @@
       if (p_PELETOOL){
         productionRate(wrk2, wrk1, T);
       } else {
-        nekrk_species_rates(logT,T,T2,T3,T4,rcpT,wrk1,wrk2);
+        kinetix_species_rates(logT,T,T2,T3,T4,rcpT,wrk1,wrk2);
       }
 
-      for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
-        rates[id + offsetT + k*offset] = nekrk_molar_mass[k] * wrk2[k];
+      for(int k = 0; k < __KINETIX_NSPECIES__; k++) {
+        rates[id + offsetT + k*offset] = kinetix_molar_mass[k] * wrk2[k];
       }
 
       if (p_PELETOOL) {
         speciesEnthalpy(wrk1, T);
       } else {
-        nekrk_enthalpy_RT(logT,T,T2,T3,T4,rcpT,wrk1);
+        kinetix_enthalpy_RT(logT,T,T2,T3,T4,rcpT,wrk1);
       }
       cfloat sum_h_RT = 0;
-      for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+      for(int k = 0; k < __KINETIX_NSPECIES__; k++) {
         sum_h_RT += wrk2[k] * wrk1[k];
       }
       cfloat ratesFactorEnergy = -p_R*T;

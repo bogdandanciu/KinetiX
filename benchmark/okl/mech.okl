@@ -22,7 +22,7 @@
   for(int id = 0; id < 1; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
     if(id == 0) {
       for(int k = 0; k < n_species; ++k) 
-        n[k] = nekrk_molar_mass[k];
+        n[k] = kinetix_molar_mass[k];
     }
   }
 }

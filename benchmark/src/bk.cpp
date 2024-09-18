@@ -1,25 +1,24 @@
 #include <algorithm>
-#include <vector>
-#include <iostream>
-#include <fstream>
-#include <cstddef>
-#include <string>
-#include <string.h>
 #include <cassert>
+#include <cmath>
+#include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <getopt.h>
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmath>
+#include <string>
+#include <string.h>
 #include <unistd.h>
-#include <getopt.h>
-#include <stdlib.h>
-#include <filesystem>
+#include <vector>
 
 namespace fs = std::filesystem;
 
 #include "mpi.h"
 
 #include "occa.hpp"
-#include "nekRK.hpp"
+#include "kinetix.hpp"
 
 #define DEBUG
 
@@ -102,7 +101,7 @@ bool checkThermo(occa::memory& o_rho,
     const auto rho_SI = rho[id];
     const auto ciVal = ci_rho[id];
     if(debug)
-      printf("rho: Cantera %.15f nekRK %.15f relative error %e\n",
+      printf("rho: Cantera %.15f kinetix %.15f relative error %e\n",
              ciVal,
              rho_SI,
              relErr(rho_SI, ciVal));
@@ -113,7 +112,7 @@ bool checkThermo(occa::memory& o_rho,
       const auto cpi_SI = cp_i[k * n_states + id];
       const auto ciVal = ci_cp_i[id][k];
       if(debug)
-        printf("cp[%d]: Cantera %e nekRK %e relative error %e\n",
+        printf("cp[%d]: Cantera %e KinetiX %e relative error %e\n",
                k,
                ciVal,
                cpi_SI,
@@ -125,7 +124,7 @@ bool checkThermo(occa::memory& o_rho,
     const auto ciVal = ci_rho[id] * ci_cp_mean[id];
     const auto rhoCp_SI = rhoCp[id];
     if(debug)
-      printf("rhoCp: Cantera %e nekRK %e relative error %e\n", 
+      printf("rhoCp: Cantera %e KinetiX %e relative error %e\n",
              ciVal, 
              rhoCp_SI,
              relErr(rhoCp_SI, ciVal));
@@ -173,7 +172,7 @@ bool checkRates(occa::memory& o_rates,
     const auto e = relErr(hrrSI, ciVal);
     errors.push_back(e); 
     if(debug)
-      printf("HRR    Cantera %+.15e nekRK %+.15e relative error %e\n",
+      printf("HRR    Cantera %+.15e KinetiX %+.15e relative error %e\n",
              ciVal,
              hrrSI,
              e);
@@ -182,14 +181,14 @@ bool checkRates(occa::memory& o_rates,
         const auto ciVal = ci_rates[id][k];
         const auto mass_production_rate = rates[id + (k+1) * n_states];
         const auto molar_rate =  
-          mass_production_rate / (nekRK::molecularWeights()[k] * nekRK::refMeanMolecularWeight());
+          mass_production_rate / (kinetix::molecularWeights()[k] * kinetix::refMeanMolecularWeight());
  
         const auto e = (std::abs(ciVal) > 1e-50) ? 
                        relErr(molar_rate, ciVal) : std::abs(molar_rate);
         errors.push_back(e); 
         if(debug) 
-          printf("%-6s Cantera %+.15e nekRK %+.15e relative error %e\n",
-                 nekRK::speciesNames()[k].c_str(),
+          printf("%-6s Cantera %+.15e KinetiX %+.15e relative error %e\n",
+                 kinetix::speciesNames()[k].c_str(),
                  ciVal,
                  molar_rate,
                  e);
@@ -227,7 +226,7 @@ bool checkTransport(occa::memory& o_conductivity,
       auto e = relErr(conductivity[id], ci_conductivity[id]);
       errors.push_back(e);
       if(debug)
-        printf("conductivity: Cantera %e nekRK %e relative error %e\n",
+        printf("conductivity: Cantera %e KinetiX %e relative error %e\n",
                ci_conductivity[id],
                conductivity[id],
                e);
@@ -237,7 +236,7 @@ bool checkTransport(occa::memory& o_conductivity,
       auto e = relErr(viscosity[id], ci_viscosity[id]);
       errors.push_back(e);
       if(debug)
-        printf("viscosity: Cantera %e nekRK %e relative error %e\n",
+        printf("viscosity: Cantera %e KinetiX %e relative error %e\n",
                ci_viscosity[id],
                viscosity[id],
                e);
@@ -249,7 +248,7 @@ bool checkTransport(occa::memory& o_conductivity,
         const auto rhoDi = rhoD[k * n_states + id];
         const auto e = relErr(rhoDi, ci_rhoDi);
         if(debug)
-          printf("rhoD(%d): Cantera %e nekRK %e relative error %e\n", 
+          printf("rhoD(%d): Cantera %e KinetiX %e relative error %e\n",
                  k, ci_rhoDi, rhoDi, e);
         errors.push_back(e);
       }
@@ -277,7 +276,7 @@ void loadCiStateFromFile(const std::string& ciState,
                          std::vector<double>& molar_masses) 
 {
   const auto data = std::string(
-                      std::string(getenv("NEKRK_PATH")) +
+                      std::string(getenv("KINETIX_PATH")) +
                       "/kinetix/ci_data/" + mech + "." + ciState + ".cantera");
 
   std::cout << "Reading ci data from " << data;
@@ -295,7 +294,7 @@ void loadCiStateFromFile(const std::string& ciState,
     for(int k = 0; k < n_species; k++) {
       molar_masses.push_back(std::stod(value[k]));
       const auto w = molar_masses[k];
-      const auto wC = nekRK::molecularWeights()[k] * nekRK::refMeanMolecularWeight();
+      const auto wC = kinetix::molecularWeights()[k] * kinetix::refMeanMolecularWeight();
       auto e = abs(w - wC)/wC ;
       if(e > 1e-7) {
         printf("\nmolar mass mismatch [%d]: w %e cantera %e relative error %e\n", 
@@ -384,9 +383,9 @@ int main(int argc, char** argv)
   std::string threadModel;
   n_states = 100000;
   int mode = 0;
-  std::string tool = "nekRK";
+  std::string tool = "KinetiX";
   int blockSize = 512;
-  int nRep = 1000; 
+  int nRep = 50;
   bool single_precision = false;
   int ci = 0;
   int deviceId = 0;
@@ -490,7 +489,7 @@ int main(int argc, char** argv)
   }
 
   if(threadModel.size() < 1) err++;
-  if(tool == "nekRK" && mech.size() < 1) err++;
+  if(tool == "KinetiX" && mech.size() < 1) err++;
 
   if(err > 0) {
     if(rank == 0)
@@ -549,7 +548,7 @@ int main(int argc, char** argv)
     if(strstr(tool.c_str(), "Pele"))
       sprintf(toolConfig, "{Using: Pele routines}");
     else
-      sprintf(toolConfig, "{Using: nekRK routines}");
+      sprintf(toolConfig, "{Using: KinetiX routines}");
 
     if (!getenv("OCCA_CACHE_DIR")) {
       char buf[4096];
@@ -572,33 +571,33 @@ int main(int argc, char** argv)
     using dfloat = float;
 
   occa::properties kernel_properties;
-  nekRK::init(mech, 
-              device, 
-              kernel_properties, 
-	      tool,
-              blockSize,
-	      single_precision,
-	      unroll_loops,
-              loop_gibbsexp,
-              group_rxnUnroll,
-              group_vis,
-              nonsymDij,
-              fit_rcpDiffCoeffs,
-	      align_width,
-	      target,
-              false, /* useFP64Transport */ 
-              MPI_COMM_WORLD,
-              debug); 
+  kinetix::init(mech,
+                device,
+                kernel_properties,
+	            tool,
+                blockSize,
+	            single_precision,
+	            unroll_loops,
+                loop_gibbsexp,
+                group_rxnUnroll,
+                group_vis,
+                nonsymDij,
+                fit_rcpDiffCoeffs,
+	            align_width,
+	            target,
+                false, /* useFP64Transport */
+                MPI_COMM_WORLD,
+                debug);
 
-  n_species = nekRK::nSpecies();
-  n_reactions = nekRK::nReactions();
-  n_active_species = nekRK::nActiveSpecies();
+  n_species = kinetix::nSpecies();
+  n_reactions = kinetix::nReactions();
+  n_active_species = kinetix::nActiveSpecies();
   n_inert_species = n_species - n_active_species;
 
   if(debug) {
     std::cout << "species: \n";
     for (int k = 0; k < n_species; k++) {
-      std::cout << nekRK::speciesNames()[k];
+      std::cout << kinetix::speciesNames()[k];
       if (k < n_species - 1) std::cout << ' ';
     }
     std::cout << '\n';
@@ -660,11 +659,11 @@ int main(int argc, char** argv)
  
   o_states.copyFrom(states.data());
 
-  nekRK::build(ref_pressure,
-               ref_temperature,
-               ref_mass_fractions,
-               mode == 0 || mode == 2   /* enable transport */
-               );
+  kinetix::build(ref_pressure,
+                 ref_temperature,
+                 ref_mass_fractions,
+                 mode == 0 || mode == 2   /* enable transport */
+                 );
 
   //////////////////////////////////////////////////////////////////////////////
 
@@ -675,14 +674,14 @@ int main(int argc, char** argv)
     auto o_cp_i = device.malloc<dfloat>(n_species * n_states);
     auto o_rhoCp = device.malloc<dfloat>(n_states);
 
-    nekRK::thermodynamicProps(n_states,
-                          n_states /* offsetT */,
-                          n_states /* offset */,
-                          pressure,
-                          o_states,
-                          o_rho,
-                          o_cp_i,
-                          o_rhoCp);
+    kinetix::thermodynamicProps(n_states,
+                                n_states /* offsetT */,
+                                n_states /* offset */,
+                                pressure,
+                                o_states,
+                                o_rho,
+                                o_cp_i,
+                                o_rhoCp);
  
     if(ci && rank == 0 && mode == 0)
       pass &= checkThermo(o_rho,
@@ -695,24 +694,24 @@ int main(int argc, char** argv)
   if (mode == 0 || mode == 1) {
     auto o_rates = device.malloc<dfloat>((n_species + 1) * n_states);
 
-    nekRK::productionRates(n_states,
-                   n_states /* offsetT */,
-                   n_states /* offset */,
-                   pressure,
-                   o_states,
-                   o_rates);
+    kinetix::productionRates(n_states,
+                             n_states /* offsetT */,
+                             n_states /* offset */,
+                             pressure,
+                             o_states,
+                             o_rates);
 
     device.finish();
     MPI_Barrier(MPI_COMM_WORLD);
 
     const auto startTime = MPI_Wtime();
     for(int i = 0; i < nRep; i++) {
-      nekRK::productionRates(n_states,
-                     n_states /* offsetT */,
-                     n_states /* offset */, 
-                     pressure, 
-                     o_states,
-                     o_rates);
+      kinetix::productionRates(n_states,
+                               n_states /* offsetT */,
+                               n_states /* offset */,
+                               pressure,
+                               o_states,
+                               o_rates);
     }
     device.finish();
     MPI_Barrier(MPI_COMM_WORLD);
@@ -737,27 +736,27 @@ int main(int argc, char** argv)
     auto o_viscosity = device.malloc<dfloat>(n_states);
     auto o_rhoD = device.malloc<dfloat>(n_species * n_states);
 
-    nekRK::mixtureAvgTransportProps(n_states,
-                                 n_states /* offsetT */,
-                                 n_states /* offset */,
-                                 pressure,
-                                 o_states,
-                                 o_viscosity,
-                                 o_conductivity,
-                                 o_rhoD);
+    kinetix::mixtureAvgTransportProps(n_states,
+                                      n_states /* offsetT */,
+                                      n_states /* offset */,
+                                      pressure,
+                                      o_states,
+                                      o_viscosity,
+                                      o_conductivity,
+                                      o_rhoD);
     
     device.finish();
     MPI_Barrier(MPI_COMM_WORLD);
     const auto startTime = MPI_Wtime();
     for(int i = 0; i < nRep; i++) {
-      nekRK::mixtureAvgTransportProps(n_states,
-                                   n_states /* offsetT */,
-                                   n_states /* offset */,
-                                   pressure,
-                                   o_states,
-                                   o_viscosity,
-                                   o_conductivity,
-                                   o_rhoD);
+      kinetix::mixtureAvgTransportProps(n_states,
+                                        n_states /* offsetT */,
+                                        n_states /* offset */,
+                                        pressure,
+                                        o_states,
+                                        o_viscosity,
+                                        o_conductivity,
+                                        o_rhoD);
     }
     device.finish();
     MPI_Barrier(MPI_COMM_WORLD);

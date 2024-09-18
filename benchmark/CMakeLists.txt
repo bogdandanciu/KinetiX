@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(nekRK LANGUAGES C CXX)
+project(kinetix LANGUAGES C CXX)
 
 cmake_policy(SET CMP0079 NEW)
 
@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  SET(CMAKE_INSTALL_PREFIX $ENV{HOME}/.local/nekRK CACHE PATH "Default install path" FORCE)
+  SET(CMAKE_INSTALL_PREFIX $ENV{HOME}/.local/kinetix CACHE PATH "Default install path" FORCE)
 ENDIF()
 
 
@@ -51,29 +51,29 @@ set(INSTALL_PREFIX "")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/amrex")
 
-add_library(nekRK SHARED
-  src/nekRK.cpp
+add_library(kinetix SHARED
+  src/kinetix.cpp
 )
-target_link_libraries (nekRK PUBLIC libocca)
-target_link_libraries (nekRK PUBLIC amrex)
+target_link_libraries (kinetix PUBLIC libocca)
+target_link_libraries (kinetix PUBLIC amrex)
 set(INSTALL_PREFIX ".")
 
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH};${CMAKE_INSTALL_PREFIX}/lib")
 
-target_include_directories (nekRK PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_include_directories (kinetix PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-install(TARGETS nekRK DESTINATION ${INSTALL_PREFIX}/lib)
+install(TARGETS kinetix DESTINATION ${INSTALL_PREFIX}/lib)
 install(DIRECTORY okl DESTINATION ${INSTALL_PREFIX}/.)
 install(DIRECTORY ../kinetix DESTINATION ${INSTALL_PREFIX}/.)
 install(PROGRAMS ../kinetix/__main__.py DESTINATION ${INSTALL_PREFIX}/kinetix)
 install(DIRECTORY ../examples DESTINATION ${INSTALL_PREFIX}/.)
 install(FILES ../README.md DESTINATION ${INSTALL_PREFIX})
 
-add_executable(nekrk_bk src/bk.cpp)
-target_link_libraries (nekrk_bk PRIVATE nekRK)
-install(TARGETS nekrk_bk DESTINATION ${INSTALL_PREFIX}/bin)
+add_executable(kinetix_bk src/bk.cpp)
+target_link_libraries (kinetix_bk PRIVATE kinetix)
+install(TARGETS kinetix_bk DESTINATION ${INSTALL_PREFIX}/bin)
 
-target_compile_definitions(nekRK PUBLIC -DSTANDALONE)
-install(FILES src/nekRK.hpp DESTINATION ${INSTALL_PREFIX}/include)
+target_compile_definitions(kinetix PUBLIC -DSTANDALONE)
+install(FILES src/kinetix.hpp DESTINATION ${INSTALL_PREFIX}/include)

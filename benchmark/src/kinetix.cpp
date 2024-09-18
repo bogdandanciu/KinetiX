@@ -1,20 +1,20 @@
-#include <vector>
-#include <string>
-#include <float.h>
-#include <cassert>
-#include <unistd.h>
-#include <fstream>
 #include <algorithm>
-#include <iostream>
-#include <filesystem>
+#include <cassert>
 #include <cstring>
 #include <fcntl.h>
+#include <filesystem>
+#include <float.h>
+#include <fstream>
+#include <iostream>
 #include <libgen.h>
+#include <string>
+#include <unistd.h>
+#include <vector>
 
 #include <mpi.h>
 #include <occa.hpp>
 
-#include "nekRK.hpp"
+#include "kinetix.hpp"
 
 namespace fs = std::filesystem;
 
@@ -24,7 +24,7 @@ occa::kernel production_rates_kernel, production_rates_fpmix_kernel, production_
 occa::kernel transport_kernel, transport_fpmix_kernel, transport_fp32_kernel;
 occa::kernel thermoCoeffs_kernel, thermoCoeffs_fpmix_kernel, thermoCoeffs_fp32_kernel;
 
-nekRK::nekRKBuildKernel_t buildKernel;
+kinetix::kinetixBuildKernel_t buildKernel;
 
 occa::device device;
 std::string occaCacheDir0;
@@ -64,7 +64,7 @@ bool useFP64Transport;
 
 } // namespace
 
-bool nekRK::isInitialized() { return initialized; }
+bool kinetix::isInitialized() { return initialized; }
 
 static void fileSync(const char *file)
 {
@@ -95,7 +95,7 @@ static std::string to_string_f(double a)
   return s.str();
 }
 
-namespace nekRK{
+namespace kinetix{
 static std::string to_string_f(double a)
 {
   std::stringstream s;
@@ -183,31 +183,31 @@ static void setupKernelProperties()
 
   if (device.mode() == "CUDA") {
     setenv("OCCA_CXXFLAGS", incStatement.c_str(), 1); // required for launcher
-    kernel_properties["compiler_flags"] += " -D__NEKRK_DEVICE__=__device__";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_CONST__=__constant__";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_INLINE__='__forceinline__ static'";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_DEVICE__=__device__";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_CONST__=__constant__";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_INLINE__='__forceinline__ static'";
     kernel_properties["compiler_flags"] += " --expt-relaxed-constexpr"; //required for amrex
   }
   else if (device.mode() == "HIP") {
     setenv("OCCA_CXXFLAGS", incStatement.c_str(), 1); // required for launcher
-    kernel_properties["compiler_flags"] += " -D__NEKRK_DEVICE__=__device__";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_CONST__=__constant__";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_INLINE__='__forceinline static'";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_DEVICE__=__device__";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_CONST__=__constant__";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_INLINE__='__forceinline static'";
   }
   else if (device.mode() == "dpcpp") {
     setenv("OCCA_CXXFLAGS", incStatement.c_str(), 1); // required for launcher
-    kernel_properties["compiler_flags"] += " -D__NEKRK_DEVICE__=SYCL_EXTERNAL";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_CONST__=const";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_INLINE__='__forceinline'";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_DEVICE__=SYCL_EXTERNAL";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_CONST__=const";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_INLINE__='__forceinline'";
   }
   else {
     std::string OCCA_CXXFLAGS;
     if (getenv("OCCA_CXXFLAGS"))
       OCCA_CXXFLAGS.assign(getenv("OCCA_CXXFLAGS"));
     kernel_properties["compiler_flags"] += OCCA_CXXFLAGS;
-    kernel_properties["compiler_flags"] += " -D__NEKRK_DEVICE__=";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_CONST__=const";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_INLINE__='static inline'";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_DEVICE__=";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_CONST__=const";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_INLINE__='static inline'";
     kernel_properties["compiler_flags"] += " -include cmath";
     kernel_properties["compiler_flags"] += " -include cstdio";
     group_size = 1;
@@ -231,12 +231,12 @@ static void setupKernelProperties()
     kernel_properties["compiler_flags"] += " -Dcfloat=" + cfloatType;
     kernel_properties["compiler_flags"] += " -DCFLOAT_MAX=1e300";
     kernel_properties["compiler_flags"] += " -DCFLOAT_MIN=1e-300";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_EXP__=exp";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_LOG10__=log10";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_LOG__=log";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_POW__=pow";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_MIN_CFLOAT=fmin";
-    kernel_properties["compiler_flags"] += " -D__NEKRK_MAX=fmax";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_EXP__=exp";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_LOG10__=log10";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_LOG__=log";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_POW__=pow";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_MIN_CFLOAT=fmin";
+    kernel_properties["compiler_flags"] += " -D__KINETIX_MAX=fmax";
   }
 
   {
@@ -244,11 +244,11 @@ static void setupKernelProperties()
     const auto cfloatType = std::string("float");
     kernel_properties_fp32["compiler_flags"] += " -DCFLOAT_MAX=1e37f";
     kernel_properties_fp32["compiler_flags"] += " -DCFLOAT_MIN=1e-37f";
-    kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_EXP__=expf";
-    kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_LOG10__=log10f";
-    kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_LOG__=logf";
-    kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_POW__=powf";
-    kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_MIN_CFLOAT=fminf";
+    kernel_properties_fp32["compiler_flags"] += " -D__KINETIX_EXP__=expf";
+    kernel_properties_fp32["compiler_flags"] += " -D__KINETIX_LOG10__=log10f";
+    kernel_properties_fp32["compiler_flags"] += " -D__KINETIX_LOG__=logf";
+    kernel_properties_fp32["compiler_flags"] += " -D__KINETIX_POW__=powf";
+    kernel_properties_fp32["compiler_flags"] += " -D__KINETIX_MIN_CFLOAT=fminf";
 
     {
       const auto dfloatType = std::string("double");
@@ -258,14 +258,14 @@ static void setupKernelProperties()
       kernel_properties_fpmix["defines/cfloat"] = cfloatType;
       kernel_properties_fpmix["compiler_flags"] += " -Ddfloat=" + dfloatType;
       kernel_properties_fpmix["compiler_flags"] += " -Dcfloat=" + cfloatType;
-      kernel_properties_fpmix["compiler_flags"] += " -D__NEKRK_MAX=fmax";
+      kernel_properties_fpmix["compiler_flags"] += " -D__KINETIX_MAX=fmax";
     }
 
     kernel_properties_fp32["defines/dfloat"] = dfloatType;
     kernel_properties_fp32["defines/cfloat"] = cfloatType;
     kernel_properties_fp32["compiler_flags"] += " -Ddfloat=" + dfloatType;
     kernel_properties_fp32["compiler_flags"] += " -Dcfloat=" + cfloatType;
-    kernel_properties_fp32["compiler_flags"] += " -D__NEKRK_MAX=fmaxf";
+    kernel_properties_fp32["compiler_flags"] += " -D__KINETIX_MAX=fmaxf";
   }
 
 }
@@ -273,7 +273,7 @@ static void setupKernelProperties()
 static occa::kernel _buildKernel(const std::string &path, const std::string &fileName, occa::properties prop)
 {
   occa::kernel kernel;
-  const auto okl_path = std::string(getenv("NEKRK_PATH")) + "/okl/";
+  const auto okl_path = std::string(getenv("KINETIX_PATH")) + "/okl/";
 
   int rank = 0;
   MPI_Comm_rank(comm, &rank);
@@ -293,19 +293,19 @@ static void setup()
 
   occaCacheDir0 = getenv("OCCA_CACHE_DIR");
   
-  if (!getenv("NEKRK_PATH")) {
-    std::string path = std::string(getenv("HOME")) + "/.local/nekRK";
-    setenv("NEKRK_PATH", path.c_str(), 0);
+  if (!getenv("KINETIX_PATH")) {
+    std::string path = std::string(getenv("HOME")) + "/.local/kinetix";
+    setenv("KINETIX_PATH", path.c_str(), 0);
   }
   if (!getenv("OCCA_DIR")) {
-    occa::env::OCCA_DIR = std::string(getenv("NEKRK_PATH")) + "/";
+    occa::env::OCCA_DIR = std::string(getenv("KINETIX_PATH")) + "/";
   }
 
-  const auto installDir = std::string(getenv("NEKRK_PATH"));
+  const auto installDir = std::string(getenv("KINETIX_PATH"));
 
   {
     const std::string yamlName = fs::path(yamlPath).stem();
-    cacheDir = ".cache/nekRK/" + yamlName;
+    cacheDir = ".cache/KINETIX/" + yamlName;
     cacheDir = std::string(fs::absolute(cacheDir));
 
     if (rank == 0) {
@@ -338,7 +338,7 @@ static void setup()
   setupKernelProperties();
 
   {
-    const auto oklpath = std::string(getenv("NEKRK_PATH")) + "/okl/";
+    const auto oklpath = std::string(getenv("KINETIX_PATH")) + "/okl/";
     occa::kernel nSpeciesKernel = buildKernel("mech.okl", "nSpecies", kernel_properties);
     occa::kernel nReactionsKernel = buildKernel("mech.okl", "nReactions", kernel_properties);
     occa::kernel mMolarKernel = buildKernel("mech.okl", "mMolar", kernel_properties);
@@ -401,16 +401,16 @@ static void buildMechKernels(bool transport)
     if (single_precision) {
       includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
       thermoCoeffs_fp32_kernel = buildKernel("thermoCoeffs.okl", 
-          	                             "thermoCoeffs", 
-          			             addOccaCompilerFlags(includeProp, kernel_properties_fp32));
+          	                                 "thermoCoeffs",
+          			                         addOccaCompilerFlags(includeProp, kernel_properties_fp32));
       thermoCoeffs_fpmix_kernel = buildKernel("thermoCoeffs.okl", 
-          	                              "thermoCoeffs", 
-          			              addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
+          	                                  "thermoCoeffs",
+          			                          addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
     } else {
       includeProp["compiler_flags"] += " -include " + cacheDir + "/heat_capacity_R.inc";
       thermoCoeffs_kernel = buildKernel("thermoCoeffs.okl", 
-          	                        "thermoCoeffs", 
-          			        addOccaCompilerFlags(includeProp, kernel_properties));
+          	                            "thermoCoeffs",
+          			                    addOccaCompilerFlags(includeProp, kernel_properties));
     }
   }
 
@@ -421,11 +421,11 @@ static void buildMechKernels(bool transport)
       includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/frates.inc";
       production_rates_fp32_kernel = buildKernel("productionRates.okl", 
-          	    			         "productionRates", 
-          				         addOccaCompilerFlags(includeProp, kernel_properties_fp32));
+          	    			                     "productionRates",
+          				                         addOccaCompilerFlags(includeProp, kernel_properties_fp32));
       production_rates_fpmix_kernel = buildKernel("productionRates.okl", 
-          	    			          "productionRates", 
-          				          addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
+          	    			                      "productionRates",
+          				                          addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
     } else {
       includeProp["compiler_flags"] += " -include " + cacheDir + "/enthalpy_RT.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/rates.inc";
@@ -444,18 +444,18 @@ static void buildMechKernels(bool transport)
       includeProp["compiler_flags"] += " -include " + cacheDir + "/fviscosity.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/fdiffusivity.inc";
       transport_fp32_kernel = buildKernel("transportProps.okl", 
-		                          "transport", 
-		                          addOccaCompilerFlags(includeProp, kernel_properties_fp32));
+		                                  "transport",
+		                                  addOccaCompilerFlags(includeProp, kernel_properties_fp32));
       transport_fpmix_kernel = buildKernel("transportProps.okl", 
-		                           "transport", 
-					   addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
+		                                   "transport",
+					                       addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
     } else {
       includeProp["compiler_flags"] += " -include " + cacheDir + "/conductivity.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/viscosity.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/diffusivity.inc";
       transport_kernel = buildKernel("transportProps.okl", 
-		                     "transport", 
-				     addOccaCompilerFlags(includeProp, kernel_properties));
+		                             "transport",
+				                     addOccaCompilerFlags(includeProp, kernel_properties));
     }
   }
 }
@@ -464,66 +464,66 @@ static void buildMechKernels(bool transport)
 //                                  API
 ///////////////////////////////////////////////////////////////////////////////
 
-void nekRK::init(const std::string &model_path,
-                 occa::device _device,
-                 occa::properties _props,
-                 const std::string &_tool,
-                 int _group_size,
-                 bool _single_precision,
-                 bool _unroll_loops,
-                 bool _loop_gibbsexp,
-                 bool _group_rxnUnroll,
-		 bool _group_vis,
-		 bool _nonsymDij,
-                 bool _fit_rcpDiffCoeffs,
-                 int _align_width,
-                 const std::string &_target,
-                 bool _useFP64Transport,
-                 MPI_Comm _comm,
-                 bool _verbose)
+void kinetix::init(const std::string &model_path,
+                   occa::device _device,
+                   occa::properties _props,
+                   const std::string &_tool,
+                   int _group_size,
+                   bool _single_precision,
+                   bool _unroll_loops,
+                   bool _loop_gibbsexp,
+                   bool _group_rxnUnroll,
+		           bool _group_vis,
+		           bool _nonsymDij,
+                   bool _fit_rcpDiffCoeffs,
+                   int _align_width,
+                   const std::string &_target,
+                   bool _useFP64Transport,
+                   MPI_Comm _comm,
+                   bool _verbose)
 {
-  nekRK::nekRKBuildKernel_t build = [&](const std::string &path, const std::string &fileName, occa::properties prop)
+  kinetix::kinetixBuildKernel_t build = [&](const std::string &path, const std::string &fileName, occa::properties prop)
   {
     return _buildKernel(path, fileName, prop);
   };
-  nekRK::init(model_path,
-              _device,
-              _props,
-	      _tool,
-              _group_size,
-	      _single_precision,
-              _unroll_loops,
-	      _loop_gibbsexp,
-	      _group_rxnUnroll,
-	      _group_vis,
-              _nonsymDij,
-              _fit_rcpDiffCoeffs,
-              _align_width,
-              _target,
-              _useFP64Transport,
-              _comm,
-              build,
-              _verbose);
+  kinetix::init(model_path,
+                _device,
+                _props,
+	            _tool,
+                _group_size,
+	            _single_precision,
+                _unroll_loops,
+	            _loop_gibbsexp,
+	            _group_rxnUnroll,
+	            _group_vis,
+                _nonsymDij,
+                _fit_rcpDiffCoeffs,
+                _align_width,
+                _target,
+                _useFP64Transport,
+                _comm,
+                build,
+                _verbose);
 }
 
-void nekRK::init(const std::string &model_path,
-                 occa::device _device,
-                 occa::properties _props,
-                 const std::string &_tool,
-                 int _group_size,
-                 bool _single_precision,
-                 bool _unroll_loops,
-                 bool _loop_gibbsexp,
-                 bool _group_rxnUnroll,
-		 bool _group_vis,
-		 bool _nonsymDij,
-                 bool _fit_rcpDiffCoeffs,
-                 int _align_width,
-                 const std::string &_target,
-                 bool _useFP64Transport,
-                 MPI_Comm _comm,
-                 nekRKBuildKernel_t build,
-                 bool _verbose)
+void kinetix::init(const std::string &model_path,
+                   occa::device _device,
+                   occa::properties _props,
+                   const std::string &_tool,
+                   int _group_size,
+                   bool _single_precision,
+                   bool _unroll_loops,
+                   bool _loop_gibbsexp,
+                   bool _group_rxnUnroll,
+		           bool _group_vis,
+		           bool _nonsymDij,
+                   bool _fit_rcpDiffCoeffs,
+                   int _align_width,
+                   const std::string &_target,
+                   bool _useFP64Transport,
+                   MPI_Comm _comm,
+                   kinetixBuildKernel_t build,
+                   bool _verbose)
 {
   buildKernel = build;
 
@@ -584,18 +584,18 @@ void nekRK::init(const std::string &model_path,
   MPI_Barrier(comm);
 }
 
-double nekRK::refPressure() { return ref_pressure; }
+double kinetix::refPressure() { return ref_pressure; }
 
-double nekRK::refTemperature() { return ref_temperature; }
+double kinetix::refTemperature() { return ref_temperature; }
 
-const std::vector<double> nekRK::refMassFractions() { return ref_mass_fractions; }
+const std::vector<double> kinetix::refMassFractions() { return ref_mass_fractions; }
 
-double nekRK::refMeanMolecularWeight() { return ref_meanMolarMass; }
+double kinetix::refMeanMolecularWeight() { return ref_meanMolarMass; }
 
-void nekRK::build(double _ref_pressure,
-                  double _ref_temperature,
-                  double _ref_mass_fractions[],
-                  bool transport)
+void kinetix::build(double _ref_pressure,
+                    double _ref_temperature,
+                    double _ref_mass_fractions[],
+                    bool transport)
 {
   initialized = 1;
   const std::string occaCacheDir = cacheDir + "/.occa/";
@@ -619,12 +619,12 @@ void nekRK::build(double _ref_pressure,
   std::string ref_mole_fractions_string;
   for (int k = 0; k < nSpecies(); k++) {
     ref_mole_fractions[k] = 1. / m_molar[k] * ref_meanMolarMass * _ref_mass_fractions[k];
-    ref_mole_fractions_string += nekRK::to_string_f(ref_mole_fractions[k]);
+    ref_mole_fractions_string += kinetix::to_string_f(ref_mole_fractions[k]);
     if (k < nSpecies() - 1)
       ref_mole_fractions_string += ',';
   }
 
-  const auto installDir = std::string(getenv("NEKRK_PATH") ?: ".");
+  const auto installDir = std::string(getenv("KINETIX_PATH") ?: ".");
   if (rank == 0) {
     std::string cmdline_pele;
     // Copy Pele mechanisms files to cache
@@ -642,9 +642,9 @@ void nekRK::build(double _ref_pressure,
     cmdline = installDir +
                 "/kinetix/__main__.py" +
                 " --mechanism " + yamlPath + 
-        	" --output " + cacheDir + 
-        	" --align-width " + std::to_string(align_width) + 
-        	" --target " + target;
+                " --output " + cacheDir +
+        	    " --align-width " + std::to_string(align_width) +
+        	    " --target " + target;
     if (single_precision)
       cmdline.append(" --single-precision");
     if (unroll_loops)
@@ -720,9 +720,9 @@ void nekRK::build(double _ref_pressure,
 
   if (rank == 0) {
     if (tool == "Pele")
-      std::cout   << "\n================= nekRK with Pele mechanism =================\n";
+      std::cout   << "\n================= KinetiX with Pele mechanism =================\n";
     else 
-      std::cout   << "\n================= nekRK =================\n";
+      std::cout   << "\n================= KinetiX =================\n";
     std::cout << "active occa mode: " << device.mode() << "\n";
     if (device.mode() != "Serial")
       std::cout << "blockSize: " << group_size << "\n";
@@ -733,7 +733,7 @@ void nekRK::build(double _ref_pressure,
                 << "pRef: " << ref_pressure << " Pa\n"
                 << "YRef: ";
     bool first = true;
-    for (auto &&species : nekRK::speciesNames()) {
+    for (auto &&species : kinetix::speciesNames()) {
       auto fraction = ref_mass_fractions[speciesIndex(species)];
       if (fraction > 0) {
         if (!first)
@@ -747,7 +747,7 @@ void nekRK::build(double _ref_pressure,
     auto printVec = [&](const std::string& prefix, const std::vector<double>& vec, const std::string& unit = "") {
       std::cout << prefix;
       bool first = true;
-      for (auto &&species : nekRK::speciesNames()) {
+      for (auto &&species : kinetix::speciesNames()) {
         auto entry = vec[speciesIndex(species)];
         if (entry > 0) {
           if (!first)
@@ -769,12 +769,12 @@ void nekRK::build(double _ref_pressure,
   MPI_Barrier(comm);
 }
 
-void nekRK::productionRates(int n_states,
-                            int offsetT,
-                            int offset,
-                            double pressure,
-                            const occa::memory &o_state,
-                            occa::memory &o_rates)
+void kinetix::productionRates(int n_states,
+                              int offsetT,
+                              int offset,
+                              double pressure,
+                              const occa::memory &o_state,
+                              occa::memory &o_rates)
 {
   assert(initialized);
 
@@ -796,14 +796,14 @@ void nekRK::productionRates(int n_states,
          ref_temperature);
 }
 
-void nekRK::mixtureAvgTransportProps(int n_states,
-                                     int offsetT,
-                                     int offset,
-                                     double pressure,
-                                     const occa::memory &o_state,
-                                     occa::memory &o_viscosity,
-                                     occa::memory &o_conductivity,
-                                     occa::memory &o_density_diffusivity)
+void kinetix::mixtureAvgTransportProps(int n_states,
+                                       int offsetT,
+                                       int offset,
+                                       double pressure,
+                                       const occa::memory &o_state,
+                                       occa::memory &o_viscosity,
+                                       occa::memory &o_conductivity,
+                                       occa::memory &o_density_diffusivity)
 {
   assert(initialized);
 
@@ -824,14 +824,14 @@ void nekRK::mixtureAvgTransportProps(int n_states,
          ref_temperature);
 }
 
-void nekRK::thermodynamicProps(int n_states,
-                               int offsetT,
-                               int offset,
-                               double pressure,
-                               const occa::memory &o_state,
-                               occa::memory &o_rho,
-                               occa::memory &o_cp,
-                               occa::memory &o_rhocp)
+void kinetix::thermodynamicProps(int n_states,
+                                 int offsetT,
+                                 int offset,
+                                 double pressure,
+                                 const occa::memory &o_state,
+                                 occa::memory &o_rho,
+                                 occa::memory &o_cp,
+                                 occa::memory &o_rhocp)
 {
   assert(initialized);
 
@@ -854,22 +854,22 @@ void nekRK::thermodynamicProps(int n_states,
          ref_temperature);
 }
 
-int nekRK::nSpecies() 
+int kinetix::nSpecies()
 { 
   return n_species; 
 }
 
-int nekRK::nReactions() 
+int kinetix::nReactions()
 { 
   return n_reactions; 
 }
 
-int nekRK::nActiveSpecies() 
+int kinetix::nActiveSpecies()
 { 
   return n_active_species; 
 }
 
-const std::vector<double> nekRK::molecularWeights()
+const std::vector<double> kinetix::molecularWeights()
 {
   std::vector<double> tmp;
   for (int k = 0; k < n_species; k++) {
@@ -878,12 +878,12 @@ const std::vector<double> nekRK::molecularWeights()
   return tmp;
 }
 
-const std::vector<std::string> nekRK::speciesNames() 
+const std::vector<std::string> kinetix::speciesNames()
 { 
   return ::species_names; 
 }
 
-int nekRK::speciesIndex(const std::string &name)
+int kinetix::speciesIndex(const std::string &name)
 {
   auto it = find(::species_names.begin(), ::species_names.end(), name);
   if (it != ::species_names.end())

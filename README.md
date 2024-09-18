@@ -36,11 +36,11 @@ python3 generator/generate.py --mechanism mechanisms/gri30.yaml --output out/mec
 ### BK1: Species Production Rates
 
 ```sh
-> mpirun -np 1 bin/nekrk_bk --backend CUDA --n-states 1000000 --mode 1 --yaml-file mechanisms/gri30.yaml
+> mpirun -np 1 bin/kinetix_bk --backend CUDA --n-states 1000000 --mode 1 --yaml-file kinetix/mechanisms/gri30.yaml
 ```
 
 ### BK2: Mixture-Averaged Transport Properties
 
 ```sh
-> mpirun -np 1 bin/nekrk_bk --backend CUDA --n-states 1000000 --mode 2  --yaml-file mechanisms/gri30.yaml
+> mpirun -np 1 bin/kinetix_bk --backend CUDA --n-states 1000000 --mode 2  --yaml-file kinetix/mechanisms/gri30.yaml
 ```

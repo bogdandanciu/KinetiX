@@ -1,16 +1,16 @@
-#ifndef NEK_RK_H
-#define NEK_RK_H
+#ifndef KINETIX_H
+#define KINETIX_H
 
 #include <occa.hpp>
 #include <functional>
 #include "mpi.h"
 
-namespace nekRK 
+namespace kinetix
 {
 
-using nekRKBuildKernel_t = std::function<occa::kernel(const std::string &fileName,
-                                                      const std::string &kernelName,
-                                                      const occa::properties &props)>;
+using kinetixBuildKernel_t = std::function<occa::kernel(const std::string &fileName,
+                                                        const std::string &kernelName,
+                                                        const occa::properties &props)>;
 
 bool isInitialized();
 
@@ -51,7 +51,7 @@ void init(
   const std::string& target,
   bool useFP64Transport,
   MPI_Comm comm,
-  nekRKBuildKernel_t buildKernel,
+  kinetixBuildKernel_t buildKernel,
   bool verbose = false 
   );
 

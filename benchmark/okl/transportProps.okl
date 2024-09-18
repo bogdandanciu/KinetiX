@@ -17,31 +17,31 @@
     const cfloat lnT3 = lnT * lnT * lnT;
     const cfloat lnT4 = lnT * lnT * lnT * lnT;
 
-    cfloat wrk1[__NEKRK_NSPECIES__];
-    cfloat wrk2[__NEKRK_NSPECIES__];
+    cfloat wrk1[__KINETIX_NSPECIES__];
+    cfloat wrk2[__KINETIX_NSPECIES__];
 
     cfloat rcpMbar = 0;
     { 
-      for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
-        const cfloat Yi = __NEKRK_MAX((cfloat) 0, (cfloat) state[id + offsetT + k*offset]);
-        wrk1[k] = Yi * nekrk_rcp_molar_mass[k];
+      for(int k = 0; k < __KINETIX_NSPECIES__; k++) {
+        const cfloat Yi = __KINETIX_MAX((cfloat) 0, (cfloat) state[id + offsetT + k*offset]);
+        wrk1[k] = Yi * kinetix_rcp_molar_mass[k];
         rcpMbar += wrk1[k];
       }
     }
     const cfloat Mbar = 1/rcpMbar;
     
-    for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+    for(int k = 0; k < __KINETIX_NSPECIES__; k++) {
       wrk1[k] *= Mbar;
     }
 
-    conductivity[id] =  sqrT * nekrk_conductivity(rcpMbar, lnT, lnT2, lnT3, lnT4, wrk1);
+    conductivity[id] =  sqrT * kinetix_conductivity(rcpMbar, lnT, lnT2, lnT3, lnT4, wrk1);
 
-    viscosity[id] = sqrT * nekrk_viscosity(lnT, lnT2, lnT3, lnT4, wrk1);
+    viscosity[id] = sqrT * kinetix_viscosity(lnT, lnT2, lnT3, lnT4, wrk1);
 
-    nekrk_diffusivity(Mbar, pressure, T*sqrT, lnT, lnT2, lnT3, lnT4, wrk1, wrk2);
+    kinetix_diffusivity(Mbar, pressure, T*sqrT, lnT, lnT2, lnT3, lnT4, wrk1, wrk2);
     
     const cfloat rho = pressure/p_R * rcpT * Mbar;
-    for(int k = 0; k < __NEKRK_NSPECIES__; k++) {
+    for(int k = 0; k < __KINETIX_NSPECIES__; k++) {
       unsigned int idx = k*offset+id;
       density_diffusivity[idx] = rho * wrk2[k];
     }

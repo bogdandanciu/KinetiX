@@ -32,13 +32,14 @@ jobs:
 
       - name: Generate and Build
         run: |
+          cd benchmark
           mkdir build
           cd build
-          export NEKRK_PATH=$HOME/.local/nekRK
-          cmake -DCMAKE_INSTALL_PREFIX=$NEKRK_PATH -DAMReX_GPU_BACKEND=NONE ..
+          export KINETIX_PATH=$HOME/.local/kinetix
+          cmake -DCMAKE_INSTALL_PREFIX=$KINETIX_PATH -DAMReX_GPU_BACKEND=NONE ..
           make VERBOSE=1 install
-          cd $NEKRK_PATH
+          cd $KINETIX_PATH
           export OCCA_CXX=mpic++
-          bin/nekrk_bk --backend SERIAL --yaml-file mechanisms/gri30.yaml --cimode 1
+          bin/kinetix_bk --backend SERIAL --yaml-file kinetix/mechanisms/gri30.yaml --cimode 1
           rm -rf .cache/
-          bin/nekrk_bk --backend SERIAL --yaml-file mechanisms/gri30.yaml --cimode 1 --unroll-loops
+          bin/kinetix_bk --backend SERIAL --yaml-file kinetix/mechanisms/gri30.yaml --cimode 1 --unroll-loops
