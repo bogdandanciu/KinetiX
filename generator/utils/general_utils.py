@@ -3,7 +3,11 @@ General utility functions and variables.
 """
 
 # Standard library imports
-from itertools import tee, filterfalse, repeat
+import argparse
+from itertools import (
+    filterfalse,
+    repeat,
+    tee)
 
 # Third-party imports
 from numpy import (
@@ -11,6 +15,76 @@ from numpy import (
     polynomial,
     single
 )
+
+
+def get_parser():
+    """
+    Create a command line argument parser for running the code generator.
+    """
+
+    parser = argparse.ArgumentParser(description=
+                                     'Generates production rates, thermodynamic '
+                                     'and transport properties evaluation code')
+    parser.add_argument('--mechanism',
+                        required=True,
+                        default="mechanisms/gri30.yaml",
+                        help='Path to yaml mechanism file.')
+    parser.add_argument('--output',
+                        required=True,
+                        default="share/mechanisms",
+                        help='Output directory.')
+    parser.add_argument('--single-precision',
+                        required=False,
+                        action='store_true',
+                        help='Generate single precision source code.')
+    parser.add_argument('--header-only',
+                        required=False,
+                        action='store_true',
+                        help='Only create the header file, mech.h.')
+    parser.add_argument('--unroll-loops',
+                        required=False,
+                        action='store_true',
+                        help='Unroll loops in the generated subroutines.')
+    parser.add_argument('--align-width',
+                        required=False,
+                        default=64,
+                        help='Alignment width of arrays')
+    parser.add_argument('--target',
+                        required=False,
+                        default="CUDA",
+                        help='Target platform and c++ version')
+    parser.add_argument('--loop-gibbsexp',
+                        required=False,
+                        action='store_true',
+                        help='Loop calculation of gibbs exponential in case '
+                             'the code is unrolled.')
+    parser.add_argument('--group-rxnunroll',
+                        required=False,
+                        action='store_true',
+                        help='Group reactions in the case of unrolled code '
+                             'based on repeated beta and E_R.')
+    parser.add_argument('--transport',
+                        required=False,
+                        default=True,
+                        help='Write transport properties')
+    parser.add_argument('--group-vis',
+                        required=False,
+                        action='store_true',
+                        help='Group species viscosity')
+    parser.add_argument('--nonsymDij',
+                        required=False,
+                        action='store_true',
+                        help='Compute both the upper and lower part of the'
+                             'Dij matrix, although it is symmetric. It avoids'
+                             'expensive memory allocation in some cases.')
+    parser.add_argument('--fit-rcpdiffcoeffs',
+                        required=False,
+                        action='store_true',
+                        help='Compute the reciprocal of the diffusion '
+                             'coefficients to avoid expensive divisions '
+                             'in the diffusivity kernel.')
+    args = parser.parse_args()
+    return args
 
 
 def cube(x):

@@ -1,5 +1,5 @@
 """
-Utility functions for code generation and thermodynamic property computation.
+Utility functions for code generation.
 """
 
 # Standard library imports
@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 # Local imports
-from .general_utils import f_sci_not
+from . import general_utils as gutils
 
 
 class CodeGenerator:
@@ -65,10 +65,10 @@ def write_const_expression(align_width, target, static, var_str, var):
     if isinstance(var_str, list):
         assert len(var_str) == len(var)
         for i in range(len(var_str)):
-            cg.add_line(f"{vtype} cfloat {var_str[i]}[{len(var[i])}] = {{{f_sci_not(var[i])}}};", 1)
+            cg.add_line(f"{vtype} cfloat {var_str[i]}[{len(var[i])}] = {{{gutils.f_sci_not(var[i])}}};", 1)
             cg.add_line("")
     else:
-        cg.add_line(f"{vtype} cfloat {var_str}[{len(var)}] = {{{f_sci_not(var)}}};", 1)
+        cg.add_line(f"{vtype} cfloat {var_str}[{len(var)}] = {{{gutils.f_sci_not(var)}}};", 1)
 
     return cg.get_code()
 
@@ -205,3 +205,40 @@ def reorder_thermo_prop(thermo_prop, unique_temp_split, ids_thermo_prop_new, sp_
 
     return cg.get_code()
 
+
+def write_thermo_piece(out, sp_indices, sp_thermo, expression, p):
+    """
+    Write a thermodynamic piece expression.
+    """
+    cg = CodeGenerator()
+    for specie in sp_indices:
+        if '[' in out:
+            line = f"{out}{specie}] = {expression(sp_thermo[specie].pieces[p])};"
+        else:
+            line = f"cfloat {out}{specie} = {expression(sp_thermo[specie].pieces[p])};"
+        cg.add_line(line)
+
+    return cg.get_code()
+
+
+def write_energy(out, length, expression, sp_thermo):
+    """
+    Write the evaluation of the energy log polynomial for a given species.
+    """
+    cg = CodeGenerator()
+    temperature_splits = {}
+    for index, specie in enumerate(sp_thermo[:length]):
+        temperature_splits.setdefault(specie.temp_split, []).append(index)
+
+    for temperature_split, species in temperature_splits.items():
+        cg.add_line(f"if (T <= {temperature_split}) {{", 1)
+        inner_code = write_thermo_piece(out, species, sp_thermo, expression, 0)
+        for line in inner_code.split('\n'):
+            cg.add_line(line, 2)
+        cg.add_line("} else {", 1)
+        inner_code = write_thermo_piece(out, species, sp_thermo, expression, 1)
+        for line in inner_code.split('\n'):
+            cg.add_line(line, 2)
+        cg.add_line("}", 1)
+
+    return cg.get_code()
