@@ -11,8 +11,8 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
 
 try:
     # Try importing as if it's part of the installed package
-    from generator.core.generate import generate_files
-    from generator.utils import general_utils as gutils
+    from kinetix.core.generate import generate_files
+    from kinetix.utils import general_utils as gutils
 except ImportError:
     # If that fails, try importing as if it's a local script
     from core.generate import generate_files
