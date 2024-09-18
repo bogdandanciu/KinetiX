@@ -28,7 +28,7 @@ jobs:
           sudo apt install -y mpich libmpich-dev
 
       - name: List files for debugging
-        run: ls -R 3rd_party/occa
+        run: ls -R benchmark/3rd_party/occa
 
       - name: Generate and Build
         run: |
