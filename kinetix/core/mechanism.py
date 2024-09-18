@@ -34,13 +34,15 @@ def write_file_mech(file_name, output_dir, sp_names, sp_len, active_sp_len, rxn_
 
     cg.add_line(f'#define n_species {sp_len}')
     cg.add_line(f'#define n_active_species {active_sp_len}')
-    cg.add_line(f'#define species_names_length {reduce(lambda x, y: x + y, [len(i) for i in sp_names]) + len(sp_names)}')
+    cg.add_line(f'#define species_names_length '
+                f'{reduce(lambda x, y: x + y, [len(i) for i in sp_names]) + len(sp_names)}')
     cg.add_line(f'#define n_reactions {rxn_len}')
-    cg.add_line(f"""__NEKRK_CONST__ char species_names[species_names_length] = "{' '.join(sp_names)}";""")
-    cg.add_line(f"__NEKRK_CONST__ cfloat nekrk_molar_mass[n_species] = {{{', '.join([repr(w) for w in Mi])}}};")
-    cg.add_line(f"__NEKRK_CONST__ cfloat nekrk_rcp_molar_mass[n_species] = {{{', '.join([repr(1. / w) for w in Mi])}}};")
-    cg.add_line(f'#define __NEKRK_NSPECIES__ n_species', 0)
-    cg.add_line(f'#define __NEKRK_NACTIVESPECIES__ n_active_species', 0)
+    cg.add_line(f"""__KINETIX_CONST__ char species_names[species_names_length] = "{' '.join(sp_names)}";""")
+    cg.add_line(f"__KINETIX_CONST__ cfloat kinetix_molar_mass[n_species] = {{{', '.join([repr(w) for w in Mi])}}};")
+    cg.add_line(f"__KINETIX_CONST__ cfloat "
+                f"kinetix_rcp_molar_mass[n_species] = {{{', '.join([repr(1. / w) for w in Mi])}}};")
+    cg.add_line(f'#define __KINETIX_NSPECIES__ n_species', 0)
+    cg.add_line(f'#define __KINETIX_NACTIVESPECIES__ n_active_species', 0)
 
     cg.write_to_file(output_dir, file_name)
     return 0

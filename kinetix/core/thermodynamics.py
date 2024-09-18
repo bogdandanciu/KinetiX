@@ -25,7 +25,7 @@ def write_file_enthalpy_roll(file_name, output_dir, align_width, target, sp_ther
     var = [a0, a1, a2, a3, a4, a5]
 
     cg = CodeGenerator()
-    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_enthalpy_RT(const cfloat lnT, const cfloat T, "
+    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ void kinetix_enthalpy_RT(const cfloat lnT, const cfloat T, "
                 f"const cfloat T2, const cfloat T3, const cfloat T4, const cfloat rcpT, cfloat* h_RT) ")
     cg.add_line(f"{{")
     cg.add_line(f"//Integration coefficients", 1)
@@ -49,7 +49,7 @@ def write_file_heat_capacity_roll(file_name, output_dir, align_width, target, sp
     var = [a0, a1, a2, a3, a4]
 
     cg = CodeGenerator()
-    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_molar_heat_capacity_R"
+    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ void kinetix_molar_heat_capacity_R"
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
                 f"const cfloat rcpT, cfloat* cp_R) ")
     cg.add_line(f"{{")
@@ -68,7 +68,7 @@ def write_file_enthalpy_unroll(file_name, output_dir, sp_len, sp_thermo):
     Write the 'fenthalpy_RT.inc' file with unrolled loop specification.
     """
     cg = CodeGenerator()
-    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_enthalpy_RT"
+    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ void kinetix_enthalpy_RT"
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
                 f"const cfloat rcpT, cfloat* h_RT)")
     cg.add_line(f"{{")
@@ -86,7 +86,7 @@ def write_file_heat_capacity_unroll(file_name, output_dir, sp_len, sp_thermo):
     Write the 'fheat_capacity_R.inc' file with unrolled loop specification.
     """
     cg = CodeGenerator()
-    cg.add_line(f"__NEKRK_DEVICE__  __NEKRK_INLINE__ void nekrk_molar_heat_capacity_R"
+    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ void kinetix_molar_heat_capacity_R"
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
                 f"const cfloat rcpT, cfloat* cp_R)")
     cg.add_line(f"{{")

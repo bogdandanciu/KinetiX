@@ -41,9 +41,9 @@ class CodeGenerator:
             updated_content = (content.replace('- -', '+ ')
                                       .replace('+ -', '- ')
                                       .replace('+-', '-')
-                                      .replace('exp(', '__NEKRK_EXP__(')
-                                      .replace('pow(', '__NEKRK_POW__(')
-                                      .replace('log10(', '__NEKRK_LOG10__('))
+                                      .replace('exp(', '__KINETIX_EXP__(')
+                                      .replace('pow(', '__KINETIX_POW__(')
+                                      .replace('log10(', '__KINETIX_LOG10__('))
             file.write(updated_content)
 
 

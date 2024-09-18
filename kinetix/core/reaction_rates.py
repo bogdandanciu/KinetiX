@@ -508,7 +508,7 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunrol
 
     cg = CodeGenerator()
     cg.add_line(f"#include <math.h>")
-    cg.add_line(f"__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates"
+    cg.add_line(f"__KINETIX_DEVICE__ __KINETIX_INLINE__ void kinetix_species_rates"
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
                 f"const cfloat rcpT, const cfloat* Ci, cfloat* wdot) ")
     cg.add_line(f"{{")
@@ -1072,7 +1072,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
 
     cg = CodeGenerator()
     cg.add_line(f'#include <math.h>')
-    cg.add_line(f'__NEKRK_DEVICE__ __NEKRK_INLINE__ void nekrk_species_rates'
+    cg.add_line(f'__KINETIX_DEVICE__ __KINETIX_INLINE__ void kinetix_species_rates'
                  f'(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4,'
                  f' const cfloat rcpT, const cfloat* Ci, cfloat* wdot) ')
     cg.add_line(f'{{')
