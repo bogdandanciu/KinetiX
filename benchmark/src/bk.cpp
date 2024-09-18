@@ -278,7 +278,7 @@ void loadCiStateFromFile(const std::string& ciState,
 {
   const auto data = std::string(
                       std::string(getenv("NEKRK_PATH")) +
-                      "/ciData/" + mech + "." + ciState + ".cantera");
+                      "/kinetix/ci_data/" + mech + "." + ciState + ".cantera");
 
   std::cout << "Reading ci data from " << data;
   std::vector<std::string> lines = split(read(data),"\n");

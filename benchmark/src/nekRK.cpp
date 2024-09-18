@@ -322,7 +322,7 @@ static void setup()
   }
 
   if (rank == 0) {
-    std::string cmdline = installDir + "/generator/generate.py" + " --header-only" + " --mechanism " +
+    std::string cmdline = installDir + "/kinetix/__main__.py" + " --header-only" + " --mechanism " +
                           yamlPath + " --output " + cacheDir;
     if (verbose)
       std::cout << cmdline << std::endl;
@@ -629,7 +629,7 @@ void nekRK::build(double _ref_pressure,
     std::string cmdline_pele;
     // Copy Pele mechanisms files to cache
     const std::string yamlName = fs::path(yamlPath).stem();
-    cmdline_pele = "cp " + installDir + "/mechanisms/Pele/" + yamlName + "/mechanism.*" + " " + cacheDir;
+    cmdline_pele = "cp " + installDir + "/kinetix/mechanisms/Pele/" + yamlName + "/mechanism.*" + " " + cacheDir;
     if (verbose)
       std::cout << cmdline_pele << std::endl;
     if (system(cmdline_pele.c_str())) {
@@ -640,7 +640,7 @@ void nekRK::build(double _ref_pressure,
     // Run generator
     std::string cmdline;
     cmdline = installDir +
-                "/generator/generate.py" +
+                "/kinetix/__main__.py" +
                 " --mechanism " + yamlPath + 
         	" --output " + cacheDir + 
         	" --align-width " + std::to_string(align_width) + 
