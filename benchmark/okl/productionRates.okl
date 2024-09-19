@@ -49,7 +49,7 @@
       if (p_PELETOOL) {
         speciesEnthalpy(wrk1, T);
       } else {
-        kinetix_enthalpy_RT(logT,T,T2,T3,T4,rcpT,wrk1);
+        kinetix_enthalpy_RT(T,T2,T3,T4,rcpT,wrk1);
       }
       cfloat sum_h_RT = 0;
       for(int k = 0; k < __KINETIX_NSPECIES__; k++) {

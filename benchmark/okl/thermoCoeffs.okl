@@ -11,7 +11,6 @@
   for(int id = 0; id < n_states; ++id; @tile(p_BLOCKSIZE,@outer,@inner)) {
     const cfloat T = Tref * state[id];
     const cfloat rcpT = 1 / T;
-    const cfloat lnT = log(T);
     const cfloat T2 = T * T;
     const cfloat T3 = T * T * T;
     const cfloat T4 = T * T * T * T;
@@ -30,7 +29,7 @@
     rho[id] = rho_;
 
     cfloat cp_R[__KINETIX_NSPECIES__];
-    kinetix_molar_heat_capacity_R(lnT,T,T2,T3,T4,rcpT,cp_R);
+    kinetix_molar_heat_capacity_R(T,T2,T3,T4,cp_R);
 
     cfloat mean_cp_R = 0;
     for(int k = 0; k < __KINETIX_NSPECIES__; k++) {

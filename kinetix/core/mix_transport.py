@@ -616,10 +616,8 @@ def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transpo
             else:
                 cg.add_line(
                     f"cfloat D{k}_{j} = 1/({evaluate_polynomial(transport_polynomials.diffusivity[k][j])});", 1)
-            cg.add_line(f"cfloat S{k}_{j} = {mut(f'{S[k]}+' if S[k] else '', 
-                                                 k, f'S{k}_{j}')}Xi[{j}]*D{k}_{j};", 1)
-            cg.add_line(f"cfloat S{j}_{k} = {mut(f'{S[j]}+' if S[j] else '', 
-                                                 j, f'S{j}_{k}')}Xi[{k}]*D{k}_{j};", 1)
+            cg.add_line(f"cfloat S{k}_{j} = {mut(f'{S[k]}+' if S[k] else '', k, f'S{k}_{j}')}Xi[{j}]*D{k}_{j};", 1)
+            cg.add_line(f"cfloat S{j}_{k} = {mut(f'{S[j]}+' if S[j] else '', j, f'S{j}_{k}')}Xi[{k}]*D{k}_{j};", 1)
     for k in range(sp_len):
         cg.add_line(f"Dkm[{k}] = TsqrT * (Mbar - {f(Mi[k])}*Xi[{k}])/(p*Mbar*{S[k]});", 1)
     cg.add_line(f"}}")
