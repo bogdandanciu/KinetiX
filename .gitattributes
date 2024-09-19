@@ -1,2 +1,2 @@
-3d_party/* linguist-vendored
-mechanisms/* linguist-detectable=false
+benchmark/3d_party/* linguist-vendored
+kinetix/mechanisms/* linguist-detectable=false

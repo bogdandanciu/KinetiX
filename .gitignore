@@ -1,4 +1,7 @@
-build
 .vscode
 .idea
 out
+
+*.egg-info/
+build/
+dist/
