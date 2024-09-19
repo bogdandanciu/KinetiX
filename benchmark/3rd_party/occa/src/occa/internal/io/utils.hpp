@@ -1,6 +1,7 @@
 #ifndef OCCA_INTERNAL_IO_UTILS_HEADER
 #define OCCA_INTERNAL_IO_UTILS_HEADER
 
+#include <functional>
 #include <iostream>
 
 #include <occa/types.hpp>
@@ -9,14 +10,14 @@
 namespace occa {
   // Kernel Caching
   namespace kc {
-    extern const std::string cppRawSourceFile;
-    extern const std::string cRawSourceFile;
-    extern const std::string sourceFile;
     extern const std::string binaryFile;
     extern const std::string buildFile;
     extern const std::string launcherSourceFile;
     extern const std::string launcherBinaryFile;
     extern const std::string launcherBuildFile;
+
+    std::string cachedRawSourceFilename(std::string filename, bool compilingCpp=true);
+    std::string cachedSourceFilename(std::string filename);
   }
 
   namespace io {
@@ -80,8 +81,27 @@ namespace occa {
     std::string read(const std::string &filename,
                      const enums::FileType fileType = enums::FILE_TYPE_TEXT);
 
+    void sync(const std::string &filename);
+
     void write(const std::string &filename,
                const std::string &content);
+
+    void stageFile(
+      const std::string &filename,
+      const bool skipExisting,
+      std::function<bool(const std::string &tempFilename)> func
+    );
+
+    void stageFiles(
+      const strVector &filenames,
+      const bool skipExisting,
+      std::function<bool(const strVector &tempFilenames)> func
+    );
+
+    std::string getStagedTempFilename(const std::string &expFilename);
+
+    void moveStagedTempFile(const std::string &tempFilename,
+                            const std::string &expFilename);
   }
 }
 

@@ -1,19 +1,31 @@
 #include <cstdlib>
+#include <functional>
 
 #include <occa/core/base.hpp>
 #include <occa/internal/io.hpp>
 #include <occa/internal/utils/env.hpp>
 #include <occa/internal/utils/sys.hpp>
-#include <occa/internal/utils/tls.hpp>
+
+#if OCCA_THREAD_SHARABLE_ENABLED
+#include <occa/utils/mutex.hpp>
+#endif
 
 namespace occa {
   json& settings() {
-    static tls<json> settings_;
-    json& props = settings_.value();
+#if OCCA_THREAD_SHARABLE_ENABLED
+    static json props;
+    static mutex_t mutex;
+    mutex.lock();
+#else
+    thread_local  json props;
+#endif
     if (!props.size()) {
       props = env::baseSettings();
     }
-    return props;
+#if OCCA_THREAD_SHARABLE_ENABLED
+    mutex.unlock();
+#endif
+    return std::ref(props);
   }
 
   namespace env {

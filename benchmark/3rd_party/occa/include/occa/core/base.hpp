@@ -16,6 +16,7 @@
 #include <occa/core/device.hpp>
 #include <occa/core/kernel.hpp>
 #include <occa/core/memory.hpp>
+#include <occa/core/memoryPool.hpp>
 #include <occa/core/stream.hpp>
 #include <occa/core/streamTag.hpp>
 
@@ -43,6 +44,8 @@ namespace occa {
   void setStream(stream s);
 
   streamTag tagStream();
+
+  memoryPool createMemoryPool(const occa::json &props = occa::json());
   //====================================
 
   //---[ Kernel Functions ]-------------
@@ -75,43 +78,21 @@ namespace occa {
                             const void *src,
                             const occa::json &props);
 
-  void* umalloc(const dim_t entries,
-                const dtype_t &dtype,
-                const void *src = NULL,
-                const occa::json &props = occa::json());
-
-  template <class T = void>
-  T* umalloc(const dim_t entries,
-              const void *src = NULL,
-              const occa::json &props = occa::json());
-
-  template <>
-  void* umalloc<void>(const dim_t entries,
-                      const void *src,
-                      const occa::json &props);
-
-  void memcpy(void *dest, const void *src,
-              const dim_t bytes,
-              const occa::json &props = json());
-
   void memcpy(memory dest, const void *src,
-              const dim_t bytes = -1,
+              const dim_t count = -1,
               const dim_t offset = 0,
               const occa::json &props = json());
 
   void memcpy(void *dest, memory src,
-              const dim_t bytes = -1,
+              const dim_t count = -1,
               const dim_t offset = 0,
               const occa::json &props = json());
 
   void memcpy(memory dest, memory src,
-              const dim_t bytes = -1,
+              const dim_t count = -1,
               const dim_t destOffset = 0,
               const dim_t srcOffset = 0,
               const occa::json &props = json());
-
-  void memcpy(void *dest, const void *src,
-              const occa::json &props);
 
   void memcpy(memory dest, const void *src,
               const occa::json &props);
@@ -153,6 +134,9 @@ namespace occa {
 
   void printModeInfo();
   //====================================
+
+  template<typename T>
+  void* unwrap(T& occaType);
 }
 
 #include "base.tpp"

@@ -36,8 +36,6 @@ namespace occa {
     void* ptr() const;
 
     bool isPointer() const;
-
-    void setupForKernelCall(const bool isConst) const;
   };
   //====================================
 
@@ -71,23 +69,28 @@ namespace occa {
     }
 
     inline virtual void pointerConstructor(void *ptr, const dtype_t &dtype_) {
-      addPointer(ptr, sizeof(void*), true, false);
+      addPointer(ptr, sizeof(void*));
     }
 
     inline virtual void pointerConstructor(const void *ptr, const dtype_t &dtype_) {
-      addPointer(const_cast<void*>(ptr), sizeof(void*), true, false);
+      addPointer(const_cast<void*>(ptr), sizeof(void*));
     }
 
     OCCA_GENERIC_CLASS_CONSTRUCTORS(kernelArg);
 
     template <class T>
     kernelArg(const type2<T> &arg) {
-      addPointer((void*) const_cast<type2<T>*>(&arg), sizeof(type2<T>), false);
+      addPointer((void*) const_cast<type2<T>*>(&arg), sizeof(type2<T>));
     }
 
     template <class T>
     kernelArg(const type4<T> &arg) {
-      addPointer((void*) const_cast<type4<T>*>(&arg), sizeof(type4<T>), false);
+      addPointer((void*) const_cast<type4<T>*>(&arg), sizeof(type4<T>));
+    }
+
+    template <class T>
+    kernelArg(const T &arg) {
+      addPointer((void*) const_cast<T*>(&arg), sizeof(T));
     }
 
     int size() const;
@@ -98,16 +101,22 @@ namespace occa {
 
     void add(const kernelArg &arg);
 
-    void addPointer(void *arg,
-                    bool lookAtUva = true, bool argIsUva = false);
-
-    void addPointer(void *arg, size_t bytes,
-                    bool lookAtUva = true, bool argIsUva = false);
+    void addPointer(void *arg);
+    void addPointer(void *arg, size_t bytes);
 
     void addMemory(modeMemory_t *arg);
 
     static int argumentCount(const std::vector<kernelArg> &arguments);
   };
+
+  template <>
+  kernelArg::kernelArg(const char &arg);
+
+  template <>
+  kernelArg::kernelArg(const unsigned char &arg);
+
+  template <>
+  kernelArg::kernelArg(const memory &arg);
 
   template <>
   kernelArg::kernelArg(modeMemory_t *arg);
@@ -186,6 +195,9 @@ namespace occa {
   template <>
   hash_t hash(const occa::scopeKernelArg &arg);
   //====================================
+
+  template <>
+  kernelArg::kernelArg(const scopeKernelArg &arg);
 }
 
 #endif

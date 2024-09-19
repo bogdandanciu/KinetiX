@@ -131,7 +131,8 @@ namespace occa {
         return false;
       }
       // Note that structs can be nameless so we have to catch this case separately
-      return (type_->isNamed() || type_->type() & typeType::struct_);
+      // ... also lambdas!
+      return (type_->isNamed() || type_->type() & (typeType::struct_ | typeType::lambda));
     }
 
     fileOrigin vartype_t::origin() const {
@@ -269,6 +270,12 @@ namespace occa {
       qualifiers.add(origin, qualifier);
     }
 
+    void vartype_t::add(const fileOrigin &origin,
+                        const qualifier_t &qualifier,
+                        const exprNodeVector &args) {
+      qualifiers.add(origin, qualifier, args);
+    }
+
     void vartype_t::add(const qualifierWithSource &qualifier) {
       qualifiers.add(qualifier);
     }
@@ -277,6 +284,13 @@ namespace occa {
                         const fileOrigin &origin,
                         const qualifier_t &qualifier) {
       qualifiers.add(index, origin, qualifier);
+    }
+
+    void vartype_t::add(const int index,
+                        const fileOrigin &origin,
+                        const qualifier_t &qualifier,
+                        const exprNodeVector &args) {
+      qualifiers.add(index, origin, qualifier, args);
     }
 
     void vartype_t::add(const int index,
@@ -354,6 +368,21 @@ namespace occa {
       return flat;
     }
 
+    bool vartype_t::definesEnum() const {
+      if (typeToken && type && (type->type() & typeType::enum_)) {
+        return (typeToken->origin == type->source->origin);
+      }
+      if (!has(typedef_)) {
+        return false;
+      }
+
+      typedef_t &typedefType = *((typedef_t*) type);
+      return (
+        typedefType.declaredBaseType
+        && typedefType.baseType.has(enum_)
+      );
+    }
+
     bool vartype_t::definesStruct() const {
       if (typeToken && type && (type->type() & typeType::struct_)) {
         return (typeToken->origin == type->source->origin);
@@ -366,6 +395,21 @@ namespace occa {
       return (
         typedefType.declaredBaseType
         && typedefType.baseType.has(struct_)
+      );
+    }
+
+    bool vartype_t::definesUnion() const {
+      if (typeToken && type && (type->type() & typeType::union_)) {
+        return (typeToken->origin == type->source->origin);
+      }
+      if (!has(typedef_)) {
+        return false;
+      }
+
+      typedef_t &typedefType = *((typedef_t*) type);
+      return (
+        typedefType.declaredBaseType
+        && typedefType.baseType.has(union_)
       );
     }
 
@@ -427,7 +471,8 @@ namespace occa {
       }
 
       if (customSuffix.size()) {
-        pout << ' ' << customSuffix;
+        pout.printSpace();
+        pout << customSuffix;
       }
 
       if (bitfield >= 0) {

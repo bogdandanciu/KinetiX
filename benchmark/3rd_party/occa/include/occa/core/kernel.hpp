@@ -294,7 +294,9 @@ namespace occa {
      *
      * @endDoc
      */
-#include "kernelOperators.hpp_codegen"
+    void operator () () const;
+
+#include "codegen/kernelOperators.hpp_codegen"
 
     /**
      * @startDoc{free}

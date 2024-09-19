@@ -22,7 +22,7 @@ function(add_occa_test test_source)
     $<BUILD_INTERFACE:${OCCA_SOURCE_DIR}/src>)
 
   if (${test_source} MATCHES "typedefs.f90")
-    target_link_libraries(${cmake_test_target} libtypedefs_helper libocca ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS})
+    target_link_libraries(${cmake_test_target} libtypedefs_helper)
   endif()
 
   add_test(
@@ -39,7 +39,7 @@ file(
   GLOB_RECURSE occa_tests
   RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.cpp")
 
-if (ENABLE_FORTRAN)
+if (OCCA_ENABLE_FORTRAN)
   file(
     GLOB_RECURSE occa_fortran_tests
     RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.f90")

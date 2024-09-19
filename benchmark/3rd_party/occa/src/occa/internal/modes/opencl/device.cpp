@@ -4,6 +4,8 @@
 #include <occa/internal/modes/opencl/device.hpp>
 #include <occa/internal/modes/opencl/kernel.hpp>
 #include <occa/internal/modes/opencl/memory.hpp>
+#include <occa/internal/modes/opencl/memoryPool.hpp>
+#include <occa/internal/modes/opencl/buffer.hpp>
 #include <occa/internal/modes/opencl/stream.hpp>
 #include <occa/internal/modes/opencl/streamTag.hpp>
 #include <occa/internal/modes/opencl/utils.hpp>
@@ -15,39 +17,41 @@
 
 namespace occa {
   namespace opencl {
-    device::device(const occa::json &properties_) :
-      occa::launchedModeDevice_t(properties_) {
+    device::device(const occa::json &properties_, cl_device_id clDevice_) :
+      occa::launchedModeDevice_t(properties_), clDevice(clDevice_) {
 
-      if (!properties.has("wrapped")) {
-        cl_int error;
-        OCCA_ERROR("[OpenCL] device not given a [platform_id] integer",
-                   properties.has("platform_id") &&
-                   properties["platform_id"].isNumber());
-
-        OCCA_ERROR("[OpenCL] device not given a [device_id] integer",
-                   properties.has("device_id") &&
-                   properties["device_id"].isNumber());
-
-        platformID = properties.get<int>("platform_id");
-        deviceID   = properties.get<int>("device_id");
-
-        clDevice = opencl::deviceID(platformID, deviceID);
-
-        clContext = clCreateContext(NULL, 1, &clDevice, NULL, NULL, &error);
-        OCCA_OPENCL_ERROR("Device: Creating Context", error);
-      }
+      clContext = createContextFromDevice(clDevice);
 
       occa::json &kernelProps = properties["kernel"];
       std::string compilerFlags;
 
       // Use "-cl-opt-disable" for debug-mode
-      if (env::var("OCCA_OPENCL_COMPILER_FLAGS").size()) {
-        compilerFlags = env::var("OCCA_OPENCL_COMPILER_FLAGS");
-      } else if (kernelProps.has("compiler_flags")) {
+      if (kernelProps.has("compiler_flags")) {
         compilerFlags = (std::string) kernelProps["compiler_flags"];
+      } else if (env::var("OCCA_OPENCL_COMPILER_FLAGS").size()) {
+        compilerFlags = env::var("OCCA_OPENCL_COMPILER_FLAGS");
+      }
+
+      std::string ocl_c_ver = "2.0";
+      if (env::var("OCCA_OPENCL_C_VERSION").size()) {
+        ocl_c_ver = env::var("OCCA_OPENCL_C_VERSION");
+      }
+      compilerFlags += " -cl-std=CL" + ocl_c_ver;
+
+      const bool includeOcca = kernelProps.get("kernel/include_occa", false);
+      const bool linkOcca    = kernelProps.get("kernel/link_occa", false);
+
+      if (includeOcca) {
+        compilerFlags += " -I" + env::OCCA_DIR + "include";
+        compilerFlags += " -I" + env::OCCA_INSTALL_DIR + "include";
+      }
+      if (linkOcca) {
+        compilerFlags += " -L" + env::OCCA_INSTALL_DIR + "lib -locca";
       }
 
       kernelProps["compiler_flags"] = compilerFlags;
+
+      arch = opencl::deviceStrInfo(clDevice, CL_DEVICE_NAME);
     }
 
     device::~device() {
@@ -58,27 +62,31 @@ namespace occa {
       }
     }
 
-    void device::finish() const {
-      OCCA_OPENCL_ERROR("Device: Finish",
-                        clFinish(getCommandQueue()));
-    }
-
     bool device::hasSeparateMemorySpace() const {
       return true;
     }
 
     hash_t device::hash() const {
       if (!hash_.initialized) {
+        cl_platform_id platform_id = getPlatformFromDevice(clDevice);
         std::stringstream ss;
-        ss << "platform: " << platformID << ' '
-           << "device: " << deviceID;
+        ss << "platform name: "    << opencl::platformName(platform_id)
+          << " platform vendor: "  << opencl::platformVendor(platform_id)
+          << " platform version: " << opencl::platformVersion(platform_id)
+          << " device name: "      << opencl::deviceName(clDevice)
+          << " device vendor: "    << opencl::deviceVendor(clDevice)
+          << " device version: "   << opencl::deviceVersion(clDevice);
         hash_ = occa::hash(ss.str());
       }
       return hash_;
     }
 
     hash_t device::kernelHash(const occa::json &props) const {
-      return occa::hash(props["compiler_flags"]);
+      return (
+        occa::hash(props["compiler_flags"])
+        ^ props["kernel/include_occa"]
+        ^ props["kernel/link_occa"]
+      );
     }
 
     lang::okl::withLauncher* device::createParser(const occa::json &props) const {
@@ -106,16 +114,26 @@ namespace occa {
       return new stream(this, props, commandQueue);
     }
 
+    modeStream_t* device::wrapStream(void* ptr, const occa::json &props) {
+      OCCA_ERROR("A nullptr was passed to opencl::device::wrapStream",nullptr != ptr);
+
+      cl_command_queue commandQueue = *static_cast<cl_command_queue*>(ptr);
+      OCCA_OPENCL_ERROR("Device: Retaining Command Queue",
+                        clRetainCommandQueue(commandQueue));
+
+      return new stream(this, props, commandQueue);
+    }
+
     occa::streamTag device::tagStream() {
-      cl_event clEvent;
+      cl_event clEvent = NULL;
 
 #ifdef CL_VERSION_1_2
       OCCA_OPENCL_ERROR("Device: Tagging Stream",
-                        clEnqueueMarkerWithWaitList(getCommandQueue(),
+                        clEnqueueBarrierWithWaitList(getCommandQueue(),
                                                     0, NULL, &clEvent));
 #else
       OCCA_OPENCL_ERROR("Device: Tagging Stream",
-                        clEnqueueMarker(getCommandQueue(),
+                        clEnqueueBarrier(getCommandQueue(),
                                         &clEvent));
 #endif
 
@@ -139,9 +157,9 @@ namespace occa {
         dynamic_cast<occa::opencl::streamTag*>(endTag.getModeStreamTag())
       );
 
-      finish();
+      waitFor(endTag);
 
-      return (clEndTag->getTime() - clStartTag->getTime());
+      return (clEndTag->endTime() - clStartTag->startTime());
     }
 
     cl_command_queue& device::getCommandQueue() const {
@@ -160,8 +178,7 @@ namespace occa {
       const bool usingOkl,
       lang::sourceMetadata_t &launcherMetadata,
       lang::sourceMetadata_t &deviceMetadata,
-      const occa::json &kernelProps,
-      io::lock_t lock
+      const occa::json &kernelProps
     ) {
       info_t clInfo;
       clInfo.clDevice  = clDevice;
@@ -175,28 +192,26 @@ namespace occa {
                                      kernelName,
                                      kernelProps["compiler_flags"],
                                      sourceFilename,
-                                     kernelProps,
-                                     lock);
+                                     kernelProps);
 
       opencl::saveProgramBinary(clInfo,
-                                binaryFilename,
-                                lock);
+                                binaryFilename);
 
       if (usingOkl) {
         return buildOKLKernelFromBinary(clInfo,
                                         kernelHash,
                                         hashDir,
                                         kernelName,
+                                        sourceFilename,
+                                        binaryFilename,
                                         launcherMetadata,
                                         deviceMetadata,
-                                        kernelProps,
-                                        lock);
+                                        kernelProps);
       }
 
       // Regular OpenCL Kernel
       opencl::buildKernelFromProgram(clInfo,
-                                     kernelName,
-                                     lock);
+                                     kernelName);
       return new kernel(this,
                         kernelName,
                         sourceFilename,
@@ -205,13 +220,16 @@ namespace occa {
                         kernelProps);
     }
 
-    modeKernel_t* device::buildOKLKernelFromBinary(const hash_t kernelHash,
-                                                   const std::string &hashDir,
-                                                   const std::string &kernelName,
-                                                   lang::sourceMetadata_t &launcherMetadata,
-                                                   lang::sourceMetadata_t &deviceMetadata,
-                                                   const occa::json &kernelProps,
-                                                   io::lock_t lock) {
+    modeKernel_t* device::buildOKLKernelFromBinary(
+      const hash_t kernelHash,
+      const std::string &hashDir,
+      const std::string &kernelName,
+      const std::string &sourceFilename,
+      const std::string &binaryFilename,
+      lang::sourceMetadata_t &launcherMetadata,
+      lang::sourceMetadata_t &deviceMetadata,
+      const occa::json &kernelProps
+    ) {
       info_t clInfo;
       clInfo.clDevice  = clDevice;
       clInfo.clContext = clContext;
@@ -220,30 +238,29 @@ namespace occa {
                                       kernelHash,
                                       hashDir,
                                       kernelName,
+                                      sourceFilename,
+                                      binaryFilename,
                                       launcherMetadata,
                                       deviceMetadata,
-                                      kernelProps,
-                                      lock);
+                                      kernelProps);
     }
 
-    modeKernel_t* device::buildOKLKernelFromBinary(info_t &clInfo,
-                                                   const hash_t kernelHash,
-                                                   const std::string &hashDir,
-                                                   const std::string &kernelName,
-                                                   lang::sourceMetadata_t &launcherMetadata,
-                                                   lang::sourceMetadata_t &deviceMetadata,
-                                                   const occa::json &kernelProps,
-                                                   io::lock_t lock) {
-
-      const std::string sourceFilename = hashDir + kc::sourceFile;
-      const std::string binaryFilename = hashDir + kc::binaryFile;
-
+    modeKernel_t* device::buildOKLKernelFromBinary(
+      info_t &clInfo,
+      const hash_t kernelHash,
+      const std::string &hashDir,
+      const std::string &kernelName,
+      const std::string &sourceFilename,
+      const std::string &binaryFilename,
+      lang::sourceMetadata_t &launcherMetadata,
+      lang::sourceMetadata_t &deviceMetadata,
+      const occa::json &kernelProps
+    ) {
       if (!clInfo.clProgram) {
         opencl::buildProgramFromBinary(clInfo,
                                        binaryFilename,
                                        kernelName,
-                                       properties["compiler_flags"],
-                                       lock);
+                                       properties["compiler_flags"]);
       }
 
       // Create wrapper kernel and set launcherKernel
@@ -271,8 +288,7 @@ namespace occa {
       for (int i = 0; i < launchedKernelsCount; ++i) {
         lang::kernelMetadata_t &metadata = launchedKernelsMetadata[i];
         opencl::buildKernelFromProgram(clInfo,
-                                       metadata.name,
-                                       lock);
+                                       metadata.name);
 
         kernel *clKernel = new kernel(this,
                                       metadata.name,
@@ -317,69 +333,17 @@ namespace occa {
                                  const void *src,
                                  const occa::json &props) {
 
-      if (props.get("host", false)) {
-        return hostAlloc(bytes, src, props);
+      //create allocation
+      buffer *buf = new opencl::buffer(this, bytes, props);
+
+      buf->malloc(bytes);
+
+      //create slice
+      memory *mem = new opencl::memory(buf, bytes, 0);
+
+      if (src) {
+        mem->copyFrom(src, bytes, 0, props);
       }
-
-      cl_int error;
-
-      opencl::memory *mem = new opencl::memory(this, bytes, props);
-
-      if (src == NULL) {
-        mem->clMem = clCreateBuffer(clContext,
-                                    CL_MEM_READ_WRITE,
-                                    bytes, NULL, &error);
-        OCCA_OPENCL_ERROR("Device: clCreateBuffer", error);
-      } else {
-        mem->clMem = clCreateBuffer(clContext,
-                                    CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-                                    bytes, const_cast<void*>(src), &error);
-        OCCA_OPENCL_ERROR("Device: clCreateBuffer", error);
-
-        finish();
-      }
-
-      mem->rootClMem = &mem->clMem;
-
-      return mem;
-    }
-
-    modeMemory_t* device::hostAlloc(const udim_t bytes,
-                                    const void *src,
-                                    const occa::json &props) {
-
-      cl_int error;
-
-      opencl::memory *mem = new opencl::memory(this, bytes, props);
-
-      // Alloc pinned host buffer
-      mem->clMem = clCreateBuffer(clContext,
-                                  CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR,
-                                  bytes,
-                                  NULL, &error);
-      mem->rootClMem = &mem->clMem;
-
-      mem->useHostPtr = true;
-
-      OCCA_OPENCL_ERROR("Device: clCreateBuffer", error);
-
-      if (src != NULL){
-        mem->copyFrom(src, mem->size);
-      }
-
-      // Map memory to read/write
-      mem->ptr = (char*) clEnqueueMapBuffer(getCommandQueue(),
-                                            mem->clMem,
-                                            CL_TRUE,
-                                            CL_MAP_READ | CL_MAP_WRITE,
-                                            0, bytes,
-                                            0, NULL, NULL,
-                                            &error);
-
-      OCCA_OPENCL_ERROR("Device: clEnqueueMapBuffer", error);
-
-      // Sync memory mapping
-      finish();
 
       return mem;
     }
@@ -387,18 +351,24 @@ namespace occa {
     modeMemory_t* device::wrapMemory(const void *ptr,
                                      const udim_t bytes,
                                      const occa::json &props) {
-      memory *mem = new memory(this,
-                               bytes,
-                               props);
+      //create allocation
+      buffer *buf = new opencl::buffer(this, bytes, props);
+      buf->wrapMemory(ptr, bytes);
 
-      mem->clMem = (cl_mem) ptr;
+      return new opencl::memory(buf, bytes, 0);
+    }
 
-      return mem;
+    modeMemoryPool_t* device::createMemoryPool(const occa::json &props) {
+      return new opencl::memoryPool(this, props);
     }
 
     udim_t device::memorySize() const {
-      return opencl::getDeviceMemorySize(clDevice);
+      return opencl::deviceGlobalMemSize(clDevice);
     }
     //==================================
+
+    void* device::unwrap() {
+      return static_cast<void*>(&clDevice);
+    }
   }
 }

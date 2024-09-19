@@ -15,6 +15,8 @@ const char* occaDeviceMode(occaDevice device);
 
 occaJson occaDeviceGetProperties(occaDevice device);
 
+const char* occaDeviceArch(occaDevice device);
+
 occaJson occaDeviceGetKernelProperties(occaDevice device);
 
 occaJson occaDeviceGetMemoryProperties(occaDevice device);
@@ -26,6 +28,8 @@ occaUDim_t occaDeviceMemorySize(occaDevice device);
 occaUDim_t occaDeviceMemoryAllocated(occaDevice device);
 
 void occaDeviceFinish(occaDevice device);
+
+void occaDeviceFinishAll(occaDevice device);
 
 bool occaDeviceHasSeparateMemorySpace(occaDevice device);
 
@@ -77,17 +81,6 @@ occaMemory occaDeviceTypedMalloc(occaDevice device,
                                  const void *src,
                                  occaJson props);
 
-void* occaDeviceUMalloc(occaDevice device,
-                        const occaUDim_t bytes,
-                        const void *src,
-                        occaJson props);
-
-void* occaDeviceTypedUMalloc(occaDevice device,
-                             const occaUDim_t entries,
-                             const occaDtype dtype,
-                             const void *src,
-                             occaJson props);
-
 occaMemory occaDeviceWrapMemory(occaDevice device,
                                 const void *ptr,
                                 const occaUDim_t bytes,
@@ -98,6 +91,11 @@ occaMemory occaDeviceTypedWrapMemory(occaDevice device,
                                      const occaUDim_t entries,
                                      const occaDtype dtype,
                                      occaJson props);
+//======================================
+
+//---[ MemoryPool ]---------------------
+occaMemoryPool occaDeviceCreateMemoryPool(occaDevice device,
+                                          occaJson props);
 //======================================
 
 OCCA_END_EXTERN_C

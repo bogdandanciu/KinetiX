@@ -33,7 +33,7 @@ namespace occa {
       bool isNamed() const;
 
       std::string& name();
-      const std::string& name() const;
+      std::string name() const;
 
       void setName(const std::string &name_);
 
@@ -55,11 +55,20 @@ namespace occa {
       void add(const fileOrigin &origin,
                const qualifier_t &qualifier);
 
+      void add(const fileOrigin &origin,
+               const qualifier_t &qualifier,
+               const exprNodeVector &args);
+
       void add(const qualifierWithSource &qualifier);
 
       void add(const int index,
                const fileOrigin &origin,
                const qualifier_t &qualifier);
+
+      void add(const int index,
+               const fileOrigin &origin,
+               const qualifier_t &qualifier,
+               const exprNodeVector &args);
 
       void add(const int index,
                const qualifierWithSource &qualifier);

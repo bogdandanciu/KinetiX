@@ -9,14 +9,18 @@ namespace occa {
     class streamTag : public occa::modeStreamTag_t {
     public:
       cl_event clEvent;
-      double time;
+      double start_time;
+      double end_time;
 
       streamTag(modeDevice_t *modeDevice_,
                 cl_event clEvent_);
 
       virtual ~streamTag();
 
-      double getTime();
+      void* unwrap() override;
+
+      double startTime();
+      double endTime();
     };
   }
 }

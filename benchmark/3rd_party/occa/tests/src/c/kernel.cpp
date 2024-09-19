@@ -87,7 +87,7 @@ void testRun() {
     occa::env::OCCA_DIR + "tests/files/argKernel.okl"
   );
   occaJson kernelProps = occaJsonParse(
-    "{type_validation: false}"
+    "{type_validation: false, serial: {include_std: true}}"
   );
   occaKernel argKernel = (
     occaBuildKernel(argKernelFile.c_str(),
@@ -109,17 +109,20 @@ void testRun() {
   int value = 1;
   occaMemory mem = occaMalloc(1 * sizeof(int), &value, occaDefault);
   value = 2;
-  int *uvaPtr = (int*) occaUMalloc(1 * sizeof(int), &value, occaDefault);
 
-  int xy[2] = {13, 14};
+  struct {
+    double x,y;
+  } xy;
+  xy.x = 13.0;
+  xy.y = 14.0;
+
   std::string str = "fifteen";
 
   // Good argument types
   occaKernelRunN(
-    argKernel, 15,
+    argKernel, 14,
     occaNull,
     mem,
-    occaPtr(uvaPtr),
     occaInt8(3),
     occaUInt8(4),
     occaInt16(5),
@@ -130,7 +133,7 @@ void testRun() {
     occaUInt64(10),
     occaFloat(11.0),
     occaDouble(12.0),
-    occaStruct(xy, sizeof(xy)),
+    occaStruct(&xy, sizeof(xy)),
     occaString(str.c_str())
   );
 
@@ -138,7 +141,6 @@ void testRun() {
   occaKernelClearArgs(argKernel);
   occaKernelPushArg(argKernel, occaNull);
   occaKernelPushArg(argKernel, mem);
-  occaKernelPushArg(argKernel, occaPtr(uvaPtr));
   occaKernelPushArg(argKernel, occaInt8(3));
   occaKernelPushArg(argKernel, occaUInt8(4));
   occaKernelPushArg(argKernel, occaInt16(5));
@@ -149,15 +151,14 @@ void testRun() {
   occaKernelPushArg(argKernel, occaUInt64(10));
   occaKernelPushArg(argKernel, occaFloat(11.0));
   occaKernelPushArg(argKernel, occaDouble(12.0));
-  occaKernelPushArg(argKernel, occaStruct(xy, sizeof(xy)));
+  occaKernelPushArg(argKernel, occaStruct(&xy, sizeof(xy)));
   occaKernelPushArg(argKernel, occaString(str.c_str()));
   occaKernelRunFromArgs(argKernel);
 
   // Test array call
-  occaType args[15] = {
+  occaType args[14] = {
     occaNull,
     mem,
-    occaPtr(uvaPtr),
     occaInt8(3),
     occaUInt8(4),
     occaInt16(5),
@@ -168,11 +169,11 @@ void testRun() {
     occaUInt64(10),
     occaFloat(11.0),
     occaDouble(12.0),
-    occaStruct(xy, sizeof(xy)),
+    occaStruct(&xy, sizeof(xy)),
     occaString(str.c_str())
   };
 
-  occaKernelRunWithArgs(argKernel, 15, args);
+  occaKernelRunWithArgs(argKernel, 14, args);
 
   // Bad argument types
   ASSERT_THROW(
@@ -189,8 +190,5 @@ void testRun() {
   );
   ASSERT_THROW(
     occaKernelRunN(argKernel, 1, occaDefault);
-  );
-  ASSERT_THROW(
-    occaKernelRunN(argKernel, 1, uvaPtr);
   );
 }

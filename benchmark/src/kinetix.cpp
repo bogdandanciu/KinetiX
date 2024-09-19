@@ -158,11 +158,23 @@ static std::vector<std::string> split(std::string s, std::string delimiter)
   return res;
 }
 
-static occa::properties addOccaCompilerFlags(occa::properties &a, occa::properties &b)
-{
+static occa::properties addOccaCompilerFlags(const occa::properties &a, const occa::properties &b)
+{   
   occa::properties fused = b;
-  std::string flags = a.get<std::string>("compiler_flags");
-  fused["compiler_flags"] += flags;
+  for (const auto& key : a.keys()) {
+    if (key == "compiler_flags") {
+      if (fused.has("compiler_flags")) {
+        fused["compiler_flags"] = fused["compiler_flags"].string() + " " + a[key].string();
+      } else {
+        fused["compiler_flags"] = a[key];
+      }
+    } else {
+      if (!fused.has(key)) {
+        fused[key] = a[key];
+      }
+    }
+  }
+
   return fused;
 }
 
@@ -401,31 +413,33 @@ static void buildMechKernels(bool transport)
     if (single_precision) {
       includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
       thermoCoeffs_fp32_kernel = buildKernel("thermoCoeffs.okl", 
-          	                                 "thermoCoeffs",
-          			                         addOccaCompilerFlags(includeProp, kernel_properties_fp32));
+          	                             "thermoCoeffs",
+          			             addOccaCompilerFlags(includeProp, kernel_properties_fp32));
       thermoCoeffs_fpmix_kernel = buildKernel("thermoCoeffs.okl", 
-          	                                  "thermoCoeffs",
-          			                          addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
+          	                              "thermoCoeffs",
+          			              addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
     } else {
       includeProp["compiler_flags"] += " -include " + cacheDir + "/heat_capacity_R.inc";
       thermoCoeffs_kernel = buildKernel("thermoCoeffs.okl", 
-          	                            "thermoCoeffs",
-          			                    addOccaCompilerFlags(includeProp, kernel_properties));
+          	                        "thermoCoeffs",
+          			        addOccaCompilerFlags(includeProp, kernel_properties));
     }
   }
 
   {// Rates kernel 
     occa::properties includeProp;
+    includeProp["kernel/include_occa"] = true; //required for amrex
+    includeProp["kernel/link_occa"] = true;
     includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
     if (single_precision) {
       includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/frates.inc";
       production_rates_fp32_kernel = buildKernel("productionRates.okl", 
-          	    			                     "productionRates",
-          				                         addOccaCompilerFlags(includeProp, kernel_properties_fp32));
+          	    			         "productionRates",
+          				         addOccaCompilerFlags(includeProp, kernel_properties_fp32));
       production_rates_fpmix_kernel = buildKernel("productionRates.okl", 
-          	    			                      "productionRates",
-          				                          addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
+          	    			          "productionRates",
+          				          addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
     } else {
       includeProp["compiler_flags"] += " -include " + cacheDir + "/enthalpy_RT.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/rates.inc";
@@ -444,18 +458,18 @@ static void buildMechKernels(bool transport)
       includeProp["compiler_flags"] += " -include " + cacheDir + "/fviscosity.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/fdiffusivity.inc";
       transport_fp32_kernel = buildKernel("transportProps.okl", 
-		                                  "transport",
-		                                  addOccaCompilerFlags(includeProp, kernel_properties_fp32));
+		                          "transport",
+		                          addOccaCompilerFlags(includeProp, kernel_properties_fp32));
       transport_fpmix_kernel = buildKernel("transportProps.okl", 
-		                                   "transport",
-					                       addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
+		                           "transport",
+					   addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
     } else {
       includeProp["compiler_flags"] += " -include " + cacheDir + "/conductivity.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/viscosity.inc";
       includeProp["compiler_flags"] += " -include " + cacheDir + "/diffusivity.inc";
       transport_kernel = buildKernel("transportProps.okl", 
-		                             "transport",
-				                     addOccaCompilerFlags(includeProp, kernel_properties));
+		                     "transport",
+				     addOccaCompilerFlags(includeProp, kernel_properties));
     }
   }
 }
@@ -473,8 +487,8 @@ void kinetix::init(const std::string &model_path,
                    bool _unroll_loops,
                    bool _loop_gibbsexp,
                    bool _group_rxnUnroll,
-		           bool _group_vis,
-		           bool _nonsymDij,
+		   bool _group_vis,
+		   bool _nonsymDij,
                    bool _fit_rcpDiffCoeffs,
                    int _align_width,
                    const std::string &_target,
@@ -489,13 +503,13 @@ void kinetix::init(const std::string &model_path,
   kinetix::init(model_path,
                 _device,
                 _props,
-	            _tool,
+	        _tool,
                 _group_size,
-	            _single_precision,
+	        _single_precision,
                 _unroll_loops,
-	            _loop_gibbsexp,
-	            _group_rxnUnroll,
-	            _group_vis,
+	        _loop_gibbsexp,
+	        _group_rxnUnroll,
+	        _group_vis,
                 _nonsymDij,
                 _fit_rcpDiffCoeffs,
                 _align_width,
@@ -515,8 +529,8 @@ void kinetix::init(const std::string &model_path,
                    bool _unroll_loops,
                    bool _loop_gibbsexp,
                    bool _group_rxnUnroll,
-		           bool _group_vis,
-		           bool _nonsymDij,
+		   bool _group_vis,
+		   bool _nonsymDij,
                    bool _fit_rcpDiffCoeffs,
                    int _align_width,
                    const std::string &_target,
@@ -640,11 +654,11 @@ void kinetix::build(double _ref_pressure,
     // Run generator
     std::string cmdline;
     cmdline = installDir +
-                "/kinetix/__main__.py" +
-                " --mechanism " + yamlPath + 
-                " --output " + cacheDir +
-        	    " --align-width " + std::to_string(align_width) +
-        	    " --target " + target;
+              "/kinetix/__main__.py" +
+              " --mechanism " + yamlPath + 
+              " --output " + cacheDir +
+              " --align-width " + std::to_string(align_width) +
+              " --target " + target;
     if (single_precision)
       cmdline.append(" --single-precision");
     if (unroll_loops)

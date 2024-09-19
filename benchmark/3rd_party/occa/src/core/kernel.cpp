@@ -1,7 +1,6 @@
 #include <occa/core/device.hpp>
 #include <occa/core/kernel.hpp>
 #include <occa/core/memory.hpp>
-#include <occa/utils/uva.hpp>
 #include <occa/internal/io.hpp>
 #include <occa/internal/core/device.hpp>
 #include <occa/internal/core/kernel.hpp>
@@ -190,7 +189,7 @@ namespace occa {
     self.run();
   }
 
-#include "kernelOperators.cpp_codegen"
+#include "codegen/kernelOperators.cpp_codegen"
 
   void kernel::free() {
     // ~modeKernel_t NULLs all wrappers

@@ -80,6 +80,14 @@ else
 endif
 #=================================================
 
+PLACE_GENERATED_CODES := $(shell mkdir -p $(OCCA_DIR)/include/occa/core/codegen | \
+                                 mkdir -p $(OCCA_DIR)/src/core/codegen | \
+                                 mkdir -p $(OCCA_DIR)/src/occa/internal/utils/codegen | \
+                                 mkdir -p $(OCCA_DIR)/include/occa/defines/codegen)
+PLACE_GENERATED_CODES := $(shell cp $(OCCA_DIR)/scripts/codegen/kernelOperators.hpp_codegen.in $(OCCA_DIR)/include/occa/core/codegen/kernelOperators.hpp_codegen | \
+                                 cp $(OCCA_DIR)/scripts/codegen/kernelOperators.cpp_codegen.in $(OCCA_DIR)/src/core/codegen/kernelOperators.cpp_codegen | \
+                                 cp $(OCCA_DIR)/scripts/codegen/runFunction.cpp_codegen.in $(OCCA_DIR)/src/occa/internal/utils/codegen/runFunction.cpp_codegen | \
+                                 cp $(OCCA_DIR)/scripts/codegen/macros.hpp_codegen.in $(OCCA_DIR)/include/occa/defines/codegen/macros.hpp_codegen)
 
 #---[ Compile Library ]---------------------------
 # Setup compiled defines and force rebuild if defines changed
@@ -90,12 +98,14 @@ MAKE_COMPILED_DEFINES := $(shell cat "$(OCCA_DIR)/scripts/build/compiledDefinesT
                                  sed "s,@@OCCA_OS@@,$(OCCA_OS),g;\
                                       s,@@OCCA_USING_VS@@,$(OCCA_USING_VS),g;\
                                       s,@@OCCA_UNSAFE@@,$(OCCA_UNSAFE),g;\
-                                      s,@@OCCA_MPI_ENABLED@@,$(OCCA_MPI_ENABLED),g; \
                                       s,@@OCCA_OPENMP_ENABLED@@,$(OCCA_OPENMP_ENABLED),g;\
                                       s,@@OCCA_CUDA_ENABLED@@,$(OCCA_CUDA_ENABLED),g;\
                                       s,@@OCCA_HIP_ENABLED@@,$(OCCA_HIP_ENABLED),g;\
                                       s,@@OCCA_OPENCL_ENABLED@@,$(OCCA_OPENCL_ENABLED),g;\
                                       s,@@OCCA_METAL_ENABLED@@,$(OCCA_METAL_ENABLED),g;\
+                                      s,@@OCCA_DPCPP_ENABLED@@,$(OCCA_DPCPP_ENABLED),g;\
+                                      s,@@OCCA_THREAD_SHARABLE_ENABLED@@,$(OCCA_THREAD_SHARABLE_ENABLED),g;\
+                                      s,@@OCCA_MAX_ARGS@@,$(OCCA_MAX_ARGS),g;\
                                       s,@@OCCA_BUILD_DIR@@,$(OCCA_BUILD_DIR),g;"\
                                       > "$(NEW_COMPILED_DEFINES)")
 
@@ -149,12 +159,12 @@ $(OCCA_DIR)/obj/%.o: $(OCCA_DIR)/src/%.cpp \
 
 # Objective-C++
 $(OCCA_DIR)/obj/%.o: $(OCCA_DIR)/src/%.mm \
-                     $(OCCA_DIR)/src/%.hpp \
-                     $(OCCA_DIR)/include/%.hpp \
+                     $(wildcard $(OCCA_DIR)/src/%.hpp) \
+                     $(wildcard $(OCCA_DIR)/include/%.hpp) \
                      $(COMPILED_DEFINES_CHANGED)
 	@mkdir -p $(abspath $(dir $@))
 	@echo " - [ObjC] $<"
-	@clang++ -x objective-c++ -o "$@" $(flags) -c $(paths) "$<"
+	@clang++ -x objective-c++ $(cpp11Flags) -o "$@" $(flags) -c $(paths) "$<"
 
 # Fortran
 include $(OCCA_DIR)/scripts/build/Make.fortran_rules
@@ -263,6 +273,7 @@ info:
 	$(info metalEnabled   = $(metalEnabled))
 	$(info cudaEnabled    = $(cudaEnabled))
 	$(info hipEnabled     = $(hipEnabled))
+	$(info dpcppEnabled   = $(dpcppEnabled))
 	$(info --------------------------------)
 	@true
 #=================================================
@@ -282,6 +293,8 @@ print-%:
 
 #---[ Documentation ]-----------------------------
 # Auto-generate the API documentation
+.PHONY: docs
+
 docs:
 	@${OCCA_DIR}/scripts/docs/api-docgen
 #=================================================

@@ -14,6 +14,11 @@ namespace occa {
     extern const qualifier_t volatile_;
     extern const qualifier_t long_;
     extern const qualifier_t longlong_;
+    extern const qualifier_t attribute_;
+
+    // Windows types
+    // TODO: Properly handle compiler extension attributes
+    extern const qualifier_t declspec_;
 
     extern const qualifier_t extern_;
     extern const qualifier_t externC;
@@ -28,13 +33,9 @@ namespace occa {
     extern const qualifier_t virtual_;
 
     extern const qualifier_t class_;
-    extern const qualifier_t struct_;
     extern const qualifier_t enum_;
+    extern const qualifier_t struct_;
     extern const qualifier_t union_;
-
-    // Windows types
-    // TODO: Properly handle compiler extension attributes
-    extern const qualifier_t dllexport_;
 
     extern const primitive_t bool_;
     extern const primitive_t char_;
@@ -92,6 +93,13 @@ namespace occa {
     extern const primitive_t double2;
     extern const primitive_t double3;
     extern const primitive_t double4;
-  }
+
+    // DPCPP Primitives
+    extern const primitive_t syclQueue;
+    extern const primitive_t syclNdRange;
+    extern const primitive_t syclNdItem;
+    extern const primitive_t syclHandler;
+    extern const primitive_t syclAccessor;
+  } // namespace lang
 }
 #endif

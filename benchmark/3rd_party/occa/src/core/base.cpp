@@ -1,17 +1,23 @@
+#include <functional>
+
 #include <occa/core/base.hpp>
 #include <occa/internal/core/device.hpp>
 #include <occa/internal/core/memory.hpp>
 #include <occa/internal/modes.hpp>
 #include <occa/internal/utils/env.hpp>
 #include <occa/internal/utils/sys.hpp>
-#include <occa/internal/utils/tls.hpp>
-#include <occa/internal/utils/uva.hpp>
+#if ENABLE_THREAD_SHARABLE_OCCA
+#include <occa/utils/mutex.hpp>
+#endif
 
 namespace occa {
   //---[ Device Functions ]-------------
   device host() {
-    static tls<device> tdev;
-    device &dev = tdev.value();
+#if ENABLE_THREAD_SHARABLE_OCCA
+    static device dev;
+#else
+    thread_local device dev;
+#endif
     if (!dev.isInitialized()) {
       dev = occa::device({
         {"mode", "Serial"}
@@ -22,12 +28,21 @@ namespace occa {
   }
 
   device& getDevice() {
-    static tls<device> tdev;
-    device &dev = tdev.value();
+#if ENABLE_THREAD_SHARABLE_OCCA
+    static device dev;
+    static mutex_t mutex;
+    mutex.lock();
     if (!dev.isInitialized()) {
       dev = host();
     }
-    return dev;
+    mutex.unlock();
+#else
+    thread_local device dev;
+    if (!dev.isInitialized()) {
+      dev = host();
+    }
+#endif
+    return std::ref(dev);
   }
 
   void setDevice(device d) {
@@ -79,6 +94,10 @@ namespace occa {
     return getDevice().tagStream();
   }
 
+  memoryPool createMemoryPool(const occa::json &props) {
+    return getDevice().createMemoryPool(props);
+  }
+
   //---[ Kernel Functions ]-------------
   kernel buildKernel(const std::string &filename,
                      const std::string &kernelName,
@@ -118,20 +137,6 @@ namespace occa {
     return getDevice().malloc(entries, dtype::byte, src, props);
   }
 
-  void* umalloc(const dim_t entries,
-                const dtype_t &dtype,
-                const void *src,
-                const occa::json &props) {
-    return getDevice().umalloc(entries, dtype, src, props);
-  }
-
-  template <>
-  void* umalloc<void>(const dim_t entries,
-                      const void *src,
-                      const occa::json &props) {
-    return getDevice().umalloc(entries, dtype::byte, src, props);
-  }
-
   occa::memory wrapMemory(const void *ptr,
                           const dim_t entries,
                           const dtype_t &dtype,
@@ -146,82 +151,29 @@ namespace occa {
     return getDevice().wrapMemory(ptr, entries, dtype::byte, props);
   }
 
-  void memcpy(void *dest, const void *src,
-              const dim_t bytes,
-              const occa::json &props) {
-
-    ptrRangeMap::iterator srcIt  = uvaMap.find(const_cast<void*>(src));
-    ptrRangeMap::iterator destIt = uvaMap.find(dest);
-
-    occa::modeMemory_t *srcMem  = ((srcIt  != uvaMap.end()) ? (srcIt->second)  : NULL);
-    occa::modeMemory_t *destMem = ((destIt != uvaMap.end()) ? (destIt->second) : NULL);
-
-    const udim_t srcOff  = (srcMem
-                            ? (((char*) src)  - srcMem->uvaPtr)
-                            : 0);
-    const udim_t destOff = (destMem
-                            ? (((char*) dest) - destMem->uvaPtr)
-                            : 0);
-
-    const bool usingSrcPtr  = (!srcMem ||
-                               ((srcMem->isManaged() && !srcMem->inDevice())));
-    const bool usingDestPtr = (!destMem ||
-                               ((destMem->isManaged() && !destMem->inDevice())));
-
-    if (usingSrcPtr && usingDestPtr) {
-      udim_t bytes_ = bytes;
-      if (bytes == -1) {
-        OCCA_ERROR("Unable to determine bytes to copy",
-                   srcMem || destMem);
-        bytes_ = (srcMem
-                  ? srcMem->size
-                  : destMem->size);
-      }
-
-      ::memcpy(dest, src, bytes_);
-      return;
-    }
-
-    if (usingSrcPtr) {
-      destMem->copyFrom(src, bytes, destOff, props);
-    } else if (usingDestPtr) {
-      srcMem->copyTo(dest, bytes, srcOff, props);
-    } else {
-      // Auto-detects peer-to-peer stuff
-      occa::memory srcMemory(srcMem);
-      occa::memory destMemory(destMem);
-      destMemory.copyFrom(srcMemory, bytes, destOff, srcOff, props);
-    }
-  }
-
   void memcpy(memory dest, const void *src,
-              const dim_t bytes,
+              const dim_t count,
               const dim_t offset,
               const occa::json &props) {
 
-    dest.copyFrom(src, bytes, offset, props);
+    dest.copyFrom(src, count, offset, props);
   }
 
   void memcpy(void *dest, memory src,
-              const dim_t bytes,
+              const dim_t count,
               const dim_t offset,
               const occa::json &props) {
 
-    src.copyTo(dest, bytes, offset, props);
+    src.copyTo(dest, count, offset, props);
   }
 
   void memcpy(memory dest, memory src,
-              const dim_t bytes,
+              const dim_t count,
               const dim_t destOffset,
               const dim_t srcOffset,
               const occa::json &props) {
 
-    dest.copyFrom(src, bytes, destOffset, srcOffset, props);
-  }
-
-  void memcpy(void *dest, const void *src,
-              const occa::json &props) {
-    memcpy(dest, src, -1, props);
+    dest.copyFrom(src, count, destOffset, srcOffset, props);
   }
 
   void memcpy(memory dest, const void *src,

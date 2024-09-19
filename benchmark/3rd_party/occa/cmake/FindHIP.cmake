@@ -1,5 +1,6 @@
 ###############################################################################
 # FIND: HIP and associated helper binaries
+# This Find module is also distributed alongside the occa package config file!
 ###############################################################################
 # HIP is supported on Linux only
 if(UNIX AND NOT APPLE AND NOT CYGWIN)
@@ -100,18 +101,14 @@ if(UNIX AND NOT APPLE AND NOT CYGWIN)
   endif()
 
   if(HIP_PLATFORM)
-    if(${HIP_PLATFORM} STREQUAL "hcc" OR ${HIP_PLATFORM} STREQUAL "amd")
-      if(${HIP_COMPILER} STREQUAL "hcc")
-        set(HIP_INCLUDE_DIRS "${HIP_ROOT_DIR}/include;${HIP_ROOT_DIR}/hcc/include")
-        set(HIP_LIBRARIES "${HIP_ROOT_DIR}/lib/libhip_hcc.so")
-        set(HIP_RUNTIME_DEFINE "__HIP_PLATFORM_HCC__")
-      elseif(${HIP_COMPILER} STREQUAL "clang")
+    if(${HIP_PLATFORM} STREQUAL "amd")
+      if(${HIP_COMPILER} STREQUAL "clang")
         set(HIP_INCLUDE_DIRS "${HIP_ROOT_DIR}/include")
         set(HIP_LIBRARIES "${HIP_ROOT_DIR}/lib/libamdhip64.so")
-        set(HIP_RUNTIME_DEFINE "__HIP_PLATFORM_HCC__")
+        set(HIP_RUNTIME_DEFINE "__HIP_PLATFORM_AMD__")
         set(HIP_PLATFORM "hip-clang")
       endif()
-    elseif(${HIP_PLATFORM} STREQUAL "nvcc")
+    elseif(${HIP_PLATFORM} STREQUAL "nvidia")
       find_package(CUDA)
 
       #find the shared library, rather than the static that find_package returns
@@ -126,7 +123,7 @@ if(UNIX AND NOT APPLE AND NOT CYGWIN)
 
       set(HIP_INCLUDE_DIRS "${HIP_ROOT_DIR}/include;${CUDA_INCLUDE_DIRS}")
       set(HIP_LIBRARIES "${CUDART_LIB};cuda")
-      set(HIP_RUNTIME_DEFINE "__HIP_PLATFORM_NVCC__")
+      set(HIP_RUNTIME_DEFINE "__HIP_PLATFORM_NVIDIA__")
     endif()
   endif()
   mark_as_advanced(HIP_INCLUDE_DIRS)
@@ -148,3 +145,14 @@ find_package_handle_standard_args(
     HIP_COMPILER
     VERSION_VAR HIP_VERSION
     )
+
+if(HIP_FOUND AND NOT TARGET OCCA::depends::HIP)
+  # Create our wrapper imported target
+  # Put it in the OCCA namespace to make it clear that we created it.
+  add_library(OCCA::depends::HIP INTERFACE IMPORTED)
+  set_target_properties(OCCA::depends::HIP PROPERTIES
+    INTERFACE_COMPILE_DEFINITIONS "${HIP_RUNTIME_DEFINE}"
+    INTERFACE_INCLUDE_DIRECTORIES "${HIP_INCLUDE_DIRS}"
+    INTERFACE_LINK_LIBRARIES "${HIP_LIBRARIES}"
+  )
+endif()

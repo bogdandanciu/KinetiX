@@ -29,7 +29,7 @@ endif()
 find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
 execute_process(COMMAND ${Python3_EXECUTABLE} -m pip install ${_pip_args} --user -r ${CMAKE_CURRENT_SOURCE_DIR}/../kinetix/requirements.txt)
 
-set(INSTALL_PREFIX "")
+set(KINETIX_INSTALL_PREFIX "")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/occa")
 
 if(NOT DEFINED AMReX_GPU_BACKEND)
@@ -47,16 +47,15 @@ else()
     message(WARNING "Unsupported GPU backend specified for AMReX. Defaulting to CPU.")
 endif()
 
-set(INSTALL_PREFIX "")
+set(KINETIX_INSTALL_PREFIX "")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd_party/amrex")
 
 add_library(kinetix SHARED
   src/kinetix.cpp
 )
-target_link_libraries (kinetix PUBLIC libocca)
-target_link_libraries (kinetix PUBLIC amrex)
-set(INSTALL_PREFIX ".")
+target_link_libraries (kinetix PUBLIC libocca amrex)
+set(KINETIX_INSTALL_PREFIX ".")
 
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
@@ -64,16 +63,16 @@ set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_RPATH};${CMAKE_INSTALL_PREFIX}/lib")
 
 target_include_directories (kinetix PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-install(TARGETS kinetix DESTINATION ${INSTALL_PREFIX}/lib)
-install(DIRECTORY okl DESTINATION ${INSTALL_PREFIX}/.)
-install(DIRECTORY ../kinetix DESTINATION ${INSTALL_PREFIX}/.)
-install(PROGRAMS ../kinetix/__main__.py DESTINATION ${INSTALL_PREFIX}/kinetix)
-install(DIRECTORY ../examples DESTINATION ${INSTALL_PREFIX}/.)
-install(FILES ../README.md DESTINATION ${INSTALL_PREFIX})
+install(TARGETS kinetix DESTINATION ${KINETIX_INSTALL_PREFIX}/lib)
+install(DIRECTORY okl DESTINATION ${KINETIX_INSTALL_PREFIX}/.)
+install(DIRECTORY ../kinetix DESTINATION ${KINETIX_INSTALL_PREFIX}/.)
+install(PROGRAMS ../kinetix/__main__.py DESTINATION ${KINETIX_INSTALL_PREFIX}/kinetix)
+install(DIRECTORY ../examples DESTINATION ${KINETIX_INSTALL_PREFIX}/.)
+install(FILES ../README.md DESTINATION ${KINETIX_INSTALL_PREFIX})
 
 add_executable(kinetix_bk src/bk.cpp)
 target_link_libraries (kinetix_bk PRIVATE kinetix)
-install(TARGETS kinetix_bk DESTINATION ${INSTALL_PREFIX}/bin)
+install(TARGETS kinetix_bk DESTINATION ${KINETIX_INSTALL_PREFIX}/bin)
 
 target_compile_definitions(kinetix PUBLIC -DSTANDALONE)
-install(FILES src/kinetix.hpp DESTINATION ${INSTALL_PREFIX}/include)
+install(FILES src/kinetix.hpp DESTINATION ${KINETIX_INSTALL_PREFIX}/include)

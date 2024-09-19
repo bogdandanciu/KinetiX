@@ -494,9 +494,9 @@ int main(int argc, char** argv)
   if(err > 0) {
     if(rank == 0)
       printf("Usage: ./bk --backend SERIAL|CUDA|HIP|DPCPP --n-states n --yaml-file s"
-              "[--mode 1|2] [--tool s] [--n-repetitions n] [--single-precision] [--cimode n] [--debug] "
-	      "[--block-size  n] [--device-id  n] [--unroll-loops] [--loop-gibbsexp] "
-	      "[--group-rxnUnroll] [--group-vis] [--nonsymDij] [--fit-rcpDiffCoeffs] \n");
+             "[--mode 1|2] [--tool s] [--n-repetitions n] [--single-precision] [--cimode n] [--debug] "
+	     "[--block-size  n] [--device-id  n] [--unroll-loops] [--loop-gibbsexp] "
+	     "[--group-rxnUnroll] [--group-vis] [--nonsymDij] [--fit-rcpDiffCoeffs] \n");
     exit(EXIT_FAILURE);
   }
 
@@ -574,17 +574,17 @@ int main(int argc, char** argv)
   kinetix::init(mech,
                 device,
                 kernel_properties,
-	            tool,
+	        tool,
                 blockSize,
-	            single_precision,
-	            unroll_loops,
+	        single_precision,
+	        unroll_loops,
                 loop_gibbsexp,
                 group_rxnUnroll,
                 group_vis,
                 nonsymDij,
                 fit_rcpDiffCoeffs,
-	            align_width,
-	            target,
+	        align_width,
+	        target,
                 false, /* useFP64Transport */
                 MPI_COMM_WORLD,
                 debug);

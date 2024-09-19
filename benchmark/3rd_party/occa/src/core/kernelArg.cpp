@@ -3,7 +3,6 @@
 #include <occa/core/device.hpp>
 #include <occa/core/memory.hpp>
 #include <occa/core/kernelArg.hpp>
-#include <occa/utils/uva.hpp>
 #include <occa/internal/core/memory.hpp>
 #include <occa/internal/core/device.hpp>
 
@@ -38,7 +37,7 @@ namespace occa {
     if (!modeMemory) {
       return NULL;
     }
-    return modeMemory->modeDevice;
+    return modeMemory->getModeDevice();
   }
 
   occa::modeMemory_t* kernelArgData::getModeMemory() const {
@@ -54,24 +53,9 @@ namespace occa {
   }
 
   bool kernelArgData::isPointer() const {
-    return value.isPointer();
+    return ptrSize ? false : value.isPointer();
   }
 
-  void kernelArgData::setupForKernelCall(const bool isConst) const {
-    if (!modeMemory              ||
-        !modeMemory->isManaged() ||
-        !modeMemory->modeDevice->hasSeparateMemorySpace()) {
-      return;
-    }
-    if (!modeMemory->inDevice()) {
-      modeMemory->copyFrom(modeMemory->uvaPtr, modeMemory->size);
-      modeMemory->memInfo |= uvaFlag::inDevice;
-    }
-    if (!isConst && !modeMemory->isStale()) {
-      uvaStaleMemory.push_back(modeMemory);
-      modeMemory->memInfo |= uvaFlag::isStale;
-    }
-  }
   //====================================
 
   //---[ kernelArg ]--------------------
@@ -92,6 +76,21 @@ namespace occa {
   kernelArg::~kernelArg() {}
 
   template <>
+  kernelArg::kernelArg(const char &arg) {
+    primitiveConstructor(static_cast<int8_t>(arg));
+  }
+
+  template <>
+  kernelArg::kernelArg(const unsigned char &arg) {
+    primitiveConstructor(static_cast<uint8_t>(arg));
+  }
+
+  template <>
+  kernelArg::kernelArg(const memory &arg) {
+    addMemory(arg.getModeMemory());
+  }
+
+  template <>
   kernelArg::kernelArg(modeMemory_t *arg) {
     addMemory(arg);
   }
@@ -99,6 +98,11 @@ namespace occa {
   template <>
   kernelArg::kernelArg(const modeMemory_t *arg) {
     addMemory(const_cast<modeMemory_t*>(arg));
+  }
+
+  template <>
+  kernelArg::kernelArg(const scopeKernelArg &arg) {
+    args = arg.args;
   }
 
   int kernelArg::size() const {
@@ -111,7 +115,7 @@ namespace occa {
     for (int i = 0; i < argCount; ++i) {
       const kernelArgData &arg = args[i];
       if (arg.modeMemory) {
-        return device(arg.modeMemory->modeDevice);
+        return device(arg.modeMemory->getModeDevice());
       }
     }
 
@@ -129,28 +133,17 @@ namespace occa {
     }
   }
 
-  void kernelArg::addPointer(void *arg,
-                             bool lookAtUva, bool argIsUva) {
-    addPointer(arg, sizeof(void*), lookAtUva, argIsUva);
+  void kernelArg::addPointer(void *arg) {
+    addPointer(arg, sizeof(void*));
   }
 
-  void kernelArg::addPointer(void *arg, size_t bytes,
-                             bool lookAtUva, bool argIsUva) {
+  void kernelArg::addPointer(void *arg, size_t bytes) {
     if (!arg) {
       args.push_back((primitive) nullptr);
       return;
     }
 
     modeMemory_t *modeMemory = NULL;
-
-    if (argIsUva) {
-      modeMemory = (modeMemory_t*) arg;
-    } else if (lookAtUva) {
-      ptrRangeMap::iterator it = uvaMap.find(arg);
-      if (it != uvaMap.end()) {
-        modeMemory = it->second;
-      }
-    }
 
     if (modeMemory) {
       addMemory(modeMemory);

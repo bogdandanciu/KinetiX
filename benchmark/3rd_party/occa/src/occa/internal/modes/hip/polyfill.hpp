@@ -30,13 +30,13 @@ namespace occa {
   static const int HIP_LAUNCH_PARAM_BUFFER_POINTER = 0;
   static const int HIP_LAUNCH_PARAM_BUFFER_SIZE = 0;
   static const int HIP_LAUNCH_PARAM_END = 0;
+  static const int hipStreamNonBlocking = 0;
 
   class hipDeviceProp_t {
    public:
     char *name;
     size_t totalGlobalMem;
     int maxThreadsPerBlock;
-    int gcnArch;
     char gcnArchName[256];
     int major;
     int minor;
@@ -45,7 +45,6 @@ namespace occa {
         name(NULL),
         totalGlobalMem(0),
         maxThreadsPerBlock(-1),
-        gcnArch(-1),
         major(-1),
         minor(-1) {}
   };
@@ -271,6 +270,10 @@ namespace occa {
 
   //   ---[ Stream ]--------------------
   inline hipError_t hipStreamCreate(hipStream_t *phStream) {
+    return OCCA_HIP_IS_NOT_ENABLED;
+  }
+
+  inline hipError_t hipStreamCreateWithFlags(hipStream_t *phStream, unsigned int flags) {
     return OCCA_HIP_IS_NOT_ENABLED;
   }
 

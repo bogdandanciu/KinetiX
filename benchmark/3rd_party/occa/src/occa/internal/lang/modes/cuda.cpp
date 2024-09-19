@@ -60,6 +60,12 @@ namespace occa {
         return name;
       }
 
+      std::string cudaParser::launchBoundsAttribute(const int innerDims[3]) {
+        const int innerTotal{innerDims[0]*innerDims[1]*innerDims[2]};
+        const std::string lbAttr = "__launch_bounds__(" + std::to_string(innerTotal) + ")";
+        return lbAttr;
+      }
+
       void cudaParser::updateConstToConstant() {
         root.children
           .forEachDeclaration([&](variableDeclaration &decl) {
@@ -110,11 +116,31 @@ namespace occa {
             // TODO: Implement proper barriers
             emptyStatement &emptySmnt = *((emptyStatement*) smnt);
 
+            const attributes::barrier::SyncType syncType = (
+              emptySmnt.hasAttribute("barrier")
+              ? attributes::barrier::getBarrierSyncType(
+                &emptySmnt.attributes["barrier"]
+              )
+              : attributes::barrier::syncDefault
+            );
+
+            std::string source;
+            switch (syncType) {
+              case attributes::barrier::invalid:
+              case attributes::barrier::syncDefault:
+                source = "__syncthreads();";
+                break;
+
+              case attributes::barrier::syncWarp:
+                source = "__syncwarp();";
+                break;
+            }
+
             statement_t &barrierSmnt = (
               *(new sourceCodeStatement(
                   emptySmnt.up,
                   emptySmnt.source,
-                  " __syncthreads();"
+                  source
                 ))
             );
 
@@ -129,16 +155,6 @@ namespace occa {
             // Set kernel qualifiers
            vartype_t &vartype = kernelSmnt.function().returnType;
 
-           dim kernelInnerDims = innerDims(kernelSmnt);
-           if (!success) return;
-           int kernelInnerDim = kernelInnerDims[0];
-           for(int i=1; i < kernelInnerDims.dims; i++) kernelInnerDim *= kernelInnerDims[i];
-           if(kernelInnerDim) {
-             const std::string s = "__launch_bounds__(" + std::to_string(kernelInnerDim) + ", 1)";
-             qualifier_t *boundQualifier = new qualifier_t(s, qualifierType::custom);
-             vartype.qualifiers.addFirst(vartype.origin(), 
-                                          *boundQualifier);
-           }
            vartype.qualifiers.addFirst(vartype.origin(),
                                         global);
            vartype.qualifiers.addFirst(vartype.origin(),
