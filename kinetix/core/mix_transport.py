@@ -274,7 +274,7 @@ def write_file_conductivity_roll(file_name, output_dir, align_width, target, tra
     var = [b0, b1, b2, b3, b4]
 
     cg = CodeGenerator()
-    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ cfloat kinetix_conductivity"
+    cg.add_line(f"__KINETIX_DEVICE__ __KINETIX_INLINE__ cfloat kinetix_conductivity"
                 f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat Xi[])")
     cg.add_line(f"{{")
     cg.add_line(f"{write_const_expression(align_width, target, True, var_str, var)}")
@@ -319,7 +319,7 @@ def write_file_viscosity_roll(file_name, output_dir, align_width, target, transp
     var2 = [C1, C2]
 
     cg = CodeGenerator()
-    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ cfloat kinetix_viscosity"
+    cg.add_line(f"__KINETIX_DEVICE__ __KINETIX_INLINE__ cfloat kinetix_viscosity"
                 f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat Xi[]) ")
     cg.add_line(f"{{")
     cg.add_line(f"{write_const_expression(align_width, target, True, var1_str, var1)}")
@@ -376,7 +376,7 @@ def write_file_diffusivity_nonsym_roll(file_name, output_dir, align_width, targe
     var = [d0, d1, d2, d3, d4]
 
     cg = CodeGenerator()
-    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ void kinetix_diffusivity"
+    cg.add_line(f"__KINETIX_DEVICE__ __KINETIX_INLINE__ void kinetix_diffusivity"
                  f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
                  f"cfloat lnT3, cfloat lnT4, cfloat Xi[], cfloat* Dkm) ")
     cg.add_line(f"{{")
@@ -429,7 +429,7 @@ def write_file_diffusivity_roll(file_name, output_dir, align_width, target, rcp_
     var = [d0, d1, d2, d3, d4]
 
     cg = CodeGenerator()
-    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ void kinetix_diffusivity"
+    cg.add_line(f"__KINETIX_DEVICE__ __KINETIX_INLINE__ void kinetix_diffusivity"
                 f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
                 f"cfloat lnT3, cfloat lnT4, cfloat Xi[], cfloat* Dkm) ")
     cg.add_line(f"{{")
@@ -477,7 +477,7 @@ def write_file_conductivity_unroll(file_name, output_dir, transport_polynomials,
     """
 
     cg = CodeGenerator()
-    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ cfloat kinetix_conductivity"
+    cg.add_line(f"__KINETIX_DEVICE__ __KINETIX_INLINE__ cfloat kinetix_conductivity"
                 f"(cfloat rcpMbar, cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat Xi[])")
     cg.add_line(f"{{")
     cg.add_line(f"cfloat lambda_k, sum1 = 0., sum2 = 0.;", 1)
@@ -500,8 +500,8 @@ def write_file_viscosity_unroll(file_name, output_dir, group_vis, transport_poly
     Write the 'viscosity.inc' file with unrolled loop specification.
     """
     cg = CodeGenerator()
-    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ cfloat sq(cfloat x) {{ return x*x; }}")
-    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ cfloat kinetix_viscosity"
+    cg.add_line(f"__KINETIX_DEVICE__ __KINETIX_INLINE__ cfloat sq(cfloat x) {{ return x*x; }}")
+    cg.add_line(f"__KINETIX_DEVICE__ __KINETIX_INLINE__ cfloat kinetix_viscosity"
                 f"(cfloat lnT, cfloat lnT2, cfloat lnT3, cfloat lnT4, cfloat Xi[]) ")
     if group_vis:
         cg.add_line(f"{{")
@@ -565,7 +565,7 @@ def write_file_diffusivity_nonsym_unroll(file_name, output_dir, rcp_diffcoeffs,
     """
 
     cg = CodeGenerator()
-    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ void kinetix_diffusivity"
+    cg.add_line(f"__KINETIX_DEVICE__ __KINETIX_INLINE__ void kinetix_diffusivity"
                 f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
                 f"cfloat lnT3, cfloat lnT4, cfloat Xi[], cfloat* Dkm) ")
     cg.add_line(f"{{")
@@ -604,7 +604,7 @@ def write_file_diffusivity_unroll(file_name, output_dir, rcp_diffcoeffs, transpo
         S[i] = v
         return y
 
-    cg.add_line(f"__KINETIX_DEVICE__  __KINETIX_INLINE__ void kinetix_diffusivity"
+    cg.add_line(f"__KINETIX_DEVICE__ __KINETIX_INLINE__ void kinetix_diffusivity"
                 f"(cfloat Mbar, cfloat p, cfloat TsqrT, cfloat lnT, cfloat lnT2, "
                 f"cfloat lnT3, cfloat lnT4, cfloat Xi[], cfloat* Dkm) ")
     cg.add_line(f"{{")
