@@ -411,7 +411,7 @@ static void buildMechKernels(bool transport)
   {// Thermo coeffs kernel
     occa::properties includeProp;
     if (single_precision) {
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/fheat_capacity_R.cpp";
       thermoCoeffs_fp32_kernel = buildKernel("thermoCoeffs.okl", 
           	                             "thermoCoeffs",
           			             addOccaCompilerFlags(includeProp, kernel_properties_fp32));
@@ -419,7 +419,7 @@ static void buildMechKernels(bool transport)
           	                              "thermoCoeffs",
           			              addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
     } else {
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/heat_capacity_R.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/heat_capacity_R.cpp";
       thermoCoeffs_kernel = buildKernel("thermoCoeffs.okl", 
           	                        "thermoCoeffs",
           			        addOccaCompilerFlags(includeProp, kernel_properties));
@@ -432,8 +432,8 @@ static void buildMechKernels(bool transport)
     includeProp["kernel/link_occa"] = true;
     includeProp["compiler_flags"] += " -include " + cacheDir + "/mechanism.H";
     if (single_precision) {
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/frates.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/fenthalpy_RT.cpp";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/frates.cpp";
       production_rates_fp32_kernel = buildKernel("productionRates.okl", 
           	    			         "productionRates",
           				         addOccaCompilerFlags(includeProp, kernel_properties_fp32));
@@ -441,8 +441,8 @@ static void buildMechKernels(bool transport)
           	    			          "productionRates",
           				          addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
     } else {
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/enthalpy_RT.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/rates.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/enthalpy_RT.cpp";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/rates.cpp";
       production_rates_kernel = buildKernel("productionRates.okl",
                                             "productionRates",
                                             addOccaCompilerFlags(includeProp, kernel_properties));
@@ -454,9 +454,9 @@ static void buildMechKernels(bool transport)
 
     occa::properties includeProp;
     if (single_precision) {
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fconductivity.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fviscosity.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/fdiffusivity.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/fconductivity.cpp";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/fviscosity.cpp";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/fdiffusivity.cpp";
       transport_fp32_kernel = buildKernel("transportProps.okl", 
 		                          "transport",
 		                          addOccaCompilerFlags(includeProp, kernel_properties_fp32));
@@ -464,9 +464,9 @@ static void buildMechKernels(bool transport)
 		                           "transport",
 					   addOccaCompilerFlags(includeProp, kernel_properties_fpmix));
     } else {
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/conductivity.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/viscosity.inc";
-      includeProp["compiler_flags"] += " -include " + cacheDir + "/diffusivity.inc";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/conductivity.cpp";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/viscosity.cpp";
+      includeProp["compiler_flags"] += " -include " + cacheDir + "/diffusivity.cpp";
       transport_kernel = buildKernel("transportProps.okl", 
 		                     "transport",
 				     addOccaCompilerFlags(includeProp, kernel_properties));
@@ -701,20 +701,20 @@ void kinetix::build(double _ref_pressure,
       fileSync(std::string(cacheDir + "/mechanism.cpp").c_str());
       fileSync(std::string(cacheDir + "/mechanism.H").c_str());
       if (single_precision) {
-        fileSync(std::string(cacheDir + "/fconductivity.inc").c_str());
-        fileSync(std::string(cacheDir + "/fdiffusivity.inc").c_str());
-        fileSync(std::string(cacheDir + "/fenthalpy_RT.inc").c_str());
-        fileSync(std::string(cacheDir + "/fheat_capacity_R.inc").c_str());
-        fileSync(std::string(cacheDir + "/fviscosity.inc").c_str());
-        fileSync(std::string(cacheDir + "/frates.inc").c_str());
-        fileSync(std::string(cacheDir + "/frates.inc").c_str());
+        fileSync(std::string(cacheDir + "/fconductivity.cpp").c_str());
+        fileSync(std::string(cacheDir + "/fdiffusivity.cpp").c_str());
+        fileSync(std::string(cacheDir + "/fenthalpy_RT.cpp").c_str());
+        fileSync(std::string(cacheDir + "/fheat_capacity_R.cpp").c_str());
+        fileSync(std::string(cacheDir + "/fviscosity.cpp").c_str());
+        fileSync(std::string(cacheDir + "/frates.cpp").c_str());
+        fileSync(std::string(cacheDir + "/frates.cpp").c_str());
       } else {
-        fileSync(std::string(cacheDir + "/conductivity.inc").c_str());
-        fileSync(std::string(cacheDir + "/diffusivity.inc").c_str());
-        fileSync(std::string(cacheDir + "/enthalpy_RT.inc").c_str());
-        fileSync(std::string(cacheDir + "/heat_capacity_R.inc").c_str());
-        fileSync(std::string(cacheDir + "/viscosity.inc").c_str());
-        fileSync(std::string(cacheDir + "/rates.inc").c_str());
+        fileSync(std::string(cacheDir + "/conductivity.cpp").c_str());
+        fileSync(std::string(cacheDir + "/diffusivity.cpp").c_str());
+        fileSync(std::string(cacheDir + "/enthalpy_RT.cpp").c_str());
+        fileSync(std::string(cacheDir + "/heat_capacity_R.cpp").c_str());
+        fileSync(std::string(cacheDir + "/viscosity.cpp").c_str());
+        fileSync(std::string(cacheDir + "/rates.cpp").c_str());
       }
       // inc files are passed to compiler so occa doesn't know if they have changed
       // force occa to recompile by renaming old cache dir

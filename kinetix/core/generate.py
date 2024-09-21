@@ -62,20 +62,20 @@ def generate_files(mech_file=None,
     mech_file = 'mech.h'
     if single_precision:
         gutils.set_precision('FP32')
-        rates_file = 'frates.inc'
-        enthalpy_file = 'fenthalpy_RT.inc'
-        heat_capacity_file = 'fheat_capacity_R.inc'
-        conductivity_file = 'fconductivity.inc'
-        viscosity_file = 'fviscosity.inc'
-        diffusivity_file = 'fdiffusivity.inc'
+        rates_file = 'frates.cpp'
+        enthalpy_file = 'fenthalpy_RT.cpp'
+        heat_capacity_file = 'fheat_capacity_R.cpp'
+        conductivity_file = 'fconductivity.cpp'
+        viscosity_file = 'fviscosity.cpp'
+        diffusivity_file = 'fdiffusivity.cpp'
     else:
         gutils.set_precision('FP64')
-        rates_file = 'rates.inc'
-        enthalpy_file = 'enthalpy_RT.inc'
-        heat_capacity_file = 'heat_capacity_R.inc'
-        conductivity_file = 'conductivity.inc'
-        viscosity_file = 'viscosity.inc'
-        diffusivity_file = 'diffusivity.inc'
+        rates_file = 'rates.cpp'
+        enthalpy_file = 'enthalpy_RT.cpp'
+        heat_capacity_file = 'heat_capacity_R.cpp'
+        conductivity_file = 'conductivity.cpp'
+        viscosity_file = 'viscosity.cpp'
+        diffusivity_file = 'diffusivity.cpp'
 
     if header_only:
         mech.write_file_mech(mech_file, output_dir, species_names, species_len, active_sp_len, reactions_len, Mi)
