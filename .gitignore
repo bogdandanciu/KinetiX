@@ -1,6 +1,7 @@
 .vscode
 .idea
 out
+.cache/
 
 *.egg-info/
 build/
