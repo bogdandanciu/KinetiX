@@ -28,10 +28,10 @@ int main(int argc, char **argv) {
   if (rank == 0)
     printf("size: %d\n", size);
   int err = 0;
-  int n_states = 100000;
-  int n_rep = 20;
+  int n_states = 10;
+  int n_rep = 1;
   bool transport = false;
-  bool debug = false;
+  bool print_states = false;
   std::string mech;
 
   while (1) {
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
         {"n-repetitions", required_argument, 0, 'r'},
         {"mechanism", required_argument, 0, 'm'},
         {"transport", no_argument, 0, 't'},
-        {"debug", no_argument, 0, 'd'},
+        {"print-states", no_argument, 0, 'p'},
     };
 
     int option_index = 0;
@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
       transport = true;
       break;
     case 'd':
-      debug = true;
+      print_states = true;
       break;
 
     default:
@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
   if (err > 0) {
     if (rank == 0)
       printf("Usage: ./cantera_test  --n-states n --n-repetitions n --mechanism f "
-             "[--transport] [--debug] \n");
+             "[--transport] [--print-states] \n");
     exit(EXIT_FAILURE);
   }
 
@@ -151,9 +151,9 @@ int main(int argc, char **argv) {
              size * nStates);
     }
 
-    if (debug) {
+    if (print_states) {
       for (int i = 0; i < nStates * offset; i++)
-        printf("rates[%d]: %.9e \n", i, ydot[i]);
+        printf("ydot[%d]: %.9e \n", i, ydot[i]);
     }
   }
 
@@ -193,7 +193,7 @@ int main(int argc, char **argv) {
              size * nStates);
     }
     
-    if (debug){
+    if (print_states){
       for (int i = 0; i < nStates; i++){
         printf("cond[%d]: %.9e \n", i, cond[i]);
         printf("visc[%d]: %.9e \n", i, visc[i]);

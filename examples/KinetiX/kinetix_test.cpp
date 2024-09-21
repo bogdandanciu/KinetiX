@@ -18,10 +18,54 @@ int main(int argc, char **argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   if (rank == 0)
     printf("size: %d\n", size);
+  
+  int err = 0;
+  int n_states = 10;
+  int n_rep = 1;
+  bool transport=false;
+  bool print_states=false;
 
-  int Nstates = 1 / size;
-  int Nrep = 1;
-  bool transport = true;
+  while (1) {
+    static struct option long_options[] = {
+        {"n-states", required_argument, 0, 's'},
+        {"n-repetitions", required_argument, 0, 'r'},
+        {"transport", no_argument, 0, 't'},
+        {"print-states", no_argument, 0, 'p'}
+    };
+
+    int option_index = 0;
+    int args = getopt_long(argc, argv, "s:", long_options, &option_index);
+    if (args == -1)
+      break;
+
+    switch (args) {
+    case 's':
+      n_states = std::stoi(optarg);
+      break;
+    case 'r':
+      n_rep = std::stoi(optarg);
+      break;
+    case 't':
+      transport=true;
+      break;
+    case 'p':
+      print_states=true;
+      break;
+
+    default:
+      err++;
+    }
+  }
+
+  if (err > 0) {
+    if (rank == 0)
+      printf("Usage: ./cantera_test  [--n-states n] [--n-repetitions n] "
+             "[--transport] [--print-states]\n");
+    exit(EXIT_FAILURE);
+  }
+
+  int Nstates = n_states / size;
+  int Nrep = n_rep;
   int offset = __KINETIX_NSPECIES__ + 1;
 
   // Initialize variables
@@ -100,16 +144,16 @@ int main(int argc, char **argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     const auto elapsedTime = (MPI_Wtime() - startTime);
 
-    if(rank == 0)
+    if (rank == 0)
       printf("--- Chemistry ---\n");
       printf("avg aggregated throughput: %.3f GDOF/s (Nstates = %d)\n",
              (size * (double)(Nstates * (__KINETIX_NSPECIES__ + 1) * Nrep)) / elapsedTime / 1e9,
              size * Nstates);
 
-#if 0
-    for (int i=0; i< Nstates * (__KINETIX_NSPECIES__ + 1); i++)
-      printf("rates[%d]: %.9e \n", i, ydot[i]);
-#endif
+    if (print_states){
+      for (int i=0; i< Nstates * (__KINETIX_NSPECIES__ + 1); i++)
+        printf("ydot[%d]: %.9e \n", i, ydot[i]);
+    }
 
   } 
 
@@ -122,8 +166,8 @@ int main(int argc, char **argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     const auto startTime = MPI_Wtime();
 
-    for(int i=0; i<Nrep; i++) {
-      for(int n=0; n<Nstates; n++) {
+    for (int i=0; i<Nrep; i++) {
+      for (int n=0; n<Nstates; n++) {
         const cfloat lnT = log(T);
         const cfloat lnT2 = lnT * lnT;
         const cfloat lnT3 = lnT * lnT * lnT;
@@ -146,7 +190,7 @@ int main(int argc, char **argv) {
         kinetix_diffusivity(W, p, T*sqrT, lnT, lnT2, lnT3, lnT4, wrk1, Di);
         
 	cfloat rho = p * W / (R * T);
-	for(int k = 0; k < __KINETIX_NSPECIES__; k++) {
+	for (int k = 0; k < __KINETIX_NSPECIES__; k++) {
           unsigned int idx = k*Nstates+n;
           rhoDi[idx] = rho * Di[k];
         }
@@ -157,21 +201,21 @@ int main(int argc, char **argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     const auto elapsedTime = (MPI_Wtime() - startTime);
 
-    if(rank == 0){
+    if (rank == 0){
       printf("--- Transport ---\n");
       printf("avg aggregated throughput: %.3f GDOF/s (Nstates = %d)\n",
              (size * (double)(Nstates*(__KINETIX_NSPECIES__ + 1) * Nrep))/ elapsedTime /1e9,
              size*Nstates);
     }
 
-#if 0
-    for (int i = 0; i < Nstates; i++){
-      printf("cond[%d]: %.9e \n", i, cond[i]);
-      printf("visc[%d]: %.9e \n", i, visc[i]);
+    if (print_states){
+      for (int i = 0; i < Nstates; i++){
+        printf("cond[%d]: %.9e \n", i, cond[i]);
+        printf("visc[%d]: %.9e \n", i, visc[i]);
+      }
+      for (int i = 0; i < Nstates * __KINETIX_NSPECIES__; i++)
+        printf("rhoDi[%d]: %.9e \n", i, rhoDi[i]);
     }
-    for (int i = 0; i < Nstates * __KINETIX_NSPECIES__; i++)
-      printf("rhoDi[%d]: %.9e \n", i, rhoDi[i]);
-#endif
  
   }
 

@@ -2,6 +2,8 @@ CC = gcc
 CXX = mpic++
 
 CFLAGS = -std=c++17 -O3 -march=native -mtune=native -ffast-math
+CFLAGS += -include mechanisms/gri/mechanism.H
+CFLAGS += -include mechanisms/gri/mechanism.cpp
 
 # Include directories for AMReX headers
 AMREX_INCLUDE = -I$(HOME)/amrex/tmp_install_dir/include
@@ -24,5 +26,5 @@ $(EXECUTABLE): $(OBJECTS)
 	$(CXX) $(CFLAGS) $(AMREX_LIB) $(AMREX_INCLUDE) -c -o $@ $<
 
 clean:
-	rm -f $(OBJECTS) $(EXECUTABLE)
-
+	rm -f $(OBJECTS) $(EXECUTABLE) *.o
+ 

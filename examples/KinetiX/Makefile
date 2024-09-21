@@ -2,13 +2,11 @@ CC=gcc
 #CFLAGS= -std=c++11 -g -Ofast -march=native -mtune=native -fopt-info-vec-all
 #CFLAGS= -std=c++11 -g -Ofast -march=native -mtune=native -fopt-info-vec-missed
 CFLAGS= -std=c++17 -O3 -march=native -mtune=native -ffast-math
-# External libraries
-CFLAGS += -include "math.h"
 # Function specifiers
 CFLAGS += -D__KINETIX_DEVICE__=
 CFLAGS += -D__KINETIX_CONST__=const
 CFLAGS += -D__KINETIX_INLINE__='static inline'
-# F64 
+# FP64 
 CFLAGS += -Dcfloat=double
 CFLAGS += -Ddfloat=double
 CFLAGS += -D__KINETIX_EXP__=exp
@@ -19,25 +17,25 @@ CFLAGS += -DCFLOAT_MAX=1e300
 CFLAGS += -DCFLOAT_MIN=1e-300
 CFLAGS += -DKINETIX_MIN_CFLOAT=fmin
 CFLAGS += -DKINETIX_MAX=fmax
-CFLAGS += -include files/mech.h
-CFLAGS += -include files/rates.inc
-CFLAGS += -include files/enthalpy_RT.inc
-CFLAGS += -include files/heat_capacity_R.inc
-CFLAGS += -include files/conductivity.inc
-CFLAGS += -include files/viscosity.inc
-CFLAGS += -include files/diffusivity.inc
+CFLAGS += -include mechanisms/gri/mech.h
+CFLAGS += -include mechanisms/gri/rates.cpp
+CFLAGS += -include mechanisms/gri/enthalpy_RT.cpp
+CFLAGS += -include mechanisms/gri/heat_capacity_R.cpp
+CFLAGS += -include mechanisms/gri/conductivity.cpp
+CFLAGS += -include mechanisms/gri/viscosity.cpp
+CFLAGS += -include mechanisms/gri/diffusivity.cpp
 # Include kinetix files
 
 CXX=mpic++
 CC=$(CXX)
 
-all: kinetix
+all: kinetix_test
 
-kinetix: kinetix_test.cpp kinetix_test.hpp
-	$(CXX) -g $(CFLAGS) $(CF64FLAGS) $^ -o kinetix
+kinetix_test: kinetix_test.cpp kinetix_test.hpp
+	$(CXX) -g $(CFLAGS) $(CF64FLAGS) $^ -o kinetix_test
 
 .PHONY: clean kinetix
 clean: 
-	rm -f *.o kinetix
+	rm -f *.o kinetix_test
 
 

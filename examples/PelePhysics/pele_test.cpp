@@ -8,7 +8,6 @@
 #include <sstream>
 #include <string>
 
-#include "mechanism.H"
 
 int main(int argc, char **argv) {
   std::srand(std::time(0));
@@ -22,15 +21,15 @@ int main(int argc, char **argv) {
     printf("size: %d\n", size);
 
   int err = 0;
-  int n_states = 1000000;
-  int n_rep = 20;
-  std::string mech;
+  int n_states = 10;
+  int n_rep = 1;
+  bool print_states=false;
 
   while (1) {
     static struct option long_options[] = {
         {"n-states", required_argument, 0, 's'},
         {"n-repetitions", required_argument, 0, 'r'},
-        {"mechanism", required_argument, 0, 'm'},
+        {"print-states", no_argument, 0, 'p'}
     };
 
     int option_index = 0;
@@ -45,8 +44,8 @@ int main(int argc, char **argv) {
     case 'r':
       n_rep = std::stoi(optarg);
       break;
-    case 'm':
-      mech.assign(optarg);
+    case 'p':
+      print_states=true;
       break;
 
     default:
@@ -54,13 +53,10 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (mech.size() < 1)
-    err++;
-
   if (err > 0) {
     if (rank == 0)
       printf("Usage: ./cantera_test  [--n-states n] [--n-repetitions n] "
-             "[--mechanism f] \n");
+             "[--print-states]\n");
     exit(EXIT_FAILURE);
   }
 
@@ -155,10 +151,10 @@ int main(int argc, char **argv) {
            (size * (double)(Nstates * offset) * Nrep) / elapsedTime / 1e9,
            size * Nstates);
 
-#if 0
-  for (int i=0; i< Nstates * offset; i++)
-    printf("rates[%d]: %.9e \n", i, ydot[i]);
-#endif
+  if (print_states){
+    for (int i=0; i< Nstates * offset; i++)
+      printf("ydot[%d]: %.9e \n", i, ydot[i]);
+  }
 
   MPI_Finalize();
   exit(EXIT_SUCCESS);
