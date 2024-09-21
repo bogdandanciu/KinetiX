@@ -47,16 +47,18 @@ These kernels use the [OCCA](https://github.com/libocca/occa) library to support
 
 ### Installation:
 
-The installation directory is determined by the KINETIX_PATH environment variable. 
-If this variable is set, the specified location will be used.
-Otherwise, the default installation directory will be $HOME/.local/kinetix. 
+To install the benchmark kernels, use the provided setup script:
 
 ```sh
-cd benchmark; mkdir build; cd build
-export KINETIX_PATH=$HOME/.local/kinetix
-cmake -DCMAKE_INSTALL_PREFIX=$KINETIX_PATH [-DAMReX_GPU_BACKEND=CUDA] [-DAMReX_PRECISION=SINGLE] ..
-make -j4 install
+cd benchmark
+./install_bk.sh
 ```
+
+For custom installation options, such as changing the installation directory or changing the amrex backend, run:
+```sh
+./install_bk.sh --help
+```
+
 ### BK1: Species Production Rates
 ```sh
 export OCCA_CXX=mpic++
