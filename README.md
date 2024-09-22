@@ -65,7 +65,7 @@ export OCCA_CXX=mpic++
 mpirun -np 1 ${KINETIX_PATH}/bin/kinetix_bk --backend SERIAL --n-states 1000000 --mode 1 --yaml-file kinetix/mechanisms/gri30.yaml
 ```
 ```sh
-mpirun -np 1 ${KINETIX_PATH}/bin/kinetix_bk --backend CUDA --n-states 1000000 --mode 1 --yaml-file kinetix/mechanisms/gri30.yaml
+mpirun -np 1 ${KINETIX_PATH}/bin/kinetix_bk --backend CUDA --n-states 1000000 --mode 1 --yaml-file kinetix/mechanisms/gri30.yaml --unroll-loops
 ```
 
 ### BK2: Mixture-Averaged Transport Properties
@@ -74,7 +74,7 @@ export OCCA_CXX=mpic++
 mpirun -np 1 ${KINETIX_PATH}/bin/kinetix_bk --backend SERIAL --n-states 1000000 --mode 2  --yaml-file kinetix/mechanisms/gri30.yaml
 ```
 ```sh
-mpirun -np 1 ${KINETIX_PATH}/bin/kinetix_bk --backend CUDA --n-states 1000000 --mode 2  --yaml-file kinetix/mechanisms/gri30.yaml
+mpirun -np 1 ${KINETIX_PATH}/bin/kinetix_bk --backend CUDA --n-states 1000000 --mode 2  --yaml-file kinetix/mechanisms/gri30.yaml --unroll-loops
 ```
 
 ## Examples
