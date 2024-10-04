@@ -56,16 +56,16 @@ cd benchmark
 
 For custom installation options, such as changing the installation directory or changing the amrex backend, run:
 ```sh
-./install_bk.sh --help
+source ./install_bk.sh --help
 ```
 
 ### BK1: Species Production Rates
 ```sh
 export OCCA_CXX=mpic++
-mpirun -np 1 ${KINETIX_PATH}/bin/kinetix_bk --backend SERIAL --n-states 1000000 --mode 1 --yaml-file kinetix/mechanisms/gri30.yaml
+mpirun -np 1 ${KINETIX_PATH}/bin/kinetix_bk --backend SERIAL --n-states 10 --mode 1 --yaml-file kinetix/mechanisms/gri30.yaml
 ```
 ```sh
-mpirun -np 1 ${KINETIX_PATH}/bin/kinetix_bk --backend CUDA --n-states 1000000 --mode 1 --yaml-file kinetix/mechanisms/gri30.yaml --unroll-loops
+mpirun -np 1 ${KINETIX_PATH}/bin/kinetix_bk --backend CUDA --n-states 10 --mode 1 --yaml-file kinetix/mechanisms/gri30.yaml --unroll-loops
 ```
 
 ### BK2: Mixture-Averaged Transport Properties
