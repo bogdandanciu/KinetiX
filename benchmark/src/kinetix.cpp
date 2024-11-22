@@ -800,11 +800,13 @@ void kinetix::productionRates(int n_states,
 
 
   const double pressure_R = pressure * ref_pressure / R;
+  const double pressure_ = pressure * ref_pressure;
 
   kernel(n_states,
          offsetT,
          offset,
          pressure_R,
+         pressure_,
          o_state,
          o_rates,
          ref_temperature);
