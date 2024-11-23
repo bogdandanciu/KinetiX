@@ -101,7 +101,7 @@ bool checkThermo(occa::memory& o_rho,
     const auto rho_SI = rho[id];
     const auto ciVal = ci_rho[id];
     if(debug)
-      printf("rho: Cantera %.15f kinetix %.15f relative error %e\n",
+      printf("rho: Cantera %.15f KinetiX %.15f relative error %e\n",
              ciVal,
              rho_SI,
              relErr(rho_SI, ciVal));

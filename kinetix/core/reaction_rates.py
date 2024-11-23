@@ -72,13 +72,13 @@ def get_reaction_from_model(sp_names, units, r):
     else:
         reaction.third_body_index = -1
 
-    def rate_constant(self, concentration_cm3_unit_conversion_factor_exponent):
+    def rate_constant(self, cm3_factor_exp):
 
         class RateConstant:
             pass
 
         rate_constant = RateConstant()
-        rate_constant.preexponential_factor = self['A'] * pow(1e-6, concentration_cm3_unit_conversion_factor_exponent)
+        rate_constant.preexponential_factor = self['A'] * pow(1e-6, cm3_factor_exp)
         rate_constant.temperature_exponent = self['b']
         Ea = self['Ea']
         if units['activation-energy'] == 'K':
@@ -86,7 +86,7 @@ def get_reaction_from_model(sp_names, units, r):
         elif units['activation-energy'] == 'cal/mol':
             rate_constant.activation_temperature = Ea * const.J_per_cal / const.R
         else:
-            exit('activation-energy')
+            exit('Error: Unknown units for activation-energy')
         return rate_constant
 
     reactants = sum(reaction.reactants)
@@ -97,10 +97,6 @@ def get_reaction_from_model(sp_names, units, r):
         reaction.rate_constant = rate_constant(r.get('rate-constant', r.get('high-P-rate-constant')), reactants - 1)
     else:
         reaction.rate_constant = rate_constant(r['rate-constants'][0], reactants - 1)
-        if r['type'] != 'pressure-dependent-Arrhenius':
-            print(f"expected P-log: {r}")
-        if len(r['rate-constants']) != 1:
-            exit(f"unimplemented P-log: always using first rate constant {r['rate-constants'][0]} for {r} instead")
 
     if r.get('type') is None or r.get('type') == 'elementary':
         if re.search('[^<]=>', r['equation']):
@@ -112,7 +108,7 @@ def get_reaction_from_model(sp_names, units, r):
             reaction.type = 'elementary'
             reaction.direction = 'reversible'
         else:
-            exit(r)
+            exit(f"Error: unknown reaction: '{r}'")
     elif r.get('type') == 'three-body':
         reaction.type = 'three-body'
         if re.search('[^<]=>', r['equation']):
@@ -160,15 +156,33 @@ def get_reaction_from_model(sp_names, units, r):
         reaction.sri.D = r['SRI'].get('D', 1)
         reaction.sri.E = r['SRI'].get('E', 0)
     elif r.get('type') == 'pressure-dependent-Arrhenius':
+        reaction.type = 'P-log'
+        reaction.plog_k = {}
+        reaction.num_P_conditions = len(r['rate-constants'])
+        pressure_conditon_pattern = r"[-+]?\d*\.?\d+([eE][-+]?\d+)?"
+        for idx in range(reaction.num_P_conditions):
+            rate_constant_plog = rate_constant(r['rate-constants'][idx], reactants - 1)
+            pressure_condition = r['rate-constants'][idx]['P']
+            A = rate_constant_plog.preexponential_factor
+            beta = rate_constant_plog.temperature_exponent
+            E = rate_constant_plog.activation_temperature
+            match = re.search(pressure_conditon_pattern, pressure_condition)
+            pressure = float(match.group())*const.one_atm
+            # Takes into account multiple rate constants for the same pressure.
+            if (idx !=0) and (pressure == last_pressure):
+                reaction.plog_k[pressure].append([A, beta, E, rate_constant_plog])
+            else:
+                reaction.plog_k[pressure] = [[A, beta, E, rate_constant_plog]]
+            last_pressure = pressure 
         if '<=>' in r['equation'] or '=' in r['equation']:
-            assert (r.get('reversible', True))
-            reaction.type = 'elementary'
+            assert (r.get('reversible', True))  
+            reaction.direction = 'reversible'
         elif re.search('[^<]=>', r['equation']):
-            reaction.type = 'irreversible'
+            reaction.direction = 'irreversible'
         else:
-            exit(r)
+            exit(f"Error: unknown reaction: '{r}'")
     else:
-        exit(r)
+        exit(f"Error: unknown reaction: '{r}'")
 
     if r.get('efficiencies'):
         reaction.efficiencies = [
@@ -201,6 +215,79 @@ def compute_kr_unroll(r):
     return kr
 
 
+def arrhenius(rc):
+    """
+    Generates a string expression for an Arrhenius rate equation based on rate constant parameters.
+    """
+    A, beta, E = (
+        rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
+    if beta == 0 and E != 0:
+        expression = f'exp({f(ln(A))} + {f(-E)}*rcpT)'
+    elif beta == 0 and E == 0:
+        expression = f'{f(A)}'
+    elif beta != 0 and E == 0:
+        if beta == -2 and E == 0:
+            expression = f'{f(A)}*rcpT*rcpT'
+        elif beta == -1 and E == 0:
+            expression = f'{f(A)}*rcpT'
+        elif beta == 1 and E == 0:
+            expression = f'{f(A)}*T'
+        elif beta == 2 and E == 0:
+            expression = f'{f(A)}*T*T'
+        else:
+            expression = f'exp({f(ln(A))} + {f(beta)}*lnT)'
+    else:
+        expression = f'exp({f(ln(A))} + {f(beta)}*lnT + {f(-E)}*rcpT)'
+    return expression
+
+
+def arrhenius_diff(r):
+    """
+    Generates a string expression for the ratio of two Arrhenius rate constants (k0/k_inf).
+    """
+    A_inf, beta_inf, E_inf = (
+        r.rate_constant.preexponential_factor,
+        r.rate_constant.temperature_exponent,
+        r.rate_constant.activation_temperature)
+    A0, beta0, E0 = r.k0.preexponential_factor, r.k0.temperature_exponent, r.k0.activation_temperature
+    expression = (
+        f"exp("
+        f"{f'{f(-E0 + E_inf)}*rcpT+' if (E0 - E_inf) != 0 else ''}"
+        f"{f'{f(beta0 - beta_inf)}*lnT+' if (beta0 - beta_inf) != 0 else ''}{f(ln(A0) - ln(A_inf))})"
+        if (A0 - A_inf) != 0 and ((beta0 - beta_inf) != 0 or (E0 - E_inf) != 0) else f'{f(A0 / A_inf)}'
+    )
+    return expression
+
+
+def write_multiple_plog_rates_unroll(cg, kf_vals, num=None):
+    """
+    Writes rate constant computation in the case of multiple rates for a single pressure.
+    Here "num" takes values None, 1, or 2:
+        None - Pressure specified by user is equal to one of the pressure range bounds/limits.
+        1    - Lower pressure value for that specific range.
+        2    - Higher pressure value for that specific range.
+    """
+    if num == None:
+        if len(kf_vals) == 1:
+            cg.add_line(f"kf = {arrhenius(kf_vals[0][-1])};", 2)
+        else:
+            kf_str = []
+            for j in range(len(kf_vals)):
+                kf_str.append(f'{arrhenius(kf_vals[j][-1])}')
+                if j == (len(kf_vals) - 1):
+                    cg.add_line(f"kf = " + " + ".join(kf_str) + ";", 2)
+    elif (num == 1) or (num == 2):
+        if len(kf_vals) == 1:
+            cg.add_line(f"cfloat kf{num} = {arrhenius(kf_vals[0][-1])};", 2)
+        else:
+            kf_str = []
+            for j in range(len(kf_vals)):
+                kf_str.append(f"{arrhenius(kf_vals[j][-1])}")
+                if j == (len(kf_vals) - 1):
+                    cg.add_line(f"cfloat kf{num} = " + " + ".join(kf_str) + ";", 2)
+    return 0
+
+
 def write_reaction(idx, r, loop_gibbsexp):
     """
     Write reaction for the unrolled code.
@@ -212,40 +299,6 @@ def write_reaction(idx, r, loop_gibbsexp):
         efficiency = [f'{f(efficiency - 1)}*Ci[{specie}]' if efficiency != 2 else f'Ci[{specie}]'
                       for specie, efficiency in enumerate(r.efficiencies) if efficiency != 1]
         cg.add_line(f'''eff = Cm{f"+{'+'.join(efficiency)}" if efficiency else ''};''', 1)
-
-    def arrhenius(rc):
-        A, beta, E = (
-            rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
-        if beta == 0 and E != 0:
-            expression = f'exp({f(ln(A))} + {f(-E)}*rcpT)'
-        elif beta == 0 and E == 0:
-            expression = f'{f(A)}'
-        elif beta != 0 and E == 0:
-            if beta == -2 and E == 0:
-                expression = f'{f(A)}*rcpT*rcpT'
-            elif beta == -1 and E == 0:
-                expression = f'{f(A)}*rcpT'
-            elif beta == 1 and E == 0:
-                expression = f'{f(A)}*T'
-            elif beta == 2 and E == 0:
-                expression = f'{f(A)}*T*T'
-            else:
-                expression = f'exp({f(ln(A))} + {f(beta)}*lnT)'
-        else:
-            expression = f'exp({f(ln(A))} + {f(beta)}*lnT + {f(-E)}*rcpT)'
-        return expression
-
-    def arrhenius_diff(rc):
-        A_inf, beta_inf, E_inf = (
-            rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
-        A0, beta0, E0 = r.k0.preexponential_factor, r.k0.temperature_exponent, r.k0.activation_temperature
-        expression = (
-            f"exp("
-            f"{f'{f(-E0 + E_inf)}*rcpT+' if (E0 - E_inf) != 0 else ''}"
-            f"{f'{f(beta0 - beta_inf)}*lnT+' if (beta0 - beta_inf) != 0 else ''}{f(ln(A0) - ln(A_inf))})"
-            if (A0 - A_inf) != 0 and ((beta0 - beta_inf) != 0 or (E0 - E_inf) != 0) else f'{f(A0 / A_inf)}'
-        )
-        return expression
 
     if r.type == 'elementary' or r.type == 'irreversible':
         cg.add_line(f'kf = {arrhenius(r.rate_constant)};', 1)
@@ -259,20 +312,20 @@ def write_reaction(idx, r, loop_gibbsexp):
     elif r.type == 'pressure-modification':
         cg.add_line(f"kf = {arrhenius(r.rate_constant)};", 1)
         if hasattr(r, 'efficiencies'):
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+            cg.add_line(f"Pr = {arrhenius_diff(r)} * eff;", 1)
         elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+            cg.add_line(f"Pr = {arrhenius_diff(r)} * Ci[{r.third_body_index}];", 1)
         else:
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
+            cg.add_line(f"Pr = {arrhenius_diff(r)} * Cm;", 1)
         cg.add_line(f"kf *= Pr/(1 + Pr);", 1)
     elif r.type == 'Troe':
         cg.add_line(f"kf = {arrhenius(r.rate_constant)};", 1)
         if hasattr(r, 'efficiencies'):
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+            cg.add_line(f"Pr = {arrhenius_diff(r)} * eff;", 1)
         elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+            cg.add_line(f"Pr = {arrhenius_diff(r)} * Ci[{r.third_body_index}];", 1)
         else:
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
+            cg.add_line(f"Pr = {arrhenius_diff(r)} * Cm;", 1)
         cg.add_line(f"logPr = log10(Pr + CFLOAT_MIN);", 1)
         # Add checks for troe coefficients
         if r.troe.A == 0:
@@ -293,17 +346,48 @@ def write_reaction(idx, r, loop_gibbsexp):
     elif r.type == 'SRI':
         cg.add_line(f"kf = {arrhenius(r.rate_constant)};", 1)
         if hasattr(r, 'efficiencies'):
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+            cg.add_line(f"Pr = {arrhenius_diff(r)} * eff;", 1)
         elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+            cg.add_line(f"Pr = {arrhenius_diff(r)} * Ci[{r.third_body_index}];", 1)
         else:
-            cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
+            cg.add_line(f"Pr = {arrhenius_diff(r)} * Cm;", 1)
         cg.add_line(f"logPr = log10(Pr);", 1)
         cg.add_line(f"F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
                     f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});", 1)
         cg.add_line(f"kf *= Pr/(1 + Pr) * F;", 1)
+    elif r.type == 'P-log':
+        plog_vals = list(r.plog_k.keys())
+        for plog_index in range(len(plog_vals) - 1):
+            p1, p2 = plog_vals[plog_index], plog_vals[plog_index+1]
+            kf1_vals, kf2_vals = list(r.plog_k[p1]), list(r.plog_k[p2])
+            lnp1, lnp2 = math.log(p1), math.log(p2)
+            lnpdiff = lnp2 - lnp1
+            rcp_lnpdiff = 1/lnpdiff
+            if (plog_index == 0):
+                cg.add_line(f"if((P > {p1}) && (P < {p2}))", 1)
+                cg.add_line(f"{{", 1)
+            else:
+                cg.add_line(f"}} else if ((P > {p1}) && (P < {p2})){{", 1)
+            
+            write_multiple_plog_rates_unroll(cg, kf1_vals, num=1)
+            write_multiple_plog_rates_unroll(cg, kf2_vals, num=2)
+            cg.add_line(f"kf = exp("
+                        f" log(kf1) + ( log(kf2) - log(kf1) )*(lnP - {f(lnp1)})*{f(rcp_lnpdiff)});", 2)
+            # Takes into account pressures outside the given range similar to Cantera.
+            if (plog_index == 0):
+                cg.add_line(f"}} else if (P <= {p1}){{", 1)
+                write_multiple_plog_rates_unroll(cg, kf1_vals)
+            elif (plog_index == (len(plog_vals) - 2)):
+                cg.add_line(f"}} else if (P == {p1}){{", 1)
+                write_multiple_plog_rates_unroll(cg, kf1_vals)
+                cg.add_line(f"}} else if (P >= {p2}){{", 1)
+                write_multiple_plog_rates_unroll(cg, kf2_vals)
+                cg.add_line(f"}}", 1)
+            else:
+                cg.add_line(f"}} else if (P == {p1}){{", 1)
+                write_multiple_plog_rates_unroll(cg, kf1_vals)
     else:
-        exit(r.type)
+        exit(f"Error: --unroll-loops option doesn't support reaction type: '{r.type}'")
 
     phase_space = lambda reagents: '*'.join(
         '*'.join([f'Ci[{specie}]'] * coefficient) for specie, coefficient in enumerate(reagents) if
@@ -348,41 +432,6 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                           for specie, efficiency in enumerate(r.efficiencies) if efficiency != 1]
             cg.add_line(f'''eff = Cm{f"+{'+'.join(efficiency)}" if efficiency else ''};''', 1)
 
-        def arrhenius(rc):
-            A, beta, E = (
-                rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
-            if beta == 0 and E != 0:
-                expression = f'exp({f(ln(A))} + {f(-E)}*rcpT)'
-            elif beta == 0 and E == 0:
-                expression = f'{f(A)}'
-            elif beta != 0 and E == 0:
-                if beta == -2 and E == 0:
-                    expression = f'{f(A)}*rcpT*rcpT'
-                elif beta == -1 and E == 0:
-                    expression = f'{f(A)}*rcpT'
-                elif beta == 1 and E == 0:
-                    expression = f'{f(A)}*T'
-                elif beta == 2 and E == 0:
-                    expression = f'{f(A)}*T*T'
-                else:
-                    expression = f'exp({f(ln(A))} + {f(beta)}*lnT)'
-            else:
-                expression = f'exp({f(ln(A))} + {f(beta)}*lnT + {f(-E)}*rcpT)'
-            return expression
-
-        def arrhenius_diff(rc):
-            A_inf, beta_inf, E_inf = (
-                rc.preexponential_factor, rc.temperature_exponent, rc.activation_temperature)
-            A0, beta0, E0 = r.k0.preexponential_factor, r.k0.temperature_exponent, r.k0.activation_temperature
-            expression = (
-                f"exp("
-                f"{f'{f(-E0 + E_inf)}*rcpT+' if (E0 - E_inf) != 0 else ''}"
-                f"{f'{f(beta0 - beta_inf)}*lnT+' if (beta0 - beta_inf) != 0 else ''}"
-                f"{f(ln(A0) - ln(A_inf))})"
-                if (A0 - A_inf) != 0 and ((beta0 - beta_inf) != 0 or (E0 - E_inf) != 0) else f'{f(A0 / A_inf)}'
-            )
-            return expression
-
         if r.type == 'elementary' or r.type == 'irreversible':
             if idx == first_idx:
                 cg.add_line(f'kf = {arrhenius(r.rate_constant)};', 1)
@@ -411,11 +460,11 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
                             1)
             if hasattr(r, 'efficiencies'):
-                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+                cg.add_line(f"Pr = {arrhenius_diff(r)} * eff;", 1)
             elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
-                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+                cg.add_line(f"Pr = {arrhenius_diff(r)} * Ci[{r.third_body_index}];", 1)
             else:
-                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
+                cg.add_line(f"Pr = {arrhenius_diff(r)} * Cm;", 1)
             cg.add_line(f"k_corr = kf * Pr/(1 + Pr);", 1)
         elif r.type == 'Troe':
             if idx == first_idx:
@@ -425,11 +474,11 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
                             1)
             if hasattr(r, 'efficiencies'):
-                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+                cg.add_line(f"Pr = {arrhenius_diff(r)} * eff;", 1)
             elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
-                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+                cg.add_line(f"Pr = {arrhenius_diff(r)} * Ci[{r.third_body_index}];", 1)
             else:
-                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
+                cg.add_line(f"Pr = {arrhenius_diff(r)} * Cm;", 1)
             cg.add_line(f"logPr = log10(Pr + CFLOAT_MIN);", 1)
             # Add checks for troe coefficients
             if r.troe.A == 0:
@@ -455,17 +504,17 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
                             f'{r.rate_constant.preexponential_factor/previous_r.rate_constant.preexponential_factor};',
                             1)
             if hasattr(r, 'efficiencies'):
-                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * eff;", 1)
+                cg.add_line(f"Pr = {arrhenius_diff(r)} * eff;", 1)
             elif not hasattr(r, 'efficiencies') and r.third_body_index >= 0:
-                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Ci[{r.third_body_index}];", 1)
+                cg.add_line(f"Pr = {arrhenius_diff(r)} * Ci[{r.third_body_index}];", 1)
             else:
-                cg.add_line(f"Pr = {arrhenius_diff(r.rate_constant)} * Cm;", 1)
+                cg.add_line(f"Pr = {arrhenius_diff(r)} * Cm;", 1)
             cg.add_line(f"logPr = log10(Pr);", 1)
             cg.add_line(f"F = {r.sri.D}*pow({r.sri.A}*exp({-r.sri.B}*rcpT)+"
                         f"exp({-1. / (r.sri.C + FLOAT_MIN)}*T), 1./(1.+logPr*logPr))*pow(T, {r.sri.E});", 1)
             cg.add_line(f"k_corr = kf * Pr/(1 + Pr) * F;", 1)
         else:
-            exit(r.type)
+            exit(f"Error: --group-rxnUnroll option doesn't support reaction type: '{r.type}'")
 
         phase_space = lambda reagents: '*'.join(
             '*'.join([f'Ci[{specie}]'] * coefficient) for specie, coefficient in enumerate(reagents) if
@@ -495,8 +544,8 @@ def write_reaction_grouped(grouped_rxn, first_idx, loop_gibbsexp):
         cg.add_line(f"")
 
     return cg.get_code()
-    
-    
+
+
 def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunroll,
                             reactions, active_len, sp_len, sp_thermo):
     """
@@ -510,7 +559,7 @@ def write_file_rates_unroll(file_name, output_dir, loop_gibbsexp, group_rxnunrol
     cg.add_line(f"#include <math.h>")
     cg.add_line(f"__KINETIX_DEVICE__ __KINETIX_INLINE__ void kinetix_species_rates"
                 f"(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4, "
-                f"const cfloat rcpT, const cfloat* Ci, cfloat* wdot) ")
+                f"const cfloat rcpT, const cfloat P, const cfloat lnP, const cfloat* Ci, cfloat* wdot) ")
     cg.add_line(f"{{")
     cg.add_line(f"cfloat gibbs0_RT[{active_len}];", 1)
     expression = lambda a: (f"{f(a[5])} * rcpT + {f(a[0] - a[6])} + {f(-a[0])} * lnT + "
@@ -577,6 +626,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     ids_EB, ids_E0B0, ids_E0Bneg1, ids_E0Bneg2, ids_E0B1, ids_E0B2, ids_ErBr = [], [], [], [], [], [], []
     pos_ids_ErBr = []
     ids_old = []
+    pressure_plog = []
     for i in range(rxn_len):
         ids_old.append(i)
         A.append(rxn[i].rate_constant.preexponential_factor)
@@ -610,7 +660,6 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             A.append(rxn[i].k0.preexponential_factor)
             beta.append(rxn[i].k0.temperature_exponent)
             E_R.append(rxn[i].k0.activation_temperature)
-
             if beta[-1] == 0 and E_R[-1] == 0:
                 ids_E0B0.append(k0_ids)
             elif beta[-1] == -2 and E_R[-1] == 0:
@@ -631,6 +680,42 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                         break
                 if not match_found:
                     ids_EB.append(k0_ids)
+        # Process p-log if available
+        # Indices for ks are number of reactions * k_idx + reaction index
+        elif rxn[i].type == 'P-log':
+            plog_ids = i
+            for idx, key in enumerate(rxn[i].plog_k):                
+                if key not in pressure_plog:
+                    pressure_plog.append(key)
+                # Adding multiple rates per single pressure functionality.
+                num_plog_k = len(rxn[i].plog_k[key])
+                for k in range(num_plog_k):
+                    ids_old.append(plog_ids)
+                    A.append(rxn[i].plog_k[key][k][0])
+                    beta.append(rxn[i].plog_k[key][k][1])
+                    E_R.append(rxn[i].plog_k[key][k][2])
+                    if beta[-1] == 0 and E_R[-1] == 0:
+                        ids_E0B0.append(plog_ids)
+                    elif beta[-1] == -2 and E_R[-1] == 0:
+                        ids_E0Bneg2.append(plog_ids)
+                    elif beta[-1] == -1 and E_R[-1] == 0:
+                        ids_E0Bneg1.append(plog_ids)
+                    elif beta[-1] == 1 and E_R[-1] == 0:
+                        ids_E0B1.append(plog_ids)
+                    elif beta[-1] == 2 and E_R[-1] == 0:
+                        ids_E0B2.append(plog_ids)
+                    else:
+                        match_found = False
+                        for j in range(len(ids_EB)):
+                            if beta[-1] == beta[ids_old.index(ids_EB[j])] and E_R[-1] == E_R[ids_old.index(ids_EB[j])]:
+                                ids_ErBr.append(plog_ids)
+                                pos_ids_ErBr.append(j)
+                                match_found = True
+                                break
+                        if not match_found:
+                            ids_EB.append(plog_ids)
+
+                    plog_ids += rxn_len 
 
     # Group repeated constants for better vectorization
     unique_pos_ids_ErBr = list(dict.fromkeys(pos_ids_ErBr))
@@ -782,7 +867,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
         return cg.get_code()
 
     # Correct k based on reaction type
-    ids_er_rxn, ids_3b_rxn, ids_pd_rxn, ids_troe_rxn, ids_sri_rxn = [], [], [], [], []
+    ids_er_rxn, ids_3b_rxn, ids_pd_rxn, ids_troe_rxn, ids_sri_rxn, ids_plog_rxn = [], [], [], [], [], []
     for i in range(rxn_len):
         if rxn[i].type == 'elementary' or rxn[i].type == 'reversible':
             ids_er_rxn.append(i)
@@ -794,6 +879,8 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             ids_troe_rxn.append(i)
         elif rxn[i].type == 'SRI':
             ids_sri_rxn.append(i)
+        elif rxn[i].type == 'P-log':
+            ids_plog_rxn.append(i)
         else:
             continue
 
@@ -812,6 +899,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 else:
                     cg_tb.add_line(
                         f"kf[{ids_new.index(i)}] *= Cm;", 1)
+            cg_tb.add_line("")
 
         # Pressure-dependent reactions
         cg_pd = CodeGenerator()
@@ -831,6 +919,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
                 cg_pd.add_line(
                     f"kf[{ids_new.index(rxn_len + i)}] /= "
                     f"(1+ kf[{ids_new.index(rxn_len + i)}]/(kf[{ids_new.index(i)}]+ CFLOAT_MIN));", 1)
+            cg_pd.add_line("")
 
         # Troe reactions
         cg_troe = CodeGenerator()
@@ -917,6 +1006,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             for i in ids_troe_rxn:
                 cg_troe.add_line(
                     f"kf[{ids_new.index(rxn_len + i)}] *= kf[{ids_new.index(i)}];", 1)
+            cg_troe.add_line("")
 
         # SRI reaction
         cg_sri = CodeGenerator()
@@ -978,9 +1068,115 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
             for i in ids_sri_rxn:
                 cg_sri.add_line(
                     f"kf[{ids_new.index(rxn_len + i)}]*= kf[{ids_new.index(i)}];", 1)
+            cg_sri.add_line("")
+
+        # P-log reaction
+        cg_plog = CodeGenerator()
+        if len(ids_plog_rxn) > 0:
+
+            def write_multiple_plog_rates_roll(p_idx, pressure, rxn_idx):
+                num_k = len(rxn[rxn_idx].plog_k[pressure])
+                if num_k == 1:
+                    return f"kf[{ids_new.index(p_idx)}]"
+                elif num_k > 1:
+                    kf_str = ""
+                    for k in range(num_k):  
+                        if k > 0:
+                            kf_str += " + "
+                        kf_str += f"kf[{ids_new.index(p_idx+k*rxn_len)}]"
+                    return kf_str
+
+            cg_plog.add_line("")
+            cg_plog.add_line(f"//Correct k for pressure-dependent Arrenhius (P-log) reactions", 1)
+
+            plog_vals_rxns = {}
+            lnplog_vals_rxns = {}
+            rcp_lnpdiff_vals_rxns = {}
+            lnplog_high_rxns = {}
+            lnplog_low_rxns  = {}
+
+            # Precomputing the values required in C++ kernels.
+            for i in ids_plog_rxn:
+                plog_vals = list(r[i].plog_k.keys())
+                lnplog_vals = list(map(math.log, plog_vals))
+                rcp_lnpdiff_vals = [1/(lnp2 - lnp1) for lnp1, lnp2 in zip(lnplog_vals[:-1], lnplog_vals[1:])]
+
+                plog_vals_rxns[i] = plog_vals
+                lnplog_vals_rxns[i] = lnplog_vals
+                rcp_lnpdiff_vals_rxns[i] = rcp_lnpdiff_vals
+                lnplog_low_rxns[i]  = min(lnplog_vals)
+                lnplog_high_rxns[i] = max(lnplog_vals)
+
+            for j1 in range(len(pressure_plog)):
+                # First nested loop is to treat pressures within range.
+                for j2 in range(1, len(pressure_plog)):
+                    if (j1 == (len(pressure_plog) - 1)):
+                        break
+                    count = 0
+                    rxn_count = 0
+                    for i in ids_plog_rxn:
+                        for plog_index in range(len(plog_vals_rxns[i]) - 1):
+                            p1, p2 = plog_vals_rxns[i][plog_index], plog_vals_rxns[i][plog_index+1]
+                            rcp_lnpdiff = rcp_lnpdiff_vals_rxns[i][plog_index]
+                            num_k_p1 = len(r[i].plog_k[p1])
+                            if plog_index == 0:
+                                prev_num_k = 0
+                            else:
+                                p1_prev = plog_vals_rxns[i][plog_index-1]
+                                prev_num_k += len(r[i].plog_k[p1_prev])
+                            if pressure_plog[j1] == p1 and pressure_plog[j2] == p2:
+                                if (j1 == 0 and j2 == 1) and count == 0:
+                                    cg_plog.add_line(f"if((P > {pressure_plog[j1]}) && (P <= {pressure_plog[j2]}))", 1)
+                                    cg_plog.add_line(f"{{", 1)
+                                    count+=1
+                                elif (j1 != 0 or j2 != 1) and count == 0:
+                                    cg_plog.add_line(f"}}", 1)
+                                    cg_plog.add_line(f"if ((P > {pressure_plog[j1]}) && "
+                                                     f"(P <= {pressure_plog[j2]})){{", 1)
+                                    count+=1
+
+                                p1_idx = rxn_len*prev_num_k + i 
+                                p2_idx = p1_idx + rxn_len*num_k_p1
+
+                                cg_plog.add_line(f"kf[{ids_new.index(i)}] = exp("
+                                                 f" log({write_multiple_plog_rates_roll(p1_idx, p1, i)}) + "
+                                                 f"( log({write_multiple_plog_rates_roll(p2_idx, p2, i)}) - "
+                                                 f"log({write_multiple_plog_rates_roll(p1_idx, p1, i)}) )*"
+                                                 f"(lnP - {f(lnplog_vals_rxns[i][plog_index])})*{f(rcp_lnpdiff)});", 2)
+                                break
+                        rxn_count+=1
+                                
+            cg_plog.add_line(f"}}", 1)
+            for j1 in range(len(pressure_plog)):
+                rxn_count = 0 
+                count_low  = 0
+                count_high = 0
+                # Now we treat pressures outside range.
+                for i in ids_plog_rxn:
+                    if math.log(pressure_plog[j1]) == lnplog_low_rxns[i]:
+                        if count_low == 0:
+                                cg_plog.add_line(f"if (P <= {pressure_plog[j1]}){{", 1)
+                                count_low=1
+                        p1_idx = i
+                        cg_plog.add_line(f"kf[{ids_new.index(i)}]"
+                                         f"= {write_multiple_plog_rates_roll(p1_idx, pressure_plog[j1], i)};", 2)
+                        
+                    elif math.log(pressure_plog[j1]) == lnplog_high_rxns[i]:
+                        num_plog_k_prev = sum(len(value) for value in list(rxn[i].plog_k.values())[:-1])
+                        if count_high == 0:
+                                cg_plog.add_line(f"if (P > {pressure_plog[j1]}){{", 1)
+                                count_high=1
+                        p2_idx = rxn_len*num_plog_k_prev + i 
+                        cg_plog.add_line(f"kf[{ids_new.index(i)}]"
+                                         f"= {write_multiple_plog_rates_roll(p2_idx, pressure_plog[j1], i)};", 2)
+                    
+                    rxn_count+=1
+                if count_low !=0 or count_high!=0:
+                    cg_plog.add_line(f"}}", 1)
 
         # Combine all reactions
-        reaction_corr = cg_tb.get_code()  + cg_pd.get_code() + cg_troe.get_code() + cg_sri.get_code()
+        reaction_corr = (cg_tb.get_code()  + cg_pd.get_code() + cg_troe.get_code() +
+                         cg_sri.get_code() + cg_plog.get_code())
         return reaction_corr
 
     # Reorder reactions back to original
@@ -1074,7 +1270,7 @@ def write_file_rates_roll(file_name, output_dir, align_width, target, sp_thermo,
     cg.add_line(f'#include <math.h>')
     cg.add_line(f'__KINETIX_DEVICE__ __KINETIX_INLINE__ void kinetix_species_rates'
                  f'(const cfloat lnT, const cfloat T, const cfloat T2, const cfloat T3, const cfloat T4,'
-                 f' const cfloat rcpT, const cfloat* Ci, cfloat* wdot) ')
+                 f' const cfloat rcpT, const cfloat P, const cfloat lnP, const cfloat* Ci, cfloat* wdot) ')
     cg.add_line(f'{{')
     cg.add_line(f"// Regrouping of rate constants to eliminate redundant operations", 1)
     var_str = ['A', 'beta', 'E_R']

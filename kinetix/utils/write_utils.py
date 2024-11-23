@@ -43,7 +43,8 @@ class CodeGenerator:
                                       .replace('+-', '-')
                                       .replace('exp(', '__KINETIX_EXP__(')
                                       .replace('pow(', '__KINETIX_POW__(')
-                                      .replace('log10(', '__KINETIX_LOG10__('))
+                                      .replace('log10(', '__KINETIX_LOG10__(')
+                                      .replace('log(', '__KINETIX_LOG__('))
             file.write(updated_content)
 
 
