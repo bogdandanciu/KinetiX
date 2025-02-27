@@ -82,6 +82,25 @@ mpirun -np 1 ${KINETIX_PATH}/bin/kinetix_bk --backend CUDA --n-states 1000000 --
 Check the `examples/` directory to see how the generated routines by KinetiX (or [PelePhysics](https://github.com/AMReX-Combustion/PelePhysics) or [Cantera](https://github.com/Cantera/cantera)) 
 can be integrated in a simple MPI program without OCCA dependency (CPU only).
 
+## Citing KinetiX
+To cite KinetiX, please use this [Computer Physics Communications](https://doi.org/10.1016/j.cpc.2025.109504) article:
+
+```
+@article{Danciu2025,
+  title = {KinetiX: A performance portable code generator for chemical kinetics and transport properties},
+  volume = {310},
+  ISSN = {0010-4655},
+  url = {http://dx.doi.org/10.1016/j.cpc.2025.109504},
+  DOI = {10.1016/j.cpc.2025.109504},
+  journal = {Computer Physics Communications},
+  publisher = {Elsevier BV},
+  author = {Danciu,  Bogdan A. and Frouzakis,  Christos E.},
+  year = {2025},
+  month = may,
+  pages = {109504}
+}
+```
+
 ## License
 
 KinetiX is licensed under the BSD-2 Clause License - see the [LICENSE](LICENSE) file for details.
